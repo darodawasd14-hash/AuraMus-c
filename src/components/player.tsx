@@ -81,6 +81,7 @@ const UrlPlayer = ({ song, onEnded, isPlaying }: { song: Song; onEnded: () => vo
       ref={audioRef}
       onEnded={onEnded}
       key={song.id}
+      src={song.url}
       className="w-full"
       controls={false}
     />

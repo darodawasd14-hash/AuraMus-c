@@ -38,6 +38,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const youtubePlayerRef = useRef<any>(null);
   const soundcloudPlayerRef = useRef<any>(null);
+  const urlPlayerRef = useRef<HTMLAudioElement>(null);
 
 
   const resetPlayer = () => {
@@ -48,6 +49,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const soundcloudPlayer = soundcloudPlayerRef.current;
     if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
       soundcloudPlayer.pause();
+    }
+    if (urlPlayerRef.current) {
+      urlPlayerRef.current.pause();
     }
     setIsPlaying(false);
   };
@@ -250,6 +254,22 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       } else {
           soundcloudPlayer.pause();
       }
+  }, [isPlaying, currentIndex, playlist]);
+
+  // URL Oynatıcı Kontrolü
+  useEffect(() => {
+    const urlPlayer = urlPlayerRef.current;
+    const song = playlist[currentIndex];
+    
+    if (!song || song.type !== 'url' || !urlPlayer) {
+      return;
+    }
+    
+    if (isPlaying) {
+      urlPlayer.play().catch(e => console.error("Ses çalma başarısız:", e));
+    } else {
+      urlPlayer.pause();
+    }
   }, [isPlaying, currentIndex, playlist]);
 
 
