@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { useToast } from '@/hooks/use-toast';
 import { addDoc, collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import catalog from '@/app/lib/catalog.json';
+import initialCatalog from '@/app/lib/catalog.json';
 
 export interface Song {
   id: string;
@@ -100,7 +100,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (firestore && user && !isPlaylistLoading && dataLoadedRef.current === false && userPlaylist?.length === 0) {
         dataLoadedRef.current = true; // Sadece bir kere çalışsın
-        const initialSongs = catalog.songs;
+        const initialSongs = initialCatalog.songs;
         
         const addInitialSongs = async () => {
             for (const song of initialSongs) {
@@ -210,18 +210,18 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
     try {
       const songDetails = await getSongDetails(url, userId);
-
-      const songData: Omit<Song, 'id'> = {
+  
+      // Prepare the data once, ensuring no undefined fields
+      const songData: Omit<Song, 'id'> & { videoId?: string } = {
         title: songDetails.title,
         url: songDetails.url,
         type: songDetails.type,
         userId: songDetails.userId,
         timestamp: songDetails.timestamp,
-        ...(songDetails.videoId && { videoId: songDetails.videoId }),
       };
-      
-      // Remove undefined fields to prevent Firestore errors
-      Object.keys(songData).forEach(key => (songData as any)[key] === undefined && delete (songData as any)[key]);
+      if (songDetails.videoId) {
+        songData.videoId = songDetails.videoId;
+      }
   
       const songsColRef = collection(firestore, 'songs');
       const q = query(
@@ -233,11 +233,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
-        await addDoc(songsColRef, songData);
+        await addDoc(songsColRef, songData); // Add to the main catalog
       }
       
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-      await addDoc(userPlaylistRef, songData);
+      await addDoc(userPlaylistRef, songData); // Add to the user's playlist
   
       toast({ title: "Şarkı eklendi!" });
   
@@ -331,10 +331,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
     
     if (isPlaying) {
-      youtubePlayer.setVolume(100);
-      youtubePlayer.playVideo();
+      if (typeof youtubePlayer.setVolume === 'function') {
+        youtubePlayer.setVolume(100);
+      }
+      if (typeof youtubePlayer.playVideo === 'function') {
+        youtubePlayer.playVideo();
+      }
     } else {
-      youtubePlayer.pauseVideo();
+      if (typeof youtubePlayer.pauseVideo === 'function') {
+        youtubePlayer.pauseVideo();
+      }
     }
   }, [isPlaying, currentIndex, playlist]);
 
