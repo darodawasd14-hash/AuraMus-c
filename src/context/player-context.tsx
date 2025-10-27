@@ -3,7 +3,9 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
+import initialSongs from '@/app/lib/catalog.json';
+
 
 export interface Song {
   id: string;
@@ -36,6 +38,7 @@ const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
@@ -44,8 +47,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const youtubePlayerRef = useRef<any>(null);
   const soundcloudPlayerRef = useRef<any>(null);
   const urlPlayerRef = useRef<HTMLAudioElement>(null);
-
-
+  
   const resetPlayer = () => {
     const youtubePlayer = youtubePlayerRef.current;
     if (youtubePlayer && typeof youtubePlayer.stopVideo === 'function') {
@@ -160,6 +162,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       // Save to global songs collection
       if (firestore) {
         const songsCol = collection(firestore, 'songs');
+        // We only save the core details to Firestore, not the temporary local ID.
         await addDoc(songsCol, songDetails);
       }
 
@@ -287,7 +290,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       if (isPlaying) {
           soundcloudPlayer.play();
       } else {
+         if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
           soundcloudPlayer.pause();
+        }
       }
   }, [isPlaying, currentIndex, playlist]);
 
