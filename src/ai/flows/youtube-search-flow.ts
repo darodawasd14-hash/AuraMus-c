@@ -12,6 +12,10 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { google } from 'googleapis';
 
+if (!process.env.YOUTUBE_API_KEY) {
+  throw new Error("YOUTUBE_API_KEY ortam değişkeni ayarlanmamış. Lütfen .env dosyanızı kontrol edin.");
+}
+
 // YouTube API'sini başlatma
 const youtube = google.youtube({
   version: 'v3',
@@ -22,7 +26,7 @@ const youtube = google.youtube({
 const youtubeSearchTool = ai.defineTool(
   {
     name: 'youtubeSearchTool',
-    description: 'Bir sorguya göre YouTube\'da müzik videoları arar.',
+    description: "Bir sorguya göre YouTube'da müzik videoları arar.",
     inputSchema: z.object({ query: z.string() }),
     outputSchema: z.object({
       videos: z.array(
@@ -72,7 +76,7 @@ const SongSuggestionSchema = z.object({
   videoId: z
     .string()
     .describe(
-      'YouTube video ID\'si. Bu geçerli bir YouTube video ID\'si olmalıdır.'
+      "YouTube video ID'si. Bu geçerli bir YouTube video ID'si olmalıdır."
     ),
   title: z.string().describe('Şarkının başlığı.'),
   thumbnailUrl: z.string().url().describe('Video küçük resminin URL\'si.'),
@@ -120,6 +124,11 @@ const youtubeSearchFlow = ai.defineFlow(
     }
 
     const toolResponse = response.toolRequests[0];
+    if (!toolResponse) {
+       console.error("Tool response tanımsız geldi.");
+       return { songs: [] };
+    }
+    
     const toolOutput = (await toolResponse.run()) as z.infer<typeof youtubeSearchTool.outputSchema>;
     
     // Aracın çıktısını doğru formata dönüştür
