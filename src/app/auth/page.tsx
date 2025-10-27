@@ -54,7 +54,8 @@ export default function AuthPage() {
       setError(friendlyMessage);
       
       // Sadece beklenen kullanıcı hataları dışında konsola yazdır
-      if (err.code !== 'auth/invalid-credential' && err.code !== 'auth/user-not-found' && err.code !== 'auth/wrong-password') {
+      const expectedErrors = ['auth/invalid-credential', 'auth/user-not-found', 'auth/wrong-password', 'auth/email-already-in-use'];
+      if (!expectedErrors.includes(err.code)) {
         console.error(err);
       }
     } finally {
