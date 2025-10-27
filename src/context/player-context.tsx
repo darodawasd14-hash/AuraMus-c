@@ -192,8 +192,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive'});
       return;
     }
+
+    // Create a clean copy to avoid modifying the original object
+    const songToAdd = { ...song };
+
+    // Remove undefined videoId before sending to Firestore
+    if (songToAdd.videoId === undefined) {
+      delete songToAdd.videoId;
+    }
+
     const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-    await addDoc(userPlaylistRef, song);
+    await addDoc(userPlaylistRef, songToAdd);
     toast({ title: `"${song.title}" listenize eklendi!` });
   }
 
@@ -206,9 +215,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     try {
       const songDetails = await getSongDetails(url, userId);
   
-      // --- AKILLI EKLEME MANTIĞI BAŞLANGICI ---
+      // Create a clean copy for Firestore
+      const songData: Omit<Song, 'id'> = {
+        ...songDetails
+      };
+
+      // Ensure videoId is not undefined
+      if (songData.videoId === undefined) {
+        delete (songData as Partial<typeof songData>).videoId;
+      }
       
-      // 1. Önce ortak katalogda şarkının var olup olmadığını kontrol et.
       const songsColRef = collection(firestore, 'songs');
       const q = query(
         songsColRef, 
@@ -218,16 +234,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       
       const querySnapshot = await getDocs(q);
       
-      // 2. Eğer şarkı ortak katalogda yoksa, oraya ekle.
       if (querySnapshot.empty) {
-        await addDoc(songsColRef, songDetails);
+        await addDoc(songsColRef, songData);
       }
       
-      // 3. Her durumda (şarkı katalogda olsun veya olmasın), kullanıcının kişisel listesine ekle.
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-      await addDoc(userPlaylistRef, songDetails);
-  
-      // --- AKILLI EKLEME MANTIĞI SONU ---
+      await addDoc(userPlaylistRef, songData);
   
       toast({ title: "Şarkı eklendi!" });
   
@@ -407,3 +419,5 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
+
+    
