@@ -8,13 +8,6 @@ import { z } from 'genkit';
 import { getAuth } from 'firebase-admin/auth';
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 
-// When running in a serverless environment (like Genkit flows),
-// Firebase Admin SDK can be initialized without explicit credentials.
-// It automatically discovers service account credentials if available.
-if (getApps().length === 0) {
-  initializeApp();
-}
-
 const SetAdminClaimInputSchema = z.object({
   email: z.string().email().describe('The email address of the user to make an admin.'),
 });
@@ -38,6 +31,13 @@ const setAdminClaimFlow = ai.defineFlow(
     outputSchema: SetAdminClaimOutputSchema,
   },
   async (input) => {
+    // When running in a serverless environment (like Genkit flows),
+    // Firebase Admin SDK can be initialized without explicit credentials.
+    // It automatically discovers service account credentials if available.
+    if (getApps().length === 0) {
+      initializeApp();
+    }
+
     try {
       const auth = getAuth();
       const user = await auth.getUserByEmail(input.email);
