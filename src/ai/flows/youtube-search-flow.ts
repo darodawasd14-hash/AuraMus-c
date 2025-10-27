@@ -12,6 +12,10 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { google } from 'googleapis';
 
+// YouTube API anahtarını doğrudan koda ekliyoruz.
+// Bu dosya sunucu tarafında çalıştığı için ('use server') bu işlem güvenlidir.
+const YOUTUBE_API_KEY = "AIzaSyAXua69v9V1KgttqLR27d7HjPTs6O7-HyA";
+
 // Kendi YouTube arama aracımızı tanımlıyoruz
 const youtubeSearchTool = ai.defineTool(
   {
@@ -29,19 +33,19 @@ const youtubeSearchTool = ai.defineTool(
     }),
   },
   async ({ query }) => {
-    // GÜVENLİK KİLİDİ: API anahtarı yoksa, istek gönderme ve boş dön.
-    if (!process.env.YOUTUBE_API_KEY) {
-      console.warn("YOUTUBE_API_KEY ortam değişkeni ayarlanmamış. Arama aracı atlanıyor.");
+    // GÜVENLİK KİLİDİ: API anahtarı boşsa, istek gönderme ve boş dön.
+    if (!YOUTUBE_API_KEY) {
+      console.warn("YOUTUBE_API_KEY sabiti ayarlanmamış. Arama aracı atlanıyor.");
       return { videos: [] };
     }
     
     // TEŞHİS ADIMI: Kullanılan API anahtarını konsola yazdır
-    console.log("Kullanılan API Anahtarı (ilk 5 karakter):", process.env.YOUTUBE_API_KEY.substring(0, 5));
+    console.log("Kullanılan API Anahtarı (ilk 5 karakter):", YOUTUBE_API_KEY.substring(0, 5));
 
     // YouTube API'sini başlatma
     const youtube = google.youtube({
       version: 'v3',
-      auth: process.env.YOUTUBE_API_KEY,
+      auth: YOUTUBE_API_KEY,
     });
     
     try {
