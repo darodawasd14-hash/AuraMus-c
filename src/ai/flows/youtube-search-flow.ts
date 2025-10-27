@@ -12,8 +12,8 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { google } from 'googleapis';
 
-// YouTube API anahtarını doğrudan koda ekliyoruz.
-// Bu dosya sunucu tarafında çalıştığı için ('use server') bu işlem güvenlidir.
+// API ANAHTARINI GÜVENLİ BİR ŞEKİLDE DOĞRUDAN KODA EKLİYORUZ.
+// Bu dosya 'use server' olarak işaretlendiği için anahtar istemciye sızdırılmaz.
 const YOUTUBE_API_KEY = "AIzaSyAXua69v9V1KgttqLR27d7HjPTs6O7-HyA";
 
 // Kendi YouTube arama aracımızı tanımlıyoruz
@@ -104,11 +104,12 @@ export async function searchYoutube(
   return youtubeSearchFlow(input);
 }
 
+// BU PROMPT ARTIK KULLANILMIYOR AMA İLERİDE BAŞVURMAK İÇİN BIRAKILABİLİR.
 const prompt = ai.definePrompt({
   name: 'youtubeSearchPrompt',
   input: { schema: YouTubeSearchInputSchema },
   output: { schema: YouTubeSearchOutputSchema },
-  tools: [youtubeSearchTool], // Oluşturduğumuz gerçek aracı kullanıyoruz
+  tools: [youtubeSearchTool],
   prompt: `Sen uzman bir YouTube müzik arama motorusun. 
   Kullanıcının sorgusuyla ilgili şarkıları bulmak için youtubeSearchTool'u kullan.
 
@@ -124,39 +125,23 @@ const youtubeSearchFlow = ai.defineFlow(
     outputSchema: YouTubeSearchOutputSchema,
   },
   async input => {
-    // LLM'in prompt'u işlemesini sağla
-    const llmResponse = await prompt(input);
-    
-    // LLM bir araç kullanmaya karar vermediyse, boş bir sonuç döndür.
-    if (!llmResponse.toolRequests || llmResponse.toolRequests.length === 0) {
-      console.log("LLM, arama aracı kullanmaya gerek duymadı.");
-      return { songs: [] };
-    }
+    // ** DEĞİŞİKLİK: LLM'i atlayıp doğrudan arama aracını çağırıyoruz. **
+    try {
+      const toolOutput = await youtubeSearchTool(input);
 
-    // AI, araç kullanımını istedi, şimdi aracı çalıştıracağız.
-    // Bizim durumumuzda sadece bir araç olduğu için, ilkini alıyoruz.
-    const toolRequest = llmResponse.toolRequests[0];
-    if (!toolRequest) {
-      console.error("Tool request tanımsız geldi ama LLM bir araç kullanmak istedi.");
-      return { songs: [] };
+      // Aracın çıktısını Flow'un beklediği çıktı formatına dönüştür.
+      return {
+        songs: toolOutput.videos.map(video => ({
+          videoId: video.videoId,
+          title: video.title,
+          thumbnailUrl: video.thumbnailUrl,
+        })),
+      };
+    } catch (error: any) {
+       // Araç bir hata fırlatırsa (API hatası gibi), bunu yakala ve yeniden fırlat.
+       // Bu, hatanın UI'a düzgün bir şekilde iletilmesini sağlar.
+       console.error("youtubeSearchFlow içinde hata yakalandı:", error);
+       throw error;
     }
-
-    // İsteğin doğru araç için olduğunu doğrula (sağlamlık için)
-    if (toolRequest.toolName !== 'youtubeSearchTool') {
-       console.warn(`Beklenmedik araç isteği: ${toolRequest.toolName}`);
-       return { songs: [] };
-    }
-    
-    // Aracı çalıştır ve çıktısını al
-    const toolOutput = (await toolRequest.run()) as z.infer<typeof youtubeSearchTool.outputSchema>;
-    
-    // Aracın çıktısını doğru formata dönüştür
-    return {
-      songs: toolOutput.videos.map(video => ({
-        videoId: video.videoId,
-        title: video.title,
-        thumbnailUrl: video.thumbnailUrl,
-      })),
-    };
   }
 );
