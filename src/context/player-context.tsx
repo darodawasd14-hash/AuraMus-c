@@ -241,7 +241,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const youtubePlayer = youtubePlayerRef.current;
     const song = playlist[currentIndex];
 
-    if (!song || song.type !== 'youtube' || !youtubePlayer) return;
+    // Ensure the player is valid and ready for commands.
+    if (!song || song.type !== 'youtube' || !youtubePlayer || typeof youtubePlayer.playVideo !== 'function') {
+      return;
+    }
     
     if (isPlaying) {
       youtubePlayer.setVolume(100);
