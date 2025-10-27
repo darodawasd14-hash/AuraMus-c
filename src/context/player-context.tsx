@@ -68,10 +68,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           serverPlaylist.push({ id: doc.id, ...doc.data() } as Song);
         });
 
-        // Check against the PREVIOUS state of the playlist to see if the current song was removed
         setPlaylist((prevPlaylist) => {
-          if (currentIndex >= 0 && !serverPlaylist.find(song => song.id === prevPlaylist[currentIndex]?.id)) {
+          const currentSongId = prevPlaylist[currentIndex]?.id;
+          const newCurrentIndex = serverPlaylist.findIndex(song => song.id === currentSongId);
+
+          if (currentIndex !== -1 && newCurrentIndex === -1) {
+            // The currently playing song was deleted
             resetPlayer();
+          } else {
+            setCurrentIndex(newCurrentIndex);
           }
           return serverPlaylist;
         });
@@ -89,9 +94,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     );
 
     return () => unsubscribe();
-    // The dependency array should ONLY contain songsCollectionRef.
-    // The onSnapshot listener handles all updates to the playlist data.
-    // Including `playlist` or `currentIndex` here will cause an infinite loop.
   }, [songsCollectionRef]);
 
   const extractYouTubeID = (url: string): string | null => {
@@ -154,7 +156,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
                 requestResourceData: fullSongData,
             });
             errorEmitter.emit('permission-error', permissionError);
-            toast({ title: 'Error adding song.', variant: 'destructive' });
         });
 
     } catch (error: any) {
@@ -177,7 +178,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
               operation: 'delete',
           });
           errorEmitter.emit('permission-error', permissionError);
-          toast({ title: 'Error deleting song.', variant: 'destructive' });
       });
   };
   
@@ -188,17 +188,22 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
-      setCurrentIndex(index);
-      setIsPlaying(true);
+      // Only change the song, don't auto-play
+      if (index !== currentIndex) {
+        setCurrentIndex(index);
+        setIsPlaying(false); // Ensure it's paused until user action
+      }
     } else {
       resetPlayer();
     }
-  }, [playlist.length]);
+  }, [playlist.length, currentIndex]);
 
   const togglePlayPause = () => {
+    // If no song is selected, play the first one. Otherwise, toggle play/pause for the current song.
     if(currentIndex === -1 && playlist.length > 0) {
-      playSong(0);
-    } else {
+      setCurrentIndex(0);
+      setIsPlaying(true);
+    } else if (currentIndex !== -1) {
       setIsPlaying(prev => !prev);
     }
   };
@@ -206,13 +211,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
-    playSong(nextIndex);
-  }, [currentIndex, playlist.length, playSong]);
+    setCurrentIndex(nextIndex);
+    setIsPlaying(true); // Auto-play the next song
+  }, [currentIndex, playlist.length]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
     const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-    playSong(prevIndex);
+    setCurrentIndex(prevIndex);
+    setIsPlaying(true); // Auto-play the previous song
   };
   
   const currentSong = currentIndex !== -1 ? playlist[currentIndex] : null;
