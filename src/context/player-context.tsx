@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 
 export interface Song {
   id: string;
@@ -9,6 +11,8 @@ export interface Song {
   url: string;
   type: 'youtube' | 'soundcloud' | 'url';
   videoId?: string;
+  userId?: string;
+  timestamp?: any;
 }
 
 type PlayerContextType = {
@@ -17,7 +21,7 @@ type PlayerContextType = {
   currentIndex: number;
   isPlaying: boolean;
   isLoading: boolean;
-  addSong: (url: string) => Promise<void>;
+  addSong: (url: string, userId: string) => Promise<void>;
   deleteSong: (songId: string) => Promise<void>;
   playSong: (index: number) => void;
   togglePlayPause: () => void;
@@ -31,6 +35,7 @@ const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
+  const firestore = useFirestore();
 
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
@@ -75,7 +80,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     return match ? match[1] : null;
   };
 
-  const getSongDetails = async (url: string): Promise<Omit<Song, 'id'>> => {
+  const getSongDetails = async (url: string, userId: string): Promise<Omit<Song, 'id'>> => {
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       const videoId = extractYouTubeID(url);
       if (!videoId) throw new Error("Geçersiz YouTube linki.");
@@ -92,14 +97,18 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           title: data.title || `YouTube: ${videoId}`,
           url: canonicalYouTubeUrl,
           type: 'youtube',
-          videoId: videoId
+          videoId: videoId,
+          userId: userId,
+          timestamp: serverTimestamp(),
         };
       } catch (e) {
          return {
             title: `YouTube: ${videoId}`,
             url: canonicalYouTubeUrl,
             type: 'youtube',
-            videoId: videoId
+            videoId: videoId,
+            userId: userId,
+            timestamp: serverTimestamp(),
         };
       }
 
@@ -116,13 +125,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         return {
           title: data.title,
           url: cleanUrl,
-          type: 'soundcloud'
+          type: 'soundcloud',
+          userId: userId,
+          timestamp: serverTimestamp(),
         };
       } catch(e) {
          return {
             title: "SoundCloud Şarkısı",
             url: cleanUrl,
-            type: 'soundcloud'
+            type: 'soundcloud',
+            userId: userId,
+            timestamp: serverTimestamp(),
         };
       }
 
@@ -131,19 +144,28 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         return {
           title: fileName.replace(/\.[^/.]+$/, ""),
           url: url,
-          type: 'url'
+          type: 'url',
+          userId: userId,
+          timestamp: serverTimestamp(),
         };
     } else {
       throw new Error("Desteklenmeyen link türü. Lütfen YouTube, SoundCloud veya doğrudan ses linki kullanın.");
     }
   };
 
-  const addSong = async (url: string) => {
+  const addSong = async (url: string, userId: string) => {
     try {
-      const songDetails = await getSongDetails(url);
+      const songDetails = await getSongDetails(url, userId);
+      
+      // Save to global songs collection
+      if (firestore) {
+        const songsCol = collection(firestore, 'songs');
+        await addDoc(songsCol, songDetails);
+      }
+
       const newSong = {
         ...songDetails,
-        id: new Date().toISOString(),
+        id: new Date().toISOString(), // Use a temporary ID for local state
       };
       
       setPlaylist(prevPlaylist => {

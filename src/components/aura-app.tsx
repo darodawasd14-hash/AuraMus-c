@@ -1,11 +1,11 @@
 'use client';
-import React, { useState, useEffect, FormEvent } from 'react';
+import React, { useState, useEffect, FormEvent, useMemo } from 'react';
 import { usePlayer, type Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search } from '@/components/icons';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut, updateProfile } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase/provider';
@@ -13,7 +13,7 @@ import { Loader2 } from 'lucide-react';
 import { ChatPane } from '@/components/chat-pane';
 import { searchYoutube, type YouTubeSearchOutput } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
-import catalogData from '@/app/lib/catalog.json';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
 
 const appId = 'Aura';
 
@@ -21,16 +21,8 @@ interface UserProfile {
   displayName?: string;
 }
 
-interface CatalogSong {
-  id: string;
-  title: string;
-  artist: string;
-  url: string;
-  thumbnailUrl: string;
-}
-
 export function AuraApp() {
-  const { playlist, currentIndex, isPlaying, playSong, addSong, deleteSong, togglePlayPause, playNext, playPrev, isLoading } = usePlayer();
+  const { playlist, currentIndex, isPlaying, playSong, addSong, deleteSong, togglePlayPause, playNext, playPrev, isLoading: isPlayerLoading } = usePlayer();
   const [songUrl, setSongUrl] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [view, setView] = useState<'player' | 'catalog' | 'search'>('player');
@@ -43,12 +35,11 @@ export function AuraApp() {
     }
   }, [user]);
 
-
   const handleAddSong = async (e: FormEvent) => {
     e.preventDefault();
-    if (!songUrl) return;
+    if (!songUrl || !user) return;
     setIsAdding(true);
-    await addSong(songUrl);
+    await addSong(songUrl, user.uid);
     setSongUrl('');
     setIsAdding(false);
   };
@@ -101,7 +92,7 @@ export function AuraApp() {
                   </Button>
                 </form>
                 <div id="playlist-container" className="flex-grow overflow-y-auto space-y-2 pr-2 -mr-2">
-                  {isLoading ? (
+                  {isPlayerLoading ? (
                      <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
                   ) : playlist.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
@@ -198,46 +189,100 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
 
 const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'search') => void }) => {
   const { addSong } = usePlayer();
+  const { user } = useUser();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const [isAdding, setIsAdding] = useState<string | null>(null);
 
-  const handleAddFromCatalog = async (song: CatalogSong) => {
+  const songsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'songs'), orderBy('timestamp', 'desc'), limit(50));
+  }, [firestore]);
+
+  const { data: catalogSongs, isLoading, error } = useCollection<Song>(songsQuery);
+
+  const handleAddFromCatalog = async (song: Song) => {
+    if (!user) {
+      toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
+      return;
+    }
     setIsAdding(song.id);
     toast({ title: `"${song.title}" ekleniyor...` });
-    await addSong(song.url);
+    // We pass the full URL to addSong, which will re-process it.
+    // This is because the song object from the catalog might not have all fresh details (like videoId).
+    await addSong(song.url, user.uid);
     setIsAdding(null);
     setView('player');
   };
+
+  const getThumbnailUrl = (song: Song) => {
+    if (song.type === 'youtube' && song.videoId) {
+      return `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
+    }
+    // You can add a default or other placeholder images for other types
+    return 'https://picsum.photos/seed/1/168/94';
+  }
 
   return (
     <div id="catalog-view" className="p-4 md:p-8 h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto space-y-8" id="catalog-content">
         <h2 className="text-3xl font-bold tracking-tight">Müzik Kataloğu</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {catalogData.songs.map((song) => (
-            <div key={song.id} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3">
-              <Image
-                src={song.thumbnailUrl}
-                alt={song.title}
-                width={168}
-                height={94}
-                className="rounded-md aspect-video object-cover w-full"
-              />
-              <div className="flex-grow">
-                <p className="font-semibold truncate leading-tight" title={song.title}>{song.title}</p>
-                <p className="text-sm text-muted-foreground truncate" title={song.artist}>{song.artist}</p>
+        
+        {isLoading && (
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+             {Array.from({ length: 8 }).map((_, index) => (
+               <div key={index} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3 animate-pulse">
+                 <div className="aspect-video bg-muted rounded-md"></div>
+                 <div className="h-4 bg-muted rounded w-3/4"></div>
+                 <div className="h-3 bg-muted rounded w-1/2"></div>
+                 <div className="h-8 bg-muted rounded mt-2"></div>
+               </div>
+             ))}
+           </div>
+        )}
+
+        {!isLoading && !error && catalogSongs && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {catalogSongs.map((song) => (
+              <div key={song.id} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3">
+                <Image
+                  src={getThumbnailUrl(song)}
+                  alt={song.title}
+                  width={168}
+                  height={94}
+                  className="rounded-md aspect-video object-cover w-full"
+                />
+                <div className="flex-grow">
+                  <p className="font-semibold truncate leading-tight" title={song.title}>{song.title}</p>
+                  <p className="text-sm text-muted-foreground truncate">{song.type}</p>
+                </div>
+                <Button
+                  className="w-full mt-2"
+                  size="sm"
+                  onClick={() => handleAddFromCatalog(song)}
+                  disabled={isAdding === song.id}
+                >
+                  {isAdding === song.id ? <Loader2 className="animate-spin" /> : "Aura'ya Ekle"}
+                </Button>
               </div>
-              <Button
-                className="w-full mt-2"
-                size="sm"
-                onClick={() => handleAddFromCatalog(song)}
-                disabled={isAdding === song.id}
-              >
-                {isAdding === song.id ? <Loader2 className="animate-spin" /> : "Aura'ya Ekle"}
-              </Button>
+            ))}
+          </div>
+        )}
+
+        {error && (
+            <div className="text-center py-10 text-red-400">
+                <p>Katalog yüklenirken bir hata oluştu.</p>
+                <p className="text-sm text-muted-foreground">{error.message}</p>
             </div>
-          ))}
-        </div>
+        )}
+
+        {!isLoading && catalogSongs?.length === 0 && (
+             <div className="text-center py-10 text-muted-foreground">
+                <Music className="w-16 h-16 mx-auto mb-4"/>
+                <p className="font-semibold">Katalogda henüz şarkı yok.</p>
+                <p>İlk şarkıyı ekleyen sen ol!</p>
+            </div>
+        )}
       </div>
     </div>
   );
@@ -281,7 +326,7 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
     setIsAdding(videoId);
     const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
     toast({ title: `"${title}" ekleniyor...` });
-    await addSong(youtubeUrl);
+    await addSong(youtubeUrl, user.uid);
     setIsAdding(null);
     setView('player');
   };
@@ -305,7 +350,7 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
 
         {isSearching && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {Array.from({ length: 12 }).map((_, index) => (
+            {Array.from({ length: 16 }).map((_, index) => (
               <div key={index} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3 animate-pulse">
                 <div className="aspect-video bg-muted rounded-md"></div>
                 <div className="h-4 bg-muted rounded w-3/4"></div>

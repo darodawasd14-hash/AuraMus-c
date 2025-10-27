@@ -56,9 +56,11 @@
         }
       },
       "required": [
-        "id",
         "userId",
-        "title"
+        "title",
+        "url",
+        "type",
+        "timestamp"
       ]
     }
   },
@@ -81,13 +83,13 @@
         }
       },
       {
-        "path": "/users/{userId}/songs/{songId}",
+        "path": "/songs/{songId}",
         "definition": {
           "entityName": "Song",
           "schema": {
             "$ref": "#/backend/entities/Song"
           },
-          "description": "Stores songs owned by the user. Uses path-based ownership for simplified security rules."
+          "description": "Stores all songs added by any user, forming a global catalog."
         }
       }
     ]
