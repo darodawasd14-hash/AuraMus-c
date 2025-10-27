@@ -210,16 +210,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlaying(newIsPlaying);
   
     const song = playlist[currentIndex];
-    if (youtubePlayer && typeof youtubePlayer.playVideo === 'function' && song?.type === 'youtube') {
-      if (newIsPlaying) {
-        youtubePlayer.playVideo();
-      } else {
-        youtubePlayer.pauseVideo();
+    if (song?.type === 'youtube' && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
+        if (newIsPlaying) {
+          youtubePlayer.playVideo();
+        } else {
+          youtubePlayer.pauseVideo();
+        }
       }
-    }
+    // SoundCloud is handled by its own component's useEffect
   };
   
-  const playSong = useCallback((index: number) => {
+  const playSong = (index: number) => {
     if (index >= 0 && index < playlist.length) {
       if (currentIndex !== index) {
         setCurrentIndex(index);
@@ -231,20 +232,18 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     } else {
       resetPlayer();
     }
-  }, [playlist, currentIndex, togglePlayPause]);
+  };
 
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
-    setCurrentIndex(nextIndex);
-    setIsPlaying(true);
-  }, [currentIndex, playlist.length]);
+    playSong(nextIndex);
+  }, [currentIndex, playlist.length, playSong]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
     const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-    setCurrentIndex(prevIndex);
-    setIsPlaying(true);
+    playSong(prevIndex);
   };
   
   const handleSetVolume = (newVolume: number) => {

@@ -9,38 +9,50 @@ type PlayerProps = {
   song: Song | null;
 };
 
-const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: boolean; volume: number; }) => {
+const SoundCloudPlayer = ({ song, isPlaying, volume, onEnded }: { song: Song; isPlaying: boolean; volume: number; onEnded: () => void; }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const widgetRef = useRef<any>(null);
+  const isReadyRef = useRef(false);
 
   useEffect(() => {
     if (iframeRef.current) {
       const widget = (window as any).SC.Widget(iframeRef.current);
       widgetRef.current = widget;
-      widget.bind((window as any).SC.Widget.Events.READY, () => {
-        if (widgetRef.current && typeof widgetRef.current.setVolume === 'function') {
-          widgetRef.current.setVolume(volume);
-          if (isPlaying) {
-            widgetRef.current.play();
-          } else {
-            widgetRef.current.pause();
-          }
+      
+      const onReady = () => {
+        isReadyRef.current = true;
+        if (widgetRef.current) {
+            widgetRef.current.setVolume(volume / 100);
+            if (isPlaying) {
+              widgetRef.current.play();
+            }
+            // Clear previous event listeners before binding new ones
+            widgetRef.current.unbind((window as any).SC.Widget.Events.FINISH);
+            widgetRef.current.bind((window as any).SC.Widget.Events.FINISH, () => {
+              onEnded();
+            });
         }
-      });
-      widget.bind((window as any).SC.Widget.Events.FINISH, () => {
-        // In a real app, you'd call playNext() here through the context.
-      });
+      };
+
+      widget.bind((window as any).SC.Widget.Events.READY, onReady);
+
+      return () => {
+        if (widgetRef.current) {
+          widgetRef.current.unbind((window as any).SC.Widget.Events.READY);
+          widgetRef.current.unbind((window as any).SC.Widget.Events.FINISH);
+        }
+      }
     }
-  }, [song.id]);
+  }, [song.id, volume, isPlaying, onEnded]);
 
   useEffect(() => {
-    if (widgetRef.current && typeof widgetRef.current.setVolume === 'function') {
-        widgetRef.current.setVolume(volume);
+    if (widgetRef.current && isReadyRef.current && typeof widgetRef.current.setVolume === 'function') {
+        widgetRef.current.setVolume(volume / 100);
     }
   }, [volume]);
 
   useEffect(() => {
-    if (widgetRef.current && typeof widgetRef.current.play === 'function' && typeof widgetRef.current.pause === 'function') {
+    if (widgetRef.current && isReadyRef.current && typeof widgetRef.current.play === 'function' && typeof widgetRef.current.pause === 'function') {
       if (isPlaying) {
         widgetRef.current.play();
       } else {
@@ -58,7 +70,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
       scrolling="no"
       frameBorder="no"
       allow="autoplay"
-      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=${isPlaying}&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
+      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=false&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
     ></iframe>
   );
 };
@@ -66,11 +78,20 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
 export function Player({ song }: PlayerProps) {
   const { isPlaying, playNext, setYoutubePlayer, volume } = usePlayer();
 
+  const youtubePlayerRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (youtubePlayerRef.current && typeof youtubePlayerRef.current.setVolume === 'function') {
+      youtubePlayerRef.current.setVolume(volume);
+    }
+  }, [volume]);
+
   const onReady = (event: any) => {
+    youtubePlayerRef.current = event.target;
     setYoutubePlayer(event.target);
-    // Ensure setVolume is available before calling it, and only call it when ready.
-    if (event.target && typeof event.target.setVolume === 'function') {
-        event.target.setVolume(volume);
+    event.target.setVolume(volume);
+    if(isPlaying) {
+      event.target.playVideo();
     }
   };
 
@@ -110,7 +131,7 @@ export function Player({ song }: PlayerProps) {
           className="w-full h-full"
         />
       ) : song.type === 'soundcloud' ? (
-        <SoundCloudPlayer song={song} isPlaying={isPlaying} volume={volume} />
+        <SoundCloudPlayer song={song} isPlaying={isPlaying} volume={volume} onEnded={onEnd} />
       ) : (
         <div className="aspect-video bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
           <div className="text-muted-foreground">Unsupported song type.</div>

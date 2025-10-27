@@ -199,21 +199,21 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
 
 
 const musicCatalog = [
-  {
-      artist: "Example Artist",
-      songs: {
-          "YouTube Examples": [
-              { title: "Google I/O Keynote", url: "https://www.youtube.com/watch?v=Xnzf_X43mU" },
-              { title: "Lofi Girl Radio", url: "https://www.youtube.com/watch?v=jfKfPfyJRdk" }
-          ],
-          "SoundCloud Examples": [
-              { title: "NASA Voyager Golden Record", url: "https://soundcloud.com/nasa/golden-record-sounds-of" },
-              { title: "Tame Impala - Let It Happen", url: "https://soundcloud.com/tame-impala/let-it-happen" },
-              { title: "Kuzu Kuzu", url: "https://soundcloud.com/user9709537/kuzu-kuzu?si=c7b0627bda414242b5adf429cba93849&utm_source=clipboard&utm_medium=text&utm_campaign=social_sharing" },
-              { title: "Ma Meilleure Ennemie (English)", url: "https://soundcloud.com/you-know-me-your-dodkdknd/ma-meilleure-ennemie-english" }
-          ]
-      }
-  }
+    {
+        artist: "Example Artist",
+        songs: {
+            "YouTube Examples": [
+                { title: "Google I/O Keynote", url: "https://www.youtube.com/watch?v=Xnzf_X43mU" },
+                { title: "Lofi Girl Radio", url: "https://www.youtube.com/watch?v=jfKfPfyJRdk" }
+            ],
+            "SoundCloud Examples": [
+                { title: "NASA Voyager Golden Record", url: "https://soundcloud.com/nasa/golden-record-sounds-of" },
+                { title: "Tame Impala - Let It Happen", url: "https://soundcloud.com/tame-impala/let-it-happen" },
+                { title: "Kuzu Kuzu", url: "https://soundcloud.com/user9709537/kuzu-kuzu" },
+                { title: "Ma Meilleure Ennemie (English)", url: "https://soundcloud.com/you-know-me-your-dodkdknd/ma-meilleure-ennemie-english" }
+            ]
+        }
+    }
 ];
 
 const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog') => void }) => {
