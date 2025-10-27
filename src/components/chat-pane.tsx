@@ -107,7 +107,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
                     messages?.map(msg => (
                         <div key={msg.id} className={`flex flex-col ${msg.sender.uid === user?.uid ? 'items-end' : 'items-start'}`}>
                             <div className={`p-2 rounded-lg max-w-xs ${msg.sender.uid === user?.uid ? 'bg-primary/90 text-primary-foreground' : 'bg-secondary'}`}>
-                                <p className="text-xs font-bold text-muted-foreground mb-1">{msg.sender.uid === user?.uid ? 'Siz' : msg.sender.displayName}</p>
+                                <p className="text-xs font-bold text-muted-foreground mb-1">{msg.sender.displayName}</p>
                                 <p className="text-sm">{msg.text}</p>
                             </div>
                         </div>
