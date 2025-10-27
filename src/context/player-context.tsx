@@ -18,9 +18,9 @@ export interface Song {
 
 export type SongDetails = {
   url: string;
-  title?: string;
+  title: string;
   videoId?: string;
-  type?: 'youtube' | 'soundcloud' | 'url';
+  type: 'youtube' | 'soundcloud' | 'url';
 };
 
 type PlayerContextType = {
@@ -54,7 +54,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const youtubePlayerRef = useRef<any>(null);
   const soundcloudPlayerRef = useRef<any>(null);
   const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
-  
+
   const resetPlayer = useCallback(() => {
     const youtubePlayer = youtubePlayerRef.current;
     if (youtubePlayer && typeof youtubePlayer.stopVideo === 'function') {
@@ -113,18 +113,27 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userPlaylist, isPlaylistLoading, user]);
+  
+  const extractYouTubeID = (url: string): string | null => {
+    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+  };
 
   useEffect(() => {
     if (firestore && user && !isPlaylistLoading && dataLoadedRef.current === false && userPlaylist?.length === 0) {
         dataLoadedRef.current = true; // Sadece bir kere çalışsın
         const addInitialSongs = async () => {
             for (const song of initialCatalog.songs) {
-                await addSong({ 
-                    url: song.url, 
-                    title: song.title, 
-                    videoId: extractYouTubeID(song.url) || undefined,
-                    type: 'youtube'
-                }, user.uid);
+                const videoId = extractYouTubeID(song.url);
+                if (videoId) {
+                    await addSong({ 
+                        url: song.url, 
+                        title: song.title, 
+                        videoId: videoId,
+                        type: 'youtube'
+                    }, user.uid);
+                }
             }
         };
 
@@ -141,111 +150,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       resetPlayer();
     }
   }, [playlist, isLoading, resetPlayer]);
-
-  const extractYouTubeID = (url: string): string | null => {
-    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-    const match = url.match(regex);
-    return match ? match[1] : null;
-  };
-
-  const getSongDetails = async (details: SongDetails, userId: string): Promise<Omit<Song, 'id'>> => {
-    const { url } = details;
-
-    // If we already have the details, don't fetch them again.
-    if (details.title && details.type) {
-      return {
-        title: details.title,
-        url: details.url,
-        type: details.type,
-        videoId: details.videoId,
-        userId: userId,
-        timestamp: serverTimestamp(),
-      };
-    }
-
-    if (url.includes('youtube.com') || url.includes('youtu.be')) {
-      const videoId = extractYouTubeID(url);
-      if (!videoId) throw new Error("Geçersiz YouTube linki.");
-      const canonicalYouTubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      
-      const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(canonicalYouTubeUrl)}`;
-      try {
-        const response = await fetch(oembedUrl);
-        if (!response.ok) throw new Error('YouTube metadata alınamadı');
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
-
-        return {
-          title: data.title || `YouTube Video [${videoId}]`,
-          url: canonicalYouTubeUrl,
-          type: 'youtube',
-          videoId: videoId,
-          userId: userId,
-          timestamp: serverTimestamp(),
-        };
-      } catch (e) {
-         return {
-            title: `YouTube Video [${videoId}]`,
-            url: canonicalYouTubeUrl,
-            type: 'youtube',
-            videoId: videoId,
-            userId: userId,
-            timestamp: serverTimestamp(),
-        };
-      }
-
-    } else if (url.includes('soundcloud.com')) {
-      const urlParts = url.split('?');
-      const cleanUrl = urlParts[0];
-      const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(cleanUrl)}`;
-      
-      try {
-        const response = await fetch(oembedUrl);
-        if (!response.ok) throw new Error("Geçersiz veya gizli SoundCloud linki.");
-        const data = await response.json();
-        if (!data.title) throw new Error("SoundCloud şarkı başlığı alınamadı.");
-        return {
-          title: data.title,
-          url: cleanUrl,
-          type: 'soundcloud',
-          userId: userId,
-          timestamp: serverTimestamp(),
-        };
-      } catch(e) {
-         return {
-            title: "SoundCloud Şarkısı",
-            url: cleanUrl,
-            type: 'soundcloud',
-            userId: userId,
-            timestamp: serverTimestamp(),
-        };
-      }
-
-    } else if (url.match(/\.(mp3|wav|ogg|m4a)$/) || url.startsWith('http')) {
-        const fileName = new URL(url).pathname.split('/').pop() || 'URL Şarkısı';
-        return {
-          title: fileName.replace(/\.[^/.]+$/, ""),
-          url: url,
-          type: 'url',
-          userId: userId,
-          timestamp: serverTimestamp(),
-        };
-    } else {
-      throw new Error("Desteklenmeyen link türü. Lütfen YouTube, SoundCloud veya doğrudan ses linki kullanın.");
-    }
-  };
   
-  const addSong = async (songDetailsInput: SongDetails, userId: string) => {
+  const addSong = async (songDetails: SongDetails, userId: string) => {
     if (!firestore || !user) {
       toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive'});
       return;
     }
   
     try {
-      const fullSongDetails = await getSongDetails(songDetailsInput, userId);
-  
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-      await addDoc(userPlaylistRef, fullSongDetails);
+      const songData = {
+        ...songDetails,
+        userId: userId,
+        timestamp: serverTimestamp(),
+      };
+      await addDoc(userPlaylistRef, songData);
   
     } catch (error: any) {
       console.error("Şarkı eklenirken hata:", error);
@@ -304,18 +223,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const setYoutubePlayer = (player: any) => {
     youtubePlayerRef.current = player;
-    // Yeni bir oynatıcı hazır olduğunda ve çalması gerekiyorsa, çalmaya başla
-    if (isPlaying && playlist[currentIndex]?.type === 'youtube') {
-      player.playVideo();
-    }
   };
   
   const setSoundcloudPlayer = (player: any) => {
     soundcloudPlayerRef.current = player;
-    // Yeni bir oynatıcı hazır olduğunda ve çalması gerekiyorsa, çalmaya başla
-    if (isPlaying && playlist[currentIndex]?.type === 'soundcloud') {
-       player.play();
-    }
   }
 
   // Unified useEffect for player control
@@ -325,7 +236,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
 
-    if (!isPlaying || !song) {
+    if (!song || !isPlaying) {
       // Pause all players if not playing
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
