@@ -5,12 +5,14 @@ import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2 } from '@/components/icons';
-import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase/provider';
 import { Loader2 } from 'lucide-react';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 const appId = 'Aura';
 
@@ -224,11 +226,11 @@ const ProfileModal = ({ isOpen, setIsOpen }: { isOpen?: boolean; setIsOpen?: (op
       toast({ title: 'Please enter a valid name.', variant: 'destructive' });
       return;
     }
-
+  
     setIsSaving(true);
     const profileRef = doc(firestore, 'artifacts', appId, 'users', user.uid);
     const profileData = { displayName: newName };
-
+  
     setDoc(profileRef, profileData, { merge: true })
       .then(() => {
         toast({ title: 'Profile saved!' });
@@ -241,6 +243,7 @@ const ProfileModal = ({ isOpen, setIsOpen }: { isOpen?: boolean; setIsOpen?: (op
           requestResourceData: profileData,
         });
         errorEmitter.emit('permission-error', permissionError);
+        toast({ title: 'Error saving profile.', variant: 'destructive' });
       })
       .finally(() => {
         setIsSaving(false);

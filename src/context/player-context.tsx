@@ -1,9 +1,11 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { useUser, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 export interface Song {
   id: string;
@@ -55,6 +57,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    setIsLoading(true);
     const q = query(songsCollectionRef, orderBy('timestamp', 'asc'));
 
     const unsubscribe = onSnapshot(
@@ -82,7 +85,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     );
 
     return () => unsubscribe();
-  }, [songsCollectionRef]);
+  }, [songsCollectionRef, currentIndex, playlist]);
 
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -95,6 +98,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const videoId = extractYouTubeID(url);
       if (!videoId) throw new Error("Invalid YouTube link.");
       const canonicalYouTubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      // Using a proxy to bypass CORS issues if any, noembed.com is a public one
       const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(canonicalYouTubeUrl)}`;
       const response = await fetch(oembedUrl);
       if (!response.ok) return { title: `YouTube: ${videoId}`, url: canonicalYouTubeUrl, type: 'youtube', videoId: videoId };
@@ -144,6 +148,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
                 requestResourceData: fullSongData,
             });
             errorEmitter.emit('permission-error', permissionError);
+            toast({ title: 'Error adding song.', variant: 'destructive' });
         });
 
     } catch (error: any) {
@@ -157,16 +162,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const songRef = doc(firestore, 'artifacts', 'Aura', 'users', user.uid, 'songs', songId);
 
     deleteDoc(songRef)
-        .then(() => {
-            toast({ title: "Song deleted." });
-        })
-        .catch((serverError) => {
-            const permissionError = new FirestorePermissionError({
-                path: songRef.path,
-                operation: 'delete',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
+      .then(() => {
+          toast({ title: "Song deleted." });
+      })
+      .catch((serverError) => {
+          const permissionError = new FirestorePermissionError({
+              path: songRef.path,
+              operation: 'delete',
+          });
+          errorEmitter.emit('permission-error', permissionError);
+          toast({ title: 'Error deleting song.', variant: 'destructive' });
+      });
   };
   
   const resetPlayer = () => {
@@ -195,7 +201,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
     playSong(nextIndex);
-  }, [currentIndex, playlist.length]);
+  }, [currentIndex, playlist, playSong]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
