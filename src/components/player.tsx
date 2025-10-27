@@ -9,6 +9,51 @@ type PlayerProps = {
   song: Song | null;
 };
 
+const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: boolean; volume: number; }) => {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const widgetRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (iframeRef.current) {
+      const widget = (window as any).SC.Widget(iframeRef.current);
+      widgetRef.current = widget;
+      widget.bind((window as any).SC.Widget.Events.READY, () => {
+        // Widget is ready
+      });
+      widget.bind((window as any).SC.Widget.Events.FINISH, () => {
+        // Handle song finishing if needed
+      });
+    }
+  }, [song.id]);
+  
+  useEffect(() => {
+    if (widgetRef.current) {
+      widgetRef.current.setVolume(volume / 100);
+    }
+  }, [volume]);
+  
+  useEffect(() => {
+    if (widgetRef.current) {
+        if(isPlaying) widgetRef.current.play();
+        else widgetRef.current.pause();
+    }
+  }, [isPlaying]);
+
+  return (
+    <iframe
+        ref={iframeRef}
+        key={song.id}
+        width="100%"
+        height="100%"
+        scrolling="no"
+        frameBorder="no"
+        allow="autoplay"
+        src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=false&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
+    ></iframe>
+  );
+};
+
+
 export function Player({ song }: PlayerProps) {
   const { isPlaying, playNext, youtubePlayer, setYoutubePlayer, volume } = usePlayer();
 
@@ -31,6 +76,7 @@ export function Player({ song }: PlayerProps) {
 
   const onReady = (event: any) => {
     setYoutubePlayer(event.target);
+    event.target.setVolume(volume);
   };
 
   const onEnd = () => {
@@ -69,15 +115,7 @@ export function Player({ song }: PlayerProps) {
           className="w-full h-full"
         />
       ) : song.type === 'soundcloud' ? (
-        <iframe
-            key={song.id}
-            width="100%"
-            height="100%"
-            scrolling="no"
-            frameBorder="no"
-            allow="autoplay"
-            src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=${isPlaying}&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
-        ></iframe>
+        <SoundCloudPlayer song={song} isPlaying={isPlaying} volume={volume} />
       ) : (
         <div className="aspect-video bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
           <div className="text-muted-foreground">Unsupported song type.</div>
