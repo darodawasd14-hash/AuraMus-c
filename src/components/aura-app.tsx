@@ -196,7 +196,7 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
 
   const songsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'songs_v3'), orderBy('timestamp', 'desc'), limit(50));
+    return query(collection(firestore, 'songs'), orderBy('timestamp', 'desc'), limit(50));
   }, [firestore]);
 
   const { data: catalogSongs, isLoading, error } = useCollection<Song>(songsQuery);
@@ -208,7 +208,6 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
     }
     setIsAdding(song.id);
 
-    // Since the song is already in the catalog, we just add it to the user's playlist
     const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
     
     const songData: Omit<Song, 'id'> = {

@@ -83,7 +83,7 @@
       },
       "description": "Sub-collection storing the songs in a specific user's personal playlist."
     },
-    "/songs_v3/{songId}": {
+    "/songs/{songId}": {
       "schema": {
         "$ref": "#/entities/Song"
       },

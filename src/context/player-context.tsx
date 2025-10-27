@@ -104,14 +104,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         
         const addInitialSongs = async () => {
             for (const song of initialSongs) {
-                const songDetails: Omit<Song, 'id' | 'timestamp'> = {
-                    title: song.title,
-                    url: song.url,
-                    type: 'youtube',
-                    videoId: song.url.split('v=')[1],
-                    userId: user.uid,
-                };
-                
                 await addSong(song.url, user.uid);
             }
         };
@@ -227,12 +219,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         timestamp: songDetails.timestamp,
         ...(songDetails.videoId && { videoId: songDetails.videoId }),
       };
-
-      // Remove undefined fields
+      
+      // Remove undefined fields to prevent Firestore errors
       Object.keys(songData).forEach(key => (songData as any)[key] === undefined && delete (songData as any)[key]);
   
-      // First, check if the song already exists in the global catalog
-      const songsColRef = collection(firestore, 'songs_v3');
+      const songsColRef = collection(firestore, 'songs');
       const q = query(
         songsColRef, 
         where(songData.videoId ? 'videoId' : 'url', '==', songData.videoId || songData.url), 
@@ -241,12 +232,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       
       const querySnapshot = await getDocs(q);
       
-      // If it doesn't exist, add it to the global catalog
       if (querySnapshot.empty) {
         await addDoc(songsColRef, songData);
       }
       
-      // Finally, add the song to the user's personal playlist
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
       await addDoc(userPlaylistRef, songData);
   
