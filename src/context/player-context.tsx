@@ -151,6 +151,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const getSongDetails = async (details: SongDetails, userId: string): Promise<Omit<Song, 'id'>> => {
     const { url } = details;
 
+    // If we already have the details, don't fetch them again.
     if (details.title && details.type) {
       return {
         title: details.title,
@@ -167,7 +168,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       if (!videoId) throw new Error("Geçersiz YouTube linki.");
       const canonicalYouTubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
       
-      // Use noembed.com as a proxy to fetch YouTube metadata to avoid CORS issues
       const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(canonicalYouTubeUrl)}`;
       try {
         const response = await fetch(oembedUrl);
@@ -184,7 +184,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           timestamp: serverTimestamp(),
         };
       } catch (e) {
-         // Fallback if metadata fetch fails
          return {
             title: `YouTube Video [${videoId}]`,
             url: canonicalYouTubeUrl,
@@ -196,7 +195,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       }
 
     } else if (url.includes('soundcloud.com')) {
-      // Use noembed.com for SoundCloud as well for simplicity and to avoid CORS
       const urlParts = url.split('?');
       const cleanUrl = urlParts[0];
       const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(cleanUrl)}`;
@@ -214,7 +212,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           timestamp: serverTimestamp(),
         };
       } catch(e) {
-         // Fallback if metadata fetch fails
          return {
             title: "SoundCloud Şarkısı",
             url: cleanUrl,
@@ -245,25 +242,27 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   
     try {
-      // Get full song details (either from input or by fetching)
+      // Use pre-fetched details if available, otherwise fetch them.
       const fullSongDetails = await getSongDetails(songDetailsInput, userId);
   
-      // Add the song directly to the user's playlist
+      // Add the song directly to the user's personal playlist.
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
       await addDoc(userPlaylistRef, fullSongDetails);
   
-      // Check if the song exists in the global catalog and add it if it doesn't
+      // Non-blocking: Add to global catalog if it doesn't exist.
       const songsColRef = collection(firestore, 'songs');
       const uniqueField = fullSongDetails.videoId ? 'videoId' : 'url';
-      const q = query(songsColRef, where(uniqueField, '==', fullSongDetails[uniqueField]), limit(1));
-      const querySnapshot = await getDocs(q);
+      const q = query(songsColRef, where(uniqueField, '==', fullSongDetails[uniqueField as keyof typeof fullSongDetails]), limit(1));
       
-      if (querySnapshot.empty) {
-        // We can add to the global catalog without blocking the user
-        addDoc(songsColRef, fullSongDetails).catch(error => {
-          console.error("Error adding song to global catalog:", error);
-        });
-      }
+      getDocs(q).then(querySnapshot => {
+        if (querySnapshot.empty) {
+          addDoc(songsColRef, fullSongDetails).catch(error => {
+            console.error("Global kataloğa şarkı eklenirken hata:", error);
+          });
+        }
+      }).catch(error => {
+         console.error("Global katalog kontrol edilirken hata:", error);
+      });
   
     } catch (error: any) {
       console.error("Şarkı eklenirken hata:", error);
@@ -331,7 +330,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
 
-    // If not playing or no song, pause everything
     if (!isPlaying || !song) {
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
@@ -345,7 +343,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     
-    // If playing, manage players based on the current song's type
     switch (song.type) {
       case 'youtube':
         if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
@@ -408,3 +405,5 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
+
+    

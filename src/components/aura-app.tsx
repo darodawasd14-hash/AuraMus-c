@@ -208,20 +208,16 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
     }
     setIsAdding(song.id);
 
-    const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-    
-    const songData: Omit<Song, 'id'> = {
+    const songData: SongDetails = {
       title: song.title,
       url: song.url,
       type: song.type,
-      userId: user.uid,
-      timestamp: serverTimestamp(),
     };
     if (song.videoId) {
-      (songData as Song).videoId = song.videoId;
+      songData.videoId = song.videoId;
     }
 
-    await addDoc(userPlaylistRef, songData);
+    await addSong(songData, user.uid);
     
     toast({ title: `"${song.title}" listenize eklendi!` });
     setIsAdding(null);
@@ -506,3 +502,5 @@ const ProfileModal = ({ isOpen, setIsOpen, profile, setProfile }: { isOpen?: boo
     </div>
   );
 };
+
+    
