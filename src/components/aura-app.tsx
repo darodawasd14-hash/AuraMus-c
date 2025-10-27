@@ -4,9 +4,9 @@ import { usePlayer, type Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search } from '@/components/icons';
-import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, ShieldCheck } from '@/components/icons';
+import { useUser, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
+import { doc, onSnapshot, setDoc, collection, query, orderBy, addDoc } from 'firebase/firestore';
 import { signOut, updateProfile } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase/provider';
@@ -16,12 +16,18 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { ChatPane } from '@/components/chat-pane';
 import { searchYoutube, type YouTubeSearchOutput } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
-import musicCatalogData from '@/lib/music-catalog.json';
+import Link from 'next/link';
 
 const appId = 'Aura';
 
 interface UserProfile {
   displayName?: string;
+}
+
+interface CatalogSong {
+  id: string;
+  title: string;
+  url: string;
 }
 
 export function AuraApp() {
@@ -32,6 +38,17 @@ export function AuraApp() {
   const { user } = useUser();
   const firestore = useFirestore();
   const [userProfile, setUserProfile] = useState<UserProfile>({});
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      user.getIdTokenResult().then(idTokenResult => {
+        setIsAdmin(!!idTokenResult.claims.isAdmin);
+      });
+    } else {
+      setIsAdmin(false);
+    }
+  }, [user]);
 
   const profileRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -61,7 +78,7 @@ export function AuraApp() {
 
   return (
     <div id="app-container" className="h-screen flex flex-col text-foreground">
-      <Header setView={setView} currentView={view} profile={userProfile} />
+      <Header setView={setView} currentView={view} profile={userProfile} isAdmin={isAdmin} />
       <main className="flex-grow overflow-hidden flex flex-row">
         <div id="main-content" className="flex-grow flex flex-col">
           {view === 'player' ? (
@@ -133,7 +150,7 @@ export function AuraApp() {
   );
 }
 
-const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 'catalog' | 'search') => void; currentView: 'player' | 'catalog' | 'search', profile: UserProfile }) => {
+const Header = ({ setView, currentView, profile, isAdmin }: { setView: (view: 'player' | 'catalog' | 'search') => void; currentView: 'player' | 'catalog' | 'search', profile: UserProfile, isAdmin: boolean }) => {
   const [isModalOpen, setModalOpen] = useState(false);
   
   return (
@@ -149,6 +166,13 @@ const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 
            <Button onClick={() => setView('search')} variant={currentView === 'search' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Search/> Search</Button>
         </div>
         <div className="flex items-center gap-4">
+          {isAdmin && (
+             <Link href="/admin" legacyBehavior>
+                <Button variant="ghost" size="sm" className="gap-2 text-accent hover:text-accent-foreground">
+                    <ShieldCheck /> Admin
+                </Button>
+            </Link>
+          )}
           <Button onClick={() => setModalOpen(true)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
             <UserIcon/>
           </Button>
@@ -204,7 +228,20 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
   const { addSong } = usePlayer();
   const { toast } = useToast();
   const { user } = useUser();
+  const firestore = useFirestore();
   const [isAdding, setIsAdding] = useState<string | null>(null);
+
+  const catalogCollectionRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'artifacts', appId, 'catalog');
+  }, [firestore]);
+
+  const catalogQuery = useMemoFirebase(() => {
+    if (!catalogCollectionRef) return null;
+    return query(catalogCollectionRef, orderBy('title', 'asc'));
+  }, [catalogCollectionRef]);
+
+  const { data: catalogSongs, isLoading: isCatalogLoading } = useCollection<CatalogSong>(catalogQuery);
 
   const handleAddFromCatalog = async (url: string, title: string) => {
     if (!user) {
@@ -221,26 +258,34 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
   return (
     <div id="catalog-view" className="p-4 md:p-8 h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto space-y-12" id="catalog-content">
-        {musicCatalogData.catalog.map(artistData => (
-          <section key={artistData.artist}>
-            <h2 className="text-3xl font-bold tracking-tight border-b-2 border-primary/30 pb-3 mb-6">{artistData.artist}</h2>
-            {Object.entries(artistData.categories).map(([category, songs]) => (
-              <div key={category} className="mb-8">
-                <h3 className="text-2xl font-semibold text-primary/80 mb-4">{category}</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {songs.map(song => (
-                    <div key={song.url} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-4">
-                      <p className="font-semibold truncate flex-grow">{song.title}</p>
-                      <Button className="w-full" size="sm" onClick={() => handleAddFromCatalog(song.url, song.title)} disabled={isAdding === song.url}>
-                        {isAdding === song.url ? <Loader2 className="animate-spin" /> : "Add to Aura"}
-                      </Button>
-                    </div>
-                  ))}
+          <h2 className="text-3xl font-bold tracking-tight border-b-2 border-primary/30 pb-3 mb-6">Music Catalog</h2>
+          {isCatalogLoading ? (
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from({length: 6}).map((_, i) => (
+                  <div key={i} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-4 animate-pulse">
+                    <div className="h-5 bg-muted rounded w-3/4"></div>
+                    <div className="h-9 bg-muted rounded mt-2"></div>
+                  </div>
+                ))}
+             </div>
+          ) : !catalogSongs || catalogSongs.length === 0 ? (
+            <div className="text-center text-muted-foreground py-16">
+              <Music className="w-20 h-20 mx-auto mb-4"/>
+              <h3 className="text-xl font-semibold">The Catalog is Empty</h3>
+              <p>An administrator needs to add songs to the public catalog.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {catalogSongs.map(song => (
+                <div key={song.id} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-4">
+                  <p className="font-semibold truncate flex-grow" title={song.title}>{song.title}</p>
+                  <Button className="w-full" size="sm" onClick={() => handleAddFromCatalog(song.url, song.title)} disabled={isAdding === song.url}>
+                    {isAdding === song.url ? <Loader2 className="animate-spin" /> : "Add to Aura"}
+                  </Button>
                 </div>
-              </div>
-            ))}
-          </section>
-        ))}
+              ))}
+            </div>
+          )}
       </div>
     </div>
   );
