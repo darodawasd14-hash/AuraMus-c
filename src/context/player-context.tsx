@@ -137,12 +137,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const getSongDetails = async (details: SongDetails, userId: string): Promise<Omit<Song, 'id'>> => {
     const { url } = details;
 
-    // If all details are provided, skip fetching
-    if (details.title && details.videoId && details.type === 'youtube') {
+    if (details.title && details.type) {
       return {
         title: details.title,
         url: details.url,
-        type: 'youtube',
+        type: details.type,
         videoId: details.videoId,
         userId: userId,
         timestamp: serverTimestamp(),
@@ -153,18 +152,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const videoId = extractYouTubeID(url);
       if (!videoId) throw new Error("Geçersiz YouTube linki.");
       const canonicalYouTubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      
-      // If title is provided, no need to fetch oembed data
-      if (details.title) {
-        return {
-          title: details.title,
-          url: canonicalYouTubeUrl,
-          type: 'youtube',
-          videoId: videoId,
-          userId: userId,
-          timestamp: serverTimestamp(),
-        };
-      }
       
       const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(canonicalYouTubeUrl)}`;
       try {
@@ -242,7 +229,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     try {
       const fullSongDetails = await getSongDetails(songDetailsInput, userId);
   
-      // Prepare the data once, ensuring no undefined fields
       const songData: Omit<Song, 'id'> = {
         title: fullSongDetails.title,
         url: fullSongDetails.url,
@@ -252,7 +238,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         ...(fullSongDetails.videoId && { videoId: fullSongDetails.videoId }),
       };
       
-      // Check if song already exists in the main catalog
       const songsColRef = collection(firestore, 'songs');
       const q = query(
         songsColRef, 
@@ -263,11 +248,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
-        await addDoc(songsColRef, songData); // Add to the main catalog if it doesn't exist
+        await addDoc(songsColRef, songData);
       }
       
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-      await addDoc(userPlaylistRef, songData); // Always add to the user's playlist
+      await addDoc(userPlaylistRef, songData);
   
       toast({ title: "Şarkı eklendi!" });
   
@@ -352,68 +337,58 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     soundcloudPlayerRef.current = player;
   }
 
+  // Consolidated useEffect for player logic
   useEffect(() => {
     const song = playlist[currentIndex];
     const youtubePlayer = youtubePlayerRef.current;
-    
-    if (!song || song.type !== 'youtube' || !youtubePlayer) {
-      return;
-    }
-    
-    if (isPlaying) {
-      if (youtubePlayer && typeof youtubePlayer.setVolume === 'function' && typeof youtubePlayer.playVideo === 'function') {
-        youtubePlayer.setVolume(100);
-        youtubePlayer.playVideo();
-      }
-    } else {
+    const soundcloudPlayer = soundcloudPlayerRef.current;
+    const urlPlayer = urlPlayerRef.current;
+
+    // Stop all players if no song or not playing
+    if (!song || !isPlaying) {
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
       }
-    }
-  }, [isPlaying, currentIndex, playlist]);
-
-  useEffect(() => {
-      const song = playlist[currentIndex];
-      const soundcloudPlayer = soundcloudPlayerRef.current;
-
-      if (!song || song.type !== 'soundcloud' || !soundcloudPlayer || typeof soundcloudPlayer.play !== 'function') {
-          return;
+      if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
+        soundcloudPlayer.pause();
       }
-      
-      if (isPlaying) {
-          soundcloudPlayer.play();
-      } else {
-         if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
-          soundcloudPlayer.pause();
-        }
-      }
-  }, [isPlaying, currentIndex, playlist]);
-
-  useEffect(() => {
-    const urlPlayer = urlPlayerRef.current;
-    const song = playlist[currentIndex];
-
-    if (!urlPlayer) {
-      return;
-    }
-    
-    if (!song || song.type !== 'url') {
-      if (!urlPlayer.paused) {
+      if (urlPlayer && !urlPlayer.paused) {
         urlPlayer.pause();
       }
       return;
     }
     
+    // Play the correct player based on song type
     if (isPlaying) {
-      if (urlPlayer.src !== song.url) {
-        urlPlayer.src = song.url;
+      switch (song.type) {
+        case 'youtube':
+          if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
+          if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
+          if (youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
+            youtubePlayer.playVideo();
+          }
+          break;
+        case 'soundcloud':
+          if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
+          if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
+          if (soundcloudPlayer && typeof soundcloudPlayer.play === 'function') {
+            soundcloudPlayer.play();
+          }
+          break;
+        case 'url':
+          if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
+          if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
+          if (urlPlayer) {
+            if (urlPlayer.src !== song.url) {
+              urlPlayer.src = song.url;
+            }
+            urlPlayer.play().catch(e => console.error("URL audio playback failed:", e));
+          }
+          break;
       }
-      urlPlayer.play().catch(e => console.error("Ses çalma başarısız:", e));
-    } else {
-      urlPlayer.pause();
     }
-  }, [isPlaying, currentIndex, playlist]);
 
+  }, [isPlaying, currentIndex, playlist]);
 
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
