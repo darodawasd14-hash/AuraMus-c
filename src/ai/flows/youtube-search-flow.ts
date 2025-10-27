@@ -51,7 +51,7 @@ const youtubeSearchTool = ai.defineTool(
         q: query,
         type: ['video'],
         videoCategoryId: '10', // 10, "Music" kategorisidir
-        maxResults: 16,
+        maxResults: 5,
       });
 
       const videos =
@@ -93,7 +93,7 @@ const YouTubeSearchOutputSchema = z.object({
     .array(SongSuggestionSchema)
     .describe('YouTube\'dan gelen şarkı önerilerinin bir listesi.'),
 });
-export type YouTubeSearchOutput = z.infer<typeof YouTubeSearchOutputSchema>;
+export type YouTubeSearchOutput = zinfer<typeof YouTubeSearchOutputSchema>;
 
 export async function searchYoutube(
   input: YouTubeSearchInput
