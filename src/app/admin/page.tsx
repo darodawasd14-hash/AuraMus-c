@@ -10,7 +10,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { setAdminClaim } from '@/ai/flows/set-admin-claim';
 
 const appId = 'Aura';
 
@@ -23,6 +22,7 @@ interface CatalogSong {
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
   const router = useRouter();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -30,13 +30,7 @@ export default function AdminPage() {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [isAdding, setIsAdding] = useState(false);
-  const [isClaimingAdmin, setIsClaimingAdmin] = useState(false);
 
-  const catalogCollectionRef = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'artifacts', appId, 'catalog');
-  }, [firestore]);
-  
   // IMPORTANT: Only create the query if the user is an admin
   const catalogQuery = useMemoFirebase(() => {
     if(!firestore || !isAdmin) return null;
@@ -53,9 +47,11 @@ export default function AdminPage() {
       return;
     }
 
+    setIsCheckingAdmin(true);
     user.getIdTokenResult(true).then(idTokenResult => {
       const userIsAdmin = !!idTokenResult.claims.isAdmin;
       setIsAdmin(userIsAdmin);
+      setIsCheckingAdmin(false);
 
       // If the user is not an admin and tries to access the page,
       // we show them the "Claim Admin Role" card. We don't redirect.
@@ -66,26 +62,9 @@ export default function AdminPage() {
   }, [user, isUserLoading, router]);
 
 
-  const handleMakeAdmin = async () => {
-    if (!user || !user.email) {
-      toast({ title: 'Error', description: 'User email not found.', variant: 'destructive'});
-      return;
-    }
-    setIsClaimingAdmin(true);
-    try {
-        const result = await setAdminClaim({ email: 'oguzhanarman01@gmail.com' });
-        toast({ title: 'Admin Claim Set!', description: 'Please log out and log back in for changes to take effect.' });
-        console.log(result.message);
-    } catch(e: any) {
-        console.error(e);
-        toast({ title: 'Error setting admin claim', description: e.message, variant: 'destructive'});
-    } finally {
-        setIsClaimingAdmin(false);
-    }
-  }
-
   const handleAddSong = async (e: FormEvent) => {
     e.preventDefault();
+    const catalogCollectionRef = collection(firestore, 'artifacts', appId, 'catalog');
     if (!title.trim() || !url.trim() || !catalogCollectionRef) return;
 
     setIsAdding(true);
@@ -104,8 +83,6 @@ export default function AdminPage() {
             requestResourceData: newSong,
         });
         errorEmitter.emit('permission-error', permissionError);
-        // Toast is now handled by the global error listener, but we can keep a fallback
-        // toast({ title: 'Error adding song', description: 'Check permissions and try again.', variant: 'destructive' });
       })
       .finally(() => {
         setIsAdding(false);
@@ -126,11 +103,10 @@ export default function AdminPage() {
             operation: 'delete',
         });
         errorEmitter.emit('permission-error', permissionError);
-        // toast({ title: 'Error deleting song', variant: 'destructive' });
       });
   }
 
-  if (isUserLoading) {
+  if (isUserLoading || isCheckingAdmin) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -146,11 +122,8 @@ export default function AdminPage() {
                     <CardTitle>Admin Access Required</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <p className="text-muted-foreground">You do not have permission to view this page. If you are the admin, click the button below to claim your privileges.</p>
-                    <Button onClick={handleMakeAdmin} disabled={isClaimingAdmin || !user}>
-                        {isClaimingAdmin ? <Loader2 className="h-4 w-4 animate-spin"/> : "Claim Admin Role"}
-                    </Button>
-                    <p className="text-xs text-muted-foreground pt-4">After claiming, you must log out and log back in for the changes to take effect.</p>
+                    <p className="text-muted-foreground">You do not have permission to view this page. To become an admin, you need to be granted privileges by a project owner via the gcloud CLI.</p>
+                    <p className="text-xs text-muted-foreground pt-4">After getting admin privileges, you must log out and log back in for the changes to take effect.</p>
                 </CardContent>
             </Card>
         </div>

@@ -1,53 +1,25 @@
 'use server';
 /**
- * @fileOverview Flow to set admin custom claims on a user.
+ * @fileOverview This file is not in use and is pending deletion. 
+ * It was part of a previous attempt to set admin claims, which is now handled via gcloud CLI.
  */
-
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { getAuth } from 'firebase-admin/auth';
-import { initializeApp, getApps, App } from 'firebase-admin/app';
 
-const SetAdminClaimInputSchema = z.object({
-  email: z.string().email().describe('The email address of the user to make an admin.'),
-});
-export type SetAdminClaimInput = z.infer<typeof SetAdminClaimInputSchema>;
+const StubSchema = z.object({ message: z.string() });
 
-const SetAdminClaimOutputSchema = z.object({
-  message: z.string(),
-});
-export type SetAdminClaimOutput = z.infer<typeof SetAdminClaimOutputSchema>;
-
-
-export async function setAdminClaim(input: SetAdminClaimInput): Promise<SetAdminClaimOutput> {
-    return setAdminClaimFlow(input);
+export async function setAdminClaim(input: any): Promise<any> {
+    console.error("setAdminClaim is deprecated and should not be called.");
+    return { message: "This function is deprecated." };
 }
 
-
-const setAdminClaimFlow = ai.defineFlow(
+ai.defineFlow(
   {
     name: 'setAdminClaimFlow',
-    inputSchema: SetAdminClaimInputSchema,
-    outputSchema: SetAdminClaimOutputSchema,
+    inputSchema: StubSchema,
+    outputSchema: StubSchema,
   },
   async (input) => {
-    // When running in a serverless environment (like Genkit flows),
-    // Firebase Admin SDK can be initialized without explicit credentials.
-    // It automatically discovers service account credentials if available.
-    if (getApps().length === 0) {
-      initializeApp();
-    }
-
-    try {
-      const auth = getAuth();
-      const user = await auth.getUserByEmail(input.email);
-      await auth.setCustomUserClaims(user.uid, { isAdmin: true });
-      return {
-        message: `Successfully set admin claim for ${input.email}`,
-      };
-    } catch (error: any) {
-      console.error('Failed to set admin claim:', error);
-      throw new Error(`Failed to set admin claim for ${input.email}: ${error.message}`);
-    }
+    return { message: "This flow is deprecated." };
   }
 );
