@@ -24,6 +24,7 @@ type PlayerContextType = {
   playNext: () => void;
   playPrev: () => void;
   setYoutubePlayer: (player: any) => void;
+  setSoundcloudPlayer: (player: any) => void;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -36,12 +37,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const youtubePlayerRef = useRef<any>(null);
+  const soundcloudPlayerRef = useRef<any>(null);
 
 
   const resetPlayer = () => {
     const youtubePlayer = youtubePlayerRef.current;
     if (youtubePlayer && typeof youtubePlayer.stopVideo === 'function') {
       youtubePlayer.stopVideo();
+    }
+    const soundcloudPlayer = soundcloudPlayerRef.current;
+    if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
+      soundcloudPlayer.pause();
     }
     setIsPlaying(false);
   };
@@ -122,7 +128,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         id: new Date().toISOString(), // Bellek içi liste için benzersiz ID olarak zaman damgası kullan
       };
       
-      setPlaylist(prevPlaylist => [...prevPlaylist, newSong]);
+      setPlaylist(prevPlaylist => {
+        const updatedPlaylist = [...prevPlaylist, newSong];
+        if (currentIndex === -1 && updatedPlaylist.length > 0) {
+            setCurrentIndex(0);
+            setIsPlaying(true);
+        }
+        return updatedPlaylist;
+      });
       toast({ title: "Şarkı eklendi!" });
 
     } catch (error: any) {
@@ -136,32 +149,41 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         const songIndex = prevPlaylist.findIndex(s => s.id === songId);
         if (songIndex === -1) return prevPlaylist;
 
-        // Eğer silinen şarkı o an çalan şarkıysa
-        if (songIndex === currentIndex) {
-            if (prevPlaylist.length === 1) { // Eğer son şarkıysa
-                setCurrentIndex(-1);
-                setIsPlaying(false);
-            } else { // Bir sonraki şarkıyı çal, veya sonuncusuysa ilkini
-                const nextIndex = (currentIndex % (prevPlaylist.length - 1));
-                setCurrentIndex(nextIndex);
-            }
+        const isCurrentlyPlaying = songIndex === currentIndex;
+        
+        const newPlaylist = prevPlaylist.filter(s => s.id !== songId);
+
+        if (isCurrentlyPlaying) {
+          if (newPlaylist.length === 0) {
+            setCurrentIndex(-1);
+            setIsPlaying(false);
+            resetPlayer();
+          } else {
+            // Silinen şarkıdan sonraki şarkıyı çal. Liste sonuna gelindiyse başa dön.
+            const nextIndex = (songIndex) % newPlaylist.length;
+            setCurrentIndex(nextIndex);
+            setIsPlaying(true);
+          }
         } else if (songIndex < currentIndex) {
-            // Eğer mevcut olandan önceki bir şarkı silinirse, index'i kaydır
-            setCurrentIndex(prevIndex => prevIndex -1);
+            setCurrentIndex(prevIndex => prevIndex - 1);
         }
         
-        return prevPlaylist.filter(s => s.id !== songId);
+        return newPlaylist;
     });
     toast({ title: "Şarkı silindi." });
   };
   
   const playSong = (index: number) => {
     if (index >= 0 && index < playlist.length) {
+      if(currentIndex !== index) {
+        resetPlayer();
+      }
       setCurrentIndex(index);
       setIsPlaying(true);
     } else {
       setCurrentIndex(-1);
       setIsPlaying(false);
+      resetPlayer();
     }
   };
   
@@ -192,7 +214,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const setYoutubePlayer = (player: any) => {
     youtubePlayerRef.current = player;
   };
+  
+  const setSoundcloudPlayer = (player: any) => {
+    soundcloudPlayerRef.current = player;
+  }
 
+  // YouTube Oynatıcı Kontrolü
   useEffect(() => {
     const youtubePlayer = youtubePlayerRef.current;
     const song = playlist[currentIndex];
@@ -209,6 +236,23 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isPlaying, currentIndex, playlist]);
 
+  // SoundCloud Oynatıcı Kontrolü
+  useEffect(() => {
+      const soundcloudPlayer = soundcloudPlayerRef.current;
+      const song = playlist[currentIndex];
+
+      if (!song || song.type !== 'soundcloud' || !soundcloudPlayer) {
+          return;
+      }
+      
+      if (isPlaying) {
+          soundcloudPlayer.play();
+      } else {
+          soundcloudPlayer.pause();
+      }
+  }, [isPlaying, currentIndex, playlist]);
+
+
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
   const value: PlayerContextType = {
@@ -224,6 +268,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playNext,
     playPrev,
     setYoutubePlayer,
+    setSoundcloudPlayer,
   };
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

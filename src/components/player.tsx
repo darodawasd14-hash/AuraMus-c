@@ -9,36 +9,34 @@ type PlayerProps = {
   song: Song | null;
 };
 
-const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
+const SoundCloudPlayer = ({ song, onEnded, isPlaying }: { song: Song; onEnded: () => void; isPlaying: boolean }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const widgetRef = useRef<any>(null);
-  const isReadyRef = useRef(false);
+  const { setSoundcloudPlayer } = usePlayer();
 
   useEffect(() => {
     if (!iframeRef.current) return;
 
-    widgetRef.current = (window as any).SC.Widget(iframeRef.current);
-    const widget = widgetRef.current;
+    const widget = (window as any).SC.Widget(iframeRef.current);
+    widgetRef.current = widget;
+    setSoundcloudPlayer(widget);
 
     const onReady = () => {
-      isReadyRef.current = true;
-      widget.setVolume(100);
       widget.bind((window as any).SC.Widget.Events.FINISH, onEnded);
+      if(isPlaying) widget.play();
     };
 
     widget.bind((window as any).SC.Widget.Events.READY, onReady);
-
+    
     return () => {
-      const currentWidget = widgetRef.current;
-      if (currentWidget && typeof currentWidget.unbind === 'function') {
-        try {
-          currentWidget.unbind((window as any).SC.Widget.Events.READY);
-          currentWidget.unbind((window as any).SC.Widget.Events.FINISH);
-        } catch (e) {
-           // Hata bastırma: Eğer iframe zaten yoksa, unbind başarısız olur.
-        }
+      try {
+        widget.unbind((window as any).SC.Widget.Events.FINISH);
+        widget.unbind((window as any).SC.Widget.Events.READY);
+      } catch (e) {
+        // Hata bastırma
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [song.id, onEnded]);
   
   return (
@@ -50,10 +48,11 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
       scrolling="no"
       frameBorder="no"
       allow="autoplay"
-      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=true&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
+      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=false&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
     ></iframe>
   );
 };
+
 
 const UrlPlayer = ({ song, onEnded, isPlaying }: { song: Song; onEnded: () => void; isPlaying: boolean; }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -65,21 +64,25 @@ const UrlPlayer = ({ song, onEnded, isPlaying }: { song: Song; onEnded: () => vo
     } else {
       audioRef.current.pause();
     }
-  }, [isPlaying, song.url]);
+  }, [isPlaying, song.id]);
 
   useEffect(() => {
     if(audioRef.current) {
-      audioRef.current.volume = 1;
+      audioRef.current.src = song.url;
+      if (isPlaying) {
+        audioRef.current.play().catch(e => console.error("Ses çalma başarısız:", e));
+      }
     }
-  }, [song.url])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song.url, song.id]);
 
   return (
     <audio
       ref={audioRef}
-      src={song.url}
       onEnded={onEnded}
       key={song.id}
-      className="w-full h-full"
+      className="w-full"
+      controls={false}
     />
   );
 };
@@ -130,7 +133,7 @@ export function Player({ song }: PlayerProps) {
           />
         ) : null;
       case 'soundcloud':
-        return <SoundCloudPlayer song={song} onEnded={onEnd} />;
+        return <SoundCloudPlayer song={song} onEnded={onEnd} isPlaying={isPlaying} />;
       case 'url':
         return <UrlPlayer song={song} onEnded={onEnd} isPlaying={isPlaying} />;
       default:
