@@ -199,36 +199,38 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const addSong = async (url: string, userId: string) => {
     if (!firestore || !user) {
-        toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive'});
-        return;
+      toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive'});
+      return;
     }
-
+  
     try {
       const songDetails = await getSongDetails(url, userId);
+  
+      // --- AKILLI EKLEME MANTIĞI BAŞLANGICI ---
       
-      // FIRST, check if song already exists in the global catalog
-      const songsCol = collection(firestore, 'songs');
-      let q;
-      if (songDetails.videoId) {
-        q = query(songsCol, where('videoId', '==', songDetails.videoId), limit(1));
-      } else {
-        q = query(songsCol, where('url', '==', songDetails.url), limit(1));
-      }
+      // 1. Önce ortak katalogda şarkının var olup olmadığını kontrol et.
+      const songsColRef = collection(firestore, 'songs_v2');
+      const q = query(
+        songsColRef, 
+        where(songDetails.videoId ? 'videoId' : 'url', '==', songDetails.videoId || songDetails.url), 
+        limit(1)
+      );
       
       const querySnapshot = await getDocs(q);
       
-      // If it doesn't exist, add it to the global catalog
+      // 2. Eğer şarkı ortak katalogda yoksa, oraya ekle.
       if (querySnapshot.empty) {
-        await addDoc(songsCol, songDetails);
+        await addDoc(songsColRef, songDetails);
       }
-
-      // THEN, add to user's personal playlist
+      
+      // 3. Her durumda (şarkı katalogda olsun veya olmasın), kullanıcının kişisel listesine ekle.
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
       await addDoc(userPlaylistRef, songDetails);
-
-
+  
+      // --- AKILLI EKLEME MANTIĞI SONU ---
+  
       toast({ title: "Şarkı eklendi!" });
-
+  
     } catch (error: any) {
       console.error("Şarkı eklenirken hata:", error);
       toast({ title: error.message || "Şarkı eklenemedi.", variant: 'destructive' });

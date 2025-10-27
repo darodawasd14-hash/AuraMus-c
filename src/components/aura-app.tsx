@@ -13,7 +13,7 @@ import { Loader2 } from 'lucide-react';
 import { ChatPane } from '@/components/chat-pane';
 import { searchYoutube, type YouTubeSearchOutput } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
-import { collection, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, serverTimestamp, addDoc } from 'firebase/firestore';
 
 const appId = 'Aura';
 
@@ -196,27 +196,31 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
 
   const songsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'songs'), orderBy('timestamp', 'desc'), limit(50));
+    return query(collection(firestore, 'songs_v2'), orderBy('timestamp', 'desc'), limit(50));
   }, [firestore]);
 
   const { data: catalogSongs, isLoading, error } = useCollection<Song>(songsQuery);
 
   const handleAddFromCatalog = async (song: Song) => {
-    if (!user) {
+    if (!user || !firestore) {
       toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
       return;
     }
     setIsAdding(song.id);
-    // Create a new song object for the user's playlist with a fresh timestamp
+
     const newSongForPlaylist: Omit<Song, 'id'> = {
       title: song.title,
       url: song.url,
       type: song.type,
       videoId: song.videoId,
-      userId: user.uid, // ensure userId is set to current user
+      userId: user.uid,
       timestamp: serverTimestamp(),
     };
-    await addSongToUserPlaylist(newSongForPlaylist);
+
+    const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
+    await addDoc(userPlaylistRef, newSongForPlaylist);
+    
+    toast({ title: `"${song.title}" listenize eklendi!` });
     setIsAdding(null);
     setView('player');
   };
@@ -225,7 +229,6 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
     if (song.type === 'youtube' && song.videoId) {
       return `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
     }
-    // You can add a default or other placeholder images for other types
     return 'https://picsum.photos/seed/1/168/94';
   }
 
