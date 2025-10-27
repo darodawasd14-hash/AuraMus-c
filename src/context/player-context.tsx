@@ -17,8 +17,6 @@ import {
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 
-const appId = 'Aura';
-
 export interface Song {
   id: string;
   title: string;
@@ -59,6 +57,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const songsCollectionRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
+    // Standard path: /users/{userId}/songs
     return collection(firestore, 'users', user.uid, 'songs');
   }, [user, firestore]);
 

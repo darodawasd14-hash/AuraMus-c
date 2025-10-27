@@ -36,62 +36,29 @@
         },
         "userId": {
           "type": "string",
-          "description": "Reference to the User who owns this song. (Relationship: User 1:N Song)"
+          "description": "Reference to the User who owns this song."
         },
         "title": {
           "type": "string",
           "description": "Title of the song."
         },
-        "artist": {
-          "type": "string",
-          "description": "Artist of the song."
-        },
-        "album": {
-          "type": "string",
-          "description": "Album the song belongs to."
-        },
-        "filePath": {
-          "type": "string",
-          "description": "The storage location of the song."
-        }
-      },
-      "required": [
-        "id",
-        "userId",
-        "title",
-        "artist"
-      ]
-    },
-    "Playlist": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Playlist",
-      "type": "object",
-      "description": "Represents a user-created playlist.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the playlist."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to the User who created this playlist. (Relationship: User 1:N Playlist)"
-        },
-        "name": {
-          "type": "string",
-          "description": "Name of the playlist."
-        },
-        "songIds": {
-          "type": "array",
-          "description": "References to Songs in this playlist. (Relationship: Playlist N:N Song)",
-          "items": {
+        "url": {
             "type": "string"
-          }
+        },
+        "type": {
+            "type": "string"
+        },
+        "videoId": {
+            "type": "string"
+        },
+        "timestamp": {
+            "type": "object"
         }
       },
       "required": [
         "id",
         "userId",
-        "name"
+        "title"
       ]
     }
   },
@@ -104,62 +71,25 @@
   "firestore": {
     "structure": [
       {
-        "path": "/artifacts/Aura/users/{userId}",
+        "path": "/users/{userId}",
         "definition": {
           "entityName": "User",
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profile information. Each user has a document identified by their unique user ID.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            }
-          ]
+          "description": "Stores user profile information. Each user has a document identified by their unique user ID."
         }
       },
       {
-        "path": "/artifacts/Aura/users/{userId}/songs/{songId}",
+        "path": "/users/{userId}/songs/{songId}",
         "definition": {
           "entityName": "Song",
           "schema": {
             "$ref": "#/backend/entities/Song"
           },
-          "description": "Stores songs owned by the user. Uses path-based ownership for simplified security rules.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "songId",
-              "description": "The unique identifier for the song."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/artifacts/Aura/users/{userId}/playlists/{playlistId}",
-        "definition": {
-          "entityName": "Playlist",
-          "schema": {
-            "$ref": "#/backend/entities/Playlist"
-          },
-          "description": "Stores playlists created by the user. Uses path-based ownership for simplified security rules.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "playlistId",
-              "description": "The unique identifier for the playlist."
-            }
-          ]
+          "description": "Stores songs owned by the user. Uses path-based ownership for simplified security rules."
         }
       }
-    ],
-    "reasoning": "The Firestore structure is designed to address the 'Missing or insufficient permissions' error by enforcing clear ownership and access control for user-specific data. The structure utilizes path-based ownership for `songs` and `playlists` to ensure that only the owning user can access them. This approach eliminates the need for complex security rules involving `get()` calls, enhancing atomicity and debuggability. Specifically, the denormalization strategy implemented ensures authorization independence. For example, user songs are stored under the path `/artifacts/Aura/users/{userId}/songs/{songId}`, where the `userId` is explicitly part of the path. This structure directly associates songs with their respective owners. The `list` operation error is resolved by ensuring that the security rules allow listing documents only within the user's specific `songs` subcollection, as defined by their `userId`. This aligns with the QAPs principle, ensuring that rules are not filters."
+    ]
   }
 }
