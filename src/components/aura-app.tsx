@@ -4,7 +4,7 @@ import { usePlayer, type Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, VolumeX, Volume1 } from '@/components/icons';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon } from '@/components/icons';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut, updateProfile } from 'firebase/auth';
@@ -143,7 +143,6 @@ const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 
            <Button onClick={() => setView('catalog')} variant={currentView === 'catalog' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Music/> Catalog</Button>
         </div>
         <div className="flex items-center gap-4">
-          <VolumeControl />
           <Button onClick={() => setModalOpen(true)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
             <UserIcon/>
           </Button>
@@ -151,18 +150,6 @@ const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 
       </header>
       <ProfileModal isOpen={isModalOpen} setIsOpen={setModalOpen} profile={profile} />
     </>
-  );
-};
-
-const VolumeControl = () => {
-  const { isMuted, toggleMute } = usePlayer();
-
-  return (
-    <div className="flex items-center gap-2">
-      <Button onClick={toggleMute} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-        {isMuted ? <VolumeX /> : <Volume1 />}
-      </Button>
-    </div>
   );
 };
 
@@ -201,7 +188,7 @@ const musicCatalog = [
                 { title: "NASA Voyager Golden Record", url: "https://soundcloud.com/nasa/golden-record-sounds-of" },
                 { title: "Tame Impala - Let It Happen", url: "https://soundcloud.com/tame-impala/let-it-happen" },
                 { title: "Kuzu Kuzu", url: "https://soundcloud.com/user9709537/kuzu-kuzu" },
-                { title: "Ma Meilleure Ennemie (English)", url: "https://soundcloud.com/you-know-me-your-dodkdknd/ma-meilleure-ennemie-english" }
+                { title: "Ma Meilleure Ennemie (English)", url: "https://soundcloud.com/you-know-me-your-dodkdknd/ma-meilleure-ennemie-english?si=5f435f6519214d7eba17960453fa75f7&utm_source=clipboard&utm_medium=text&utm_campaign=social_sharing" }
             ]
         }
     }
