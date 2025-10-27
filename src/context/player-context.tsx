@@ -16,6 +16,8 @@ type PlayerContextType = {
   currentSongIndex: number;
   isPlaying: boolean;
   playlists: Playlist[];
+  volume: number;
+  isMuted: boolean;
   playSong: (song: Song, playlist?: Song[]) => void;
   togglePlayPause: () => void;
   playNext: () => void;
@@ -24,6 +26,8 @@ type PlayerContextType = {
   addSongToPlaylist: (playlistName: string, song: Song) => void;
   addPlaylist: (playlist: Playlist) => void;
   setCurrentPlaylist: (playlistName: string) => void;
+  setVolume: (volume: number) => void;
+  toggleMute: () => void;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -33,12 +37,36 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [currentSongIndex, setCurrentSongIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [volume, setVolumeState] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const previousVolumeRef = React.useRef(volume);
+
 
   const currentSong = useMemo(() => {
     return currentSongIndex >= 0 && currentSongIndex < currentPlaylist.length
       ? currentPlaylist[currentSongIndex]
       : null;
   }, [currentSongIndex, currentPlaylist]);
+  
+  const setVolume = (newVolume: number) => {
+    if (newVolume > 0) {
+        setIsMuted(false);
+    }
+    setVolumeState(newVolume);
+  }
+
+  const toggleMute = () => {
+      setIsMuted(prev => {
+          const newMuted = !prev;
+          if (newMuted) {
+              previousVolumeRef.current = volume;
+              setVolumeState(0);
+          } else {
+              setVolumeState(previousVolumeRef.current > 0 ? previousVolumeRef.current : 0.5);
+          }
+          return newMuted;
+      });
+  };
 
   const playSong = (song: Song, playlist: Song[] = currentPlaylist) => {
     const songIndex = playlist.findIndex(s => s.id === song.id);
@@ -120,6 +148,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     currentSongIndex,
     isPlaying,
     playlists,
+    volume,
+    isMuted,
     playSong,
     togglePlayPause,
     playNext,
@@ -128,6 +158,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     addSongToPlaylist,
     addPlaylist,
     setCurrentPlaylist,
+    setVolume,
+    toggleMute,
   };
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

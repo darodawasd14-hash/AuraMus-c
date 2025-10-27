@@ -5,10 +5,20 @@ import Image from 'next/image';
 import { usePlayer } from '@/context/player-context';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX } from 'lucide-react';
 
 export function PlayerControls() {
-  const { currentSong, isPlaying, togglePlayPause, playNext, playPrev } = usePlayer();
+  const { 
+    currentSong, 
+    isPlaying, 
+    togglePlayPause, 
+    playNext, 
+    playPrev,
+    volume,
+    setVolume,
+    isMuted,
+    toggleMute
+  } = usePlayer();
   const [progress, setProgress] = useState(0);
   const animationFrameId = useRef<number>();
 
@@ -57,6 +67,7 @@ export function PlayerControls() {
   
   const currentTime = (progress / 100) * currentSong.durationSeconds;
 
+  const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 h-28 lg:h-24 bg-card/80 backdrop-blur-xl border-t z-50">
@@ -104,8 +115,17 @@ export function PlayerControls() {
             </div>
           </div>
 
-          <div className="w-1/4">
-            {/* Volume controls could go here */}
+          <div className="w-1/4 flex justify-end items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={toggleMute}>
+                <VolumeIcon className="h-5 w-5" />
+            </Button>
+            <Slider
+                value={[isMuted ? 0 : volume * 100]}
+                max={100}
+                step={1}
+                className="w-[100px]"
+                onValueChange={(value) => setVolume(value[0] / 100)}
+            />
           </div>
         </div>
       </div>
