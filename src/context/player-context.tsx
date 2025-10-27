@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { addDoc, collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import initialCatalog from '@/app/lib/catalog.json';
 
@@ -55,22 +55,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const soundcloudPlayerRef = useRef<any>(null);
   const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
 
-  const resetPlayer = useCallback(() => {
-    const youtubePlayer = youtubePlayerRef.current;
-    if (youtubePlayer && typeof youtubePlayer.stopVideo === 'function') {
-      try { youtubePlayer.stopVideo(); } catch (e) { /* Hata bastırma */ }
-    }
-    const soundcloudPlayer = soundcloudPlayerRef.current;
-    if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
-      try { soundcloudPlayer.pause(); } catch (e) { /* Widget zaten yok edilmiş olabilir. */ }
-    }
-    const urlPlayer = urlPlayerRef.current;
-    if (urlPlayer) {
-      if (!urlPlayer.paused) urlPlayer.pause();
-      if (urlPlayer.src) urlPlayer.src = '';
-    }
-  }, []);
-  
   const userPlaylistQuery = useMemoFirebase(() => {
     if (user && firestore) {
       return query(collection(firestore, 'users', user.uid, 'playlist'), orderBy('timestamp', 'asc'));
@@ -80,83 +64,77 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const { data: userPlaylist, isLoading: isPlaylistLoading } = useCollection<Song>(userPlaylistQuery);
   
+  // Effect for handling playlist data from Firestore
   useEffect(() => {
-    setIsLoading(isPlaylistLoading);
-    if (!isPlaylistLoading) {
-      if (userPlaylist) {
-        const oldPlaylistLength = playlist.length;
-        const currentSongId = playlist[currentIndex]?.id;
+    const isActuallyLoading = isPlaylistLoading || isUserLoading;
+    setIsLoading(isActuallyLoading);
+    if (isActuallyLoading) return;
 
-        setPlaylist(userPlaylist);
+    if (userPlaylist) {
+      const currentSongId = playlist[currentIndex]?.id;
+      setPlaylist(userPlaylist);
 
-        if (userPlaylist.length === 0) {
-            setCurrentIndex(-1);
-            setIsPlaying(false);
-            resetPlayer();
-        } else {
-            const newIndex = userPlaylist.findIndex(s => s.id === currentSongId);
-            if (newIndex !== -1) {
-              setCurrentIndex(newIndex);
-            } else if (oldPlaylistLength === 0 && userPlaylist.length > 0) {
-              setCurrentIndex(0);
-              setIsPlaying(false);
-            } else if (currentIndex >= userPlaylist.length) {
-              setCurrentIndex(0);
-            }
-        }
-      } else if (!user) { 
-        setPlaylist([]);
+      if (userPlaylist.length === 0) {
         setCurrentIndex(-1);
         setIsPlaying(false);
-        resetPlayer();
+      } else {
+        const newIndex = userPlaylist.findIndex(s => s.id === currentSongId);
+        if (newIndex !== -1) {
+          setCurrentIndex(newIndex);
+        } else if (currentIndex >= userPlaylist.length) {
+          setCurrentIndex(0);
+        }
       }
+    } else if (!user) {
+      setPlaylist([]);
+      setCurrentIndex(-1);
+      setIsPlaying(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userPlaylist, isPlaylistLoading, user]);
-  
+  }, [userPlaylist, isPlaylistLoading, isUserLoading, user]);
+
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
     const match = url.match(regex);
     return match ? match[1] : null;
   };
 
+  // Effect for adding initial songs for new users
   useEffect(() => {
-    if (firestore && user && !isPlaylistLoading && dataLoadedRef.current === false && userPlaylist?.length === 0) {
-        dataLoadedRef.current = true; // Sadece bir kere çalışsın
-        const addInitialSongs = async () => {
-            for (const song of initialCatalog.songs) {
-                const videoId = extractYouTubeID(song.url);
-                if (videoId) {
-                    await addSong({ 
-                        url: song.url, 
-                        title: song.title, 
-                        videoId: videoId,
-                        type: 'youtube'
-                    }, user.uid);
-                }
+    if (firestore && user && !isPlaylistLoading && !dataLoadedRef.current && userPlaylist?.length === 0) {
+      dataLoadedRef.current = true;
+      const addInitialSongs = async () => {
+        try {
+          const songsToAdd = initialCatalog.songs;
+          for (const song of songsToAdd) {
+            const videoId = extractYouTubeID(song.url);
+            if (videoId) {
+              const songData = {
+                url: song.url,
+                title: song.title,
+                videoId: videoId,
+                type: 'youtube' as const,
+                userId: user.uid,
+                timestamp: serverTimestamp(),
+              };
+              const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
+              await addDoc(userPlaylistRef, songData);
             }
-        };
-
-        addInitialSongs();
+          }
+        } catch (error) {
+          console.error("Error adding initial songs:", error);
+        }
+      };
+      addInitialSongs();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firestore, user, isPlaylistLoading, userPlaylist]);
 
 
-  useEffect(() => {
-    if (!isLoading && playlist.length === 0) {
-      setCurrentIndex(-1);
-      setIsPlaying(false);
-      resetPlayer();
-    }
-  }, [playlist, isLoading, resetPlayer]);
-  
   const addSong = async (songDetails: SongDetails, userId: string) => {
     if (!firestore || !user) {
-      toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive'});
+      toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
       return;
     }
-  
+
     try {
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
       const songData = {
@@ -165,7 +143,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         timestamp: serverTimestamp(),
       };
       await addDoc(userPlaylistRef, songData);
-  
     } catch (error: any) {
       console.error("Şarkı eklenirken hata:", error);
       toast({ title: error.message || "Şarkı eklenemedi.", variant: 'destructive' });
@@ -175,37 +152,31 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const deleteSong = async (songId: string) => {
     if (!firestore || !user) return;
 
-    const songIndex = playlist.findIndex(s => s.id === songId);
-    if (songIndex === -1) return;
-
-    const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
-    await deleteDoc(songDocRef);
-    
-    toast({ title: "Şarkı silindi." });
+    try {
+      const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
+      await deleteDoc(songDocRef);
+      toast({ title: "Şarkı silindi." });
+    } catch (error) {
+        console.error("Error deleting song:", error);
+        toast({ title: "Şarkı silinirken bir hata oluştu.", variant: 'destructive' });
+    }
   };
-  
+
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
-      if (index !== currentIndex) {
-        resetPlayer(); // Şarkı değiştiğinde mevcut oynatıcıyı sıfırla
-      }
       setCurrentIndex(index);
       setIsPlaying(true);
     } else {
       setCurrentIndex(-1);
       setIsPlaying(false);
-      resetPlayer();
     }
-  }, [playlist.length, currentIndex, resetPlayer]);
-  
+  }, [playlist.length]);
+
   const togglePlayPause = () => {
     if (currentIndex === -1 && playlist.length > 0) {
       playSong(0);
-      return;
-    }
-    
-    if (playlist.length > 0) {
-      setIsPlaying(prevIsPlaying => !prevIsPlaying);
+    } else if (playlist.length > 0) {
+      setIsPlaying(prev => !prev);
     }
   };
 
@@ -220,24 +191,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
     playSong(prevIndex);
   };
-
-  const setYoutubePlayer = (player: any) => {
-    youtubePlayerRef.current = player;
-  };
   
-  const setSoundcloudPlayer = (player: any) => {
-    soundcloudPlayerRef.current = player;
-  }
-
-  // Unified useEffect for player control
+  // Unified useEffect for player control. THIS is the source of truth.
   useEffect(() => {
     const song = playlist[currentIndex];
     const youtubePlayer = youtubePlayerRef.current;
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
 
-    if (!song || !isPlaying) {
-      // Pause all players if not playing
+    // SCENARIO 1: Stop everything if not playing or no song selected
+    if (!isPlaying || !song) {
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
       }
@@ -249,26 +212,29 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       }
       return;
     }
-  
-    // Play the correct player based on song type
+
+    // SCENARIO 2: A song should be playing. Play the correct one and pause others.
     switch (song.type) {
       case 'youtube':
         if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
         if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
+        
         if (youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-          youtubePlayer.playVideo();
+            youtubePlayer.playVideo();
         }
         break;
       case 'soundcloud':
         if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
         if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
+        
         if (soundcloudPlayer && typeof soundcloudPlayer.play === 'function') {
-          soundcloudPlayer.play();
+            soundcloudPlayer.play();
         }
         break;
       case 'url':
         if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
         if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
+
         if (urlPlayer) {
           if (urlPlayer.src !== song.url) {
             urlPlayer.src = song.url;
@@ -276,9 +242,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           urlPlayer.play().catch(e => console.error("URL audio playback failed:", e));
         }
         break;
+      default:
+        // If song type is unknown, pause everything just in case.
+        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
+        if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
+        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
     }
   }, [isPlaying, currentIndex, playlist]);
-
 
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
@@ -287,21 +257,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     currentSong,
     currentIndex,
     isPlaying,
-    isLoading: isLoading || isUserLoading,
+    isLoading,
     addSong,
     deleteSong,
     playSong,
     togglePlayPause,
     playNext,
     playPrev,
-    setYoutubePlayer,
-    setSoundcloudPlayer,
+    setYoutubePlayer: (player: any) => { youtubePlayerRef.current = player; },
+    setSoundcloudPlayer: (player: any) => { soundcloudPlayerRef.current = player; },
   };
 
   return (
     <PlayerContext.Provider value={value}>
-        <audio ref={urlPlayerRef} onEnded={playNext} style={{ display: 'none' }} />
-        {children}
+      <audio ref={urlPlayerRef} onEnded={playNext} style={{ display: 'none' }} />
+      {children}
     </PlayerContext.Provider>
   );
 };
@@ -313,3 +283,5 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
+
+    
