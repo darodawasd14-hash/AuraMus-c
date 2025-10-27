@@ -58,21 +58,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const resetPlayer = useCallback(() => {
     const youtubePlayer = youtubePlayerRef.current;
     if (youtubePlayer && typeof youtubePlayer.stopVideo === 'function') {
-      try {
-        youtubePlayer.stopVideo();
-      } catch (e) { /* Hata bastırma */ }
+      try { youtubePlayer.stopVideo(); } catch (e) { /* Hata bastırma */ }
     }
     const soundcloudPlayer = soundcloudPlayerRef.current;
     if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
-      try {
-        soundcloudPlayer.pause();
-      } catch (e) { /* Widget zaten yok edilmiş olabilir. */ }
+      try { soundcloudPlayer.pause(); } catch (e) { /* Widget zaten yok edilmiş olabilir. */ }
     }
     if (urlPlayerRef.current) {
-      urlPlayerRef.current.pause();
-      if (urlPlayerRef.current.src) {
-        urlPlayerRef.current.src = '';
-      }
+      if (!urlPlayerRef.current.paused) urlPlayerRef.current.pause();
+      if (urlPlayerRef.current.src) urlPlayerRef.current.src = '';
     }
   }, []);
   
@@ -92,19 +86,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         const oldPlaylistLength = playlist.length;
         setPlaylist(userPlaylist);
 
-        // Eğer çalma listesi boşaldıysa veya ilk defa yükleniyorsa durumu ayarla
         if (userPlaylist.length === 0) {
             setCurrentIndex(-1);
             setIsPlaying(false);
             resetPlayer();
         } else if (oldPlaylistLength === 0 && userPlaylist.length > 0 && currentIndex === -1) {
-            // İlk şarkılar eklendiğinde ilk şarkıyı seç ama çalma
             setCurrentIndex(0);
             setIsPlaying(false);
         } else if (currentIndex >= userPlaylist.length) {
-            // Çalan şarkı silindiğinde ve son şarkıysa, listenin başına dön
             setCurrentIndex(0);
-            setIsPlaying(false); // Otomatik çalmayı durdur
+            setIsPlaying(false);
         }
       } else if (!user) { 
         setPlaylist([]);
@@ -113,14 +104,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         resetPlayer();
       }
     }
-  }, [userPlaylist, isPlaylistLoading, user, resetPlayer, currentIndex, playlist.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userPlaylist, isPlaylistLoading, user, resetPlayer]);
 
   useEffect(() => {
     if (firestore && user && !isPlaylistLoading && dataLoadedRef.current === false && userPlaylist?.length === 0) {
         dataLoadedRef.current = true; // Sadece bir kere çalışsın
         const addInitialSongs = async () => {
             for (const song of initialCatalog.songs) {
-                // Burada addSong içindeki mantığı tekrar uygulamak yerine doğrudan detayları iletiyoruz.
                 await addSong({ 
                     url: song.url, 
                     title: song.title, 
@@ -132,6 +123,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
         addInitialSongs();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firestore, user, isPlaylistLoading, userPlaylist]);
 
 
@@ -152,7 +144,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const getSongDetails = async (details: SongDetails, userId: string): Promise<Omit<Song, 'id'>> => {
     const { url } = details;
 
-    // If we already have the title and type, no need to fetch metadata.
     if (details.title && details.type) {
       return {
         title: details.title,
@@ -254,7 +245,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         ...(fullSongDetails.videoId && { videoId: fullSongDetails.videoId }),
       };
       
-      // Add to global catalog if it doesn't exist
       const songsColRef = collection(firestore, 'songs');
       const q = query(
         songsColRef, 
@@ -268,7 +258,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         await addDoc(songsColRef, songData);
       }
       
-      // Add to user's personal playlist
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
       await addDoc(userPlaylistRef, songData);
   
@@ -286,11 +275,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
     const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
     await deleteDoc(songDocRef);
-    
-    // Firestore'dan veri silindikten sonra `useCollection` hook'u otomatik olarak
-    // playlist state'ini güncelleyecektir. Bu yüzden manuel state güncellemesi (setPlaylist)
-    // çoğu zaman gereksizdir ve re-render döngülerine neden olabilir.
-    // useEffect [userPlaylist] bağımlılığı bu durumu yönetecek.
     
     toast({ title: "Şarkı silindi." });
   };
@@ -340,20 +324,28 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     soundcloudPlayerRef.current = player;
   }
 
-  // Consolidated useEffect for player logic
   useEffect(() => {
     const song = playlist[currentIndex];
     const youtubePlayer = youtubePlayerRef.current;
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
 
-    if (!song) {
-      resetPlayer();
+    // First, pause everything if we are not supposed to be playing.
+    if (!isPlaying || !song) {
+      if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
+        youtubePlayer.pauseVideo();
+      }
+      if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
+        soundcloudPlayer.pause();
+      }
+      if (urlPlayer && !urlPlayer.paused) {
+        urlPlayer.pause();
+      }
       return;
     }
-
-    if (isPlaying) {
-      // Play the correct player based on song type
+    
+    // If we are playing, play the correct one and pause the others.
+    if (isPlaying && song) {
       switch (song.type) {
         case 'youtube':
           if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
@@ -380,20 +372,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           }
           break;
       }
-    } else {
-      // Pause all players if not playing
-      if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
-        youtubePlayer.pauseVideo();
-      }
-      if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
-        soundcloudPlayer.pause();
-      }
-      if (urlPlayer && !urlPlayer.paused) {
-        urlPlayer.pause();
-      }
     }
-
-  }, [isPlaying, currentIndex, playlist, resetPlayer]);
+  }, [isPlaying, currentIndex, playlist]);
 
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
