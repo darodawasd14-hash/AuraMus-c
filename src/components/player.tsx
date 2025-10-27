@@ -64,23 +64,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
 };
 
 export function Player({ song }: PlayerProps) {
-  const { isPlaying, playNext, youtubePlayer, setYoutubePlayer, volume } = usePlayer();
-
-  useEffect(() => {
-    // Ensure player and its functions exist before calling them.
-    if (youtubePlayer && song?.type === 'youtube' && typeof youtubePlayer.playVideo === 'function' && typeof youtubePlayer.pauseVideo === 'function') {
-      // Ensure we don't act on a stale player instance for a different song
-      // This can happen if the component re-renders before the player is fully updated.
-      if (youtubePlayer.getVideoData && youtubePlayer.getVideoData()?.video_id === song.videoId) {
-        if (isPlaying) {
-          youtubePlayer.playVideo();
-        } else {
-          youtubePlayer.pauseVideo();
-        }
-      }
-    }
-  }, [isPlaying, song, youtubePlayer]);
-
+  const { isPlaying, playNext, setYoutubePlayer, volume } = usePlayer();
 
   const onReady = (event: any) => {
     setYoutubePlayer(event.target);

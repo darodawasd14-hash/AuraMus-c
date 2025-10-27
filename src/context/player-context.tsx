@@ -103,6 +103,27 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [playlist, currentIndex]);
 
+  const currentSong = currentIndex !== -1 ? playlist[currentIndex] : null;
+
+  useEffect(() => {
+    if (youtubePlayer && typeof youtubePlayer.playVideo === 'function' && typeof youtubePlayer.pauseVideo === 'function') {
+      if (currentSong?.type === 'youtube') {
+        if (isPlaying) {
+          youtubePlayer.playVideo();
+        } else {
+          youtubePlayer.pauseVideo();
+        }
+      }
+    }
+  }, [isPlaying, currentSong, youtubePlayer]);
+
+  useEffect(() => {
+    if (youtubePlayer && typeof youtubePlayer.setVolume === 'function') {
+      youtubePlayer.setVolume(volume);
+    }
+  }, [volume, youtubePlayer]);
+
+
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
     const match = url.match(regex);
@@ -252,8 +273,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       return newMuteState;
     });
   };
-
-  const currentSong = currentIndex !== -1 ? playlist[currentIndex] : null;
 
   const value: PlayerContextType = {
     playlist,
