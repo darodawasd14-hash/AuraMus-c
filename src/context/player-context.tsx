@@ -23,6 +23,7 @@ type PlayerContextType = {
   isPlaying: boolean;
   isLoading: boolean;
   addSong: (url: string, userId: string) => Promise<void>;
+  addSongToUserPlaylist: (song: Omit<Song, 'id'>) => Promise<void>;
   deleteSong: (songId: string) => Promise<void>;
   playSong: (index: number) => void;
   togglePlayPause: () => void;
@@ -186,6 +187,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const addSongToUserPlaylist = async (song: Omit<Song, 'id'>) => {
+    if (!firestore || !user) {
+      toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive'});
+      return;
+    }
+    const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
+    await addDoc(userPlaylistRef, song);
+    toast({ title: `"${song.title}" listenize eklendi!` });
+  }
+
   const addSong = async (url: string, userId: string) => {
     if (!firestore || !user) {
         toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive'});
@@ -195,11 +206,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     try {
       const songDetails = await getSongDetails(url, userId);
       
-      // Save to user's personal playlist first
-      const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-      await addDoc(userPlaylistRef, songDetails);
-      
-      // Check if song already exists in the global catalog
+      // FIRST, check if song already exists in the global catalog
       const songsCol = collection(firestore, 'songs');
       let q;
       if (songDetails.videoId) {
@@ -214,6 +221,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       if (querySnapshot.empty) {
         await addDoc(songsCol, songDetails);
       }
+
+      // THEN, add to user's personal playlist
+      const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
+      await addDoc(userPlaylistRef, songDetails);
+
 
       toast({ title: "Şarkı eklendi!" });
 
@@ -368,6 +380,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     isPlaying,
     isLoading,
     addSong,
+    addSongToUserPlaylist,
     deleteSong,
     playSong,
     togglePlayPause,

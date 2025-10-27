@@ -13,7 +13,7 @@ import { Loader2 } from 'lucide-react';
 import { ChatPane } from '@/components/chat-pane';
 import { searchYoutube, type YouTubeSearchOutput } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { collection, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
 
 const appId = 'Aura';
 
@@ -188,7 +188,7 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
 
 
 const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'search') => void }) => {
-  const { addSong } = usePlayer();
+  const { addSongToUserPlaylist } = usePlayer();
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -207,10 +207,16 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
       return;
     }
     setIsAdding(song.id);
-    toast({ title: `"${song.title}" ekleniyor...` });
-    // We pass the full URL to addSong, which will re-process it.
-    // This is because the song object from the catalog might not have all fresh details (like videoId).
-    await addSong(song.url, user.uid);
+    // Create a new song object for the user's playlist with a fresh timestamp
+    const newSongForPlaylist: Omit<Song, 'id'> = {
+      title: song.title,
+      url: song.url,
+      type: song.type,
+      videoId: song.videoId,
+      userId: user.uid, // ensure userId is set to current user
+      timestamp: serverTimestamp(),
+    };
+    await addSongToUserPlaylist(newSongForPlaylist);
     setIsAdding(null);
     setView('player');
   };
