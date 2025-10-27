@@ -120,23 +120,31 @@ const youtubeSearchFlow = ai.defineFlow(
     outputSchema: YouTubeSearchOutputSchema,
   },
   async input => {
-    // Akışın yapay zeka tarafından çağrılmasını bekle
-    const response = await prompt(input);
-
-    // Eğer LLM bir araç kullanmaya karar vermediyse, boş bir sonuç döndür.
-    if (!response.toolRequests || response.toolRequests.length === 0) {
-        console.log("LLM, arama aracı kullanmaya gerek duymadı.");
-        return { songs: [] };
-    }
+    // LLM'in prompt'u işlemesini sağla
+    const llmResponse = await prompt(input);
     
-    // Araç çağrısını manuel olarak yürüt
-    const toolResponse = response.toolRequests[0];
-    if (!toolResponse) {
-       console.error("Tool response tanımsız geldi.");
+    // LLM bir araç kullanmaya karar vermediyse, boş bir sonuç döndür.
+    if (!llmResponse.toolRequests || llmResponse.toolRequests.length === 0) {
+      console.log("LLM, arama aracı kullanmaya gerek duymadı.");
+      return { songs: [] };
+    }
+
+    // AI, araç kullanımını istedi, şimdi aracı çalıştıracağız.
+    // Bizim durumumuzda sadece bir araç olduğu için, ilkini alıyoruz.
+    const toolRequest = llmResponse.toolRequests[0];
+    if (!toolRequest) {
+      console.error("Tool request tanımsız geldi ama LLM bir araç kullanmak istedi.");
+      return { songs: [] };
+    }
+
+    // İsteğin doğru araç için olduğunu doğrula (sağlamlık için)
+    if (toolRequest.toolName !== 'youtubeSearchTool') {
+       console.warn(`Beklenmedik araç isteği: ${toolRequest.toolName}`);
        return { songs: [] };
     }
     
-    const toolOutput = (await toolResponse.run()) as z.infer<typeof youtubeSearchTool.outputSchema>;
+    // Aracı çalıştır ve çıktısını al
+    const toolOutput = (await toolRequest.run()) as z.infer<typeof youtubeSearchTool.outputSchema>;
     
     // Aracın çıktısını doğru formata dönüştür
     return {
