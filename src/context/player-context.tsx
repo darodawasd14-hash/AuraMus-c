@@ -197,22 +197,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
-      // Only change the song, don't auto-play
-      if (index !== currentIndex) {
-        setCurrentIndex(index);
-        setIsPlaying(false);
-      } else {
-        // If it's the same song, toggle play/pause
-        togglePlayPause();
+      setCurrentIndex(index);
+      setIsPlaying(false); 
+      
+      if (youtubePlayer && playlist[index].type === 'youtube') {
+        setTimeout(() => {
+          youtubePlayer.setVolume(volume);
+        }, 100);
       }
     } else {
       resetPlayer();
     }
-  }, [playlist.length, currentIndex]);
+  }, [playlist, youtubePlayer, volume]);
 
 
   const togglePlayPause = () => {
-    // If no song is selected, play the first one. Otherwise, toggle play/pause for the current song.
     if(currentIndex === -1 && playlist.length > 0) {
       setCurrentIndex(0);
       setIsPlaying(true);
@@ -225,14 +224,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
     setCurrentIndex(nextIndex);
-    setIsPlaying(true); // Auto-play the next song
+    setIsPlaying(true);
   }, [currentIndex, playlist.length]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
     const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
     setCurrentIndex(prevIndex);
-    setIsPlaying(true); // Auto-play the previous song
+    setIsPlaying(true);
   };
   
   const currentSong = currentIndex !== -1 ? playlist[currentIndex] : null;
