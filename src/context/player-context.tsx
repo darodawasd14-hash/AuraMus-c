@@ -84,18 +84,24 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (!isPlaylistLoading) {
       if (userPlaylist) {
         const oldPlaylistLength = playlist.length;
+        const currentSongId = playlist[currentIndex]?.id;
+
         setPlaylist(userPlaylist);
 
         if (userPlaylist.length === 0) {
             setCurrentIndex(-1);
             setIsPlaying(false);
             resetPlayer();
-        } else if (oldPlaylistLength === 0 && userPlaylist.length > 0 && currentIndex === -1) {
-            setCurrentIndex(0);
-            setIsPlaying(false);
-        } else if (currentIndex >= userPlaylist.length) {
-            setCurrentIndex(0);
-            setIsPlaying(false);
+        } else {
+            const newIndex = userPlaylist.findIndex(s => s.id === currentSongId);
+            if (newIndex !== -1) {
+              setCurrentIndex(newIndex);
+            } else if (oldPlaylistLength === 0 && userPlaylist.length > 0) {
+              setCurrentIndex(0);
+              setIsPlaying(false);
+            } else if (currentIndex >= userPlaylist.length) {
+              setCurrentIndex(0);
+            }
         }
       } else if (!user) { 
         setPlaylist([]);
@@ -288,16 +294,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
       if(currentIndex !== index) {
-        resetPlayer();
+        // Don't reset player here, useEffect will handle it
       }
       setCurrentIndex(index);
       setIsPlaying(true);
     } else {
       setCurrentIndex(-1);
       setIsPlaying(false);
-      resetPlayer();
     }
-  }, [playlist, currentIndex, resetPlayer]);
+  }, [playlist, currentIndex]);
   
   const togglePlayPause = () => {
     if (currentIndex === -1 && playlist.length > 0) {
@@ -336,7 +341,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
 
-    // Pause all players if not playing
+    // Pause all players if not playing or no song
     if (!isPlaying || !song) {
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
@@ -351,35 +356,34 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
     
     // If playing, manage players based on song type
-    if (isPlaying && song) {
-      switch (song.type) {
-        case 'youtube':
-          if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
-          if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
-          if (youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-            youtubePlayer.playVideo();
+    switch (song.type) {
+      case 'youtube':
+        if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
+        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
+        if (youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
+          youtubePlayer.playVideo();
+        }
+        break;
+      case 'soundcloud':
+        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
+        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
+        if (soundcloudPlayer && typeof soundcloudPlayer.play === 'function') {
+          soundcloudPlayer.play();
+        }
+        break;
+      case 'url':
+        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
+        if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
+        if (urlPlayer) {
+          if (urlPlayer.src !== song.url) {
+            urlPlayer.src = song.url;
           }
-          break;
-        case 'soundcloud':
-          if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
-          if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
-          if (soundcloudPlayer && typeof soundcloudPlayer.play === 'function') {
-            soundcloudPlayer.play();
-          }
-          break;
-        case 'url':
-          if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
-          if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
-          if (urlPlayer) {
-            if (urlPlayer.src !== song.url) {
-              urlPlayer.src = song.url;
-            }
-            urlPlayer.play().catch(e => console.error("URL audio playback failed:", e));
-          }
-          break;
-      }
+          urlPlayer.play().catch(e => console.error("URL audio playback failed:", e));
+        }
+        break;
     }
   }, [isPlaying, currentIndex, playlist]);
+
 
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
