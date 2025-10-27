@@ -2,44 +2,34 @@
  * @fileoverview Firestore Security Rules for the Aura music application.
  *
  * Core Philosophy:
- * This ruleset enforces a user-ownership model for user profiles and songs,
- * allowing each user to manage their own data. Chat messages and live listeners
- * for songs are publicly readable, but only authenticated users can create them.
+ * This ruleset prioritizes user data privacy and enforces strict ownership for user-specific data. Public read access is granted to the catalog, but write access is restricted.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profiles. Each user can only access their own profile.
- * - /users/{userId}/songs/{songId}: Stores songs owned by a specific user.
- * - /songs/{songId}/messages/{messageId}: Stores chat messages for each song.
- *   Any authenticated user can create a message.
- * - /songs/{songId}/live_listeners/{userId}: Stores the current listeners for a song.
- *   Any authenticated user can add themselves as a listener.
+ * - /artifacts/Aura/users/{userId}: User profile information.
+ * - /artifacts/Aura/users/{userId}/songs/{songId}: Songs specific to each user.
+ * - /artifacts/Aura/songs/{songId}/messages/{messageId}: Chat messages for a specific song (public context).
+ * - /artifacts/Aura/catalog/{songId}: Public music catalog.
  *
  * Key Security Decisions:
- * - Users can only read and write their own profiles and songs.
- * - All authenticated users can read and write chat messages and live listeners.
- * - The rules do NOT enforce the schema of the data being written, except
- *   for validating ownership on `create` operations in `/users/{userId}`.
+ * - Users can only read and write their own user profiles and songs.
+ * - Listing user documents is disallowed for privacy.
+ * - The public catalog is readable by anyone, but only writable by a process outside the scope of these rules (e.g., a Firebase Function with admin privileges).
+ * - Chat messages are publicly accessible (read and write) for simplicity in this prototype. In a production environment, consider moderating or restricting write access.
  *
  * Denormalization for Authorization:
- * - The rules rely on path-based authorization and do not require denormalization.
- *   The `userId` is extracted from the path, and access is granted based on
- *   whether the `request.auth.uid` matches the `userId`.
- *
- * Structural Segregation:
- * - The application uses user-specific subcollections (/users/{userId}/songs/{songId})
- *   to store private song data. This ensures that users can only access their own songs.
+ *  - User-owned resources (songs) do not require denormalization because the path itself encodes ownership (/users/{userId}/songs/{songId}).
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows users to manage their own profile.
+     * @description Enforces access control for user profiles. Users can only read and write their own profile.
      * @path /artifacts/Aura/users/{userId}
-     * @allow (create) - User with UID 'user_abc' can create their own profile at /artifacts/Aura/users/user_abc.
-     * @allow (get, update, delete) - User with UID 'user_abc' can get, update, and delete their profile at /artifacts/Aura/users/user_abc.
-     * @deny (create) - User with UID 'user_xyz' cannot create a profile at /artifacts/Aura/users/user_abc.
-     * @deny (get, update, delete) - User with UID 'user_xyz' cannot get, update, and delete the profile at /artifacts/Aura/users/user_abc.
+     * @allow (create) User with UID 'user123' can create their profile at /artifacts/Aura/users/user123.
+     * @allow (get, update, delete) User with UID 'user123' can read, update, or delete their profile at /artifacts/Aura/users/user123.
+     * @deny (create) User with UID 'user456' cannot create a profile at /artifacts/Aura/users/user123.
+     * @deny (get, update, delete) User with UID 'user456' cannot read, update, or delete the profile at /artifacts/Aura/users/user123.
      * @principle Enforces document ownership for writes.
      */
     match /artifacts/Aura/users/{userId} {
@@ -47,72 +37,61 @@ service cloud.firestore {
         return request.auth.uid == userId;
       }
 
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
       allow get: if isOwner(userId);
-      allow list: if false;
+      allow list: if false; // Disallowing listing of user documents for privacy.
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) && resource != null;
-      allow delete: if isOwner(userId) && resource != null;
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Allows users to manage their own songs.
+     * @description Enforces access control for user-specific songs. Users can only manage songs under their own profile.
      * @path /artifacts/Aura/users/{userId}/songs/{songId}
-     * @allow (create) - User with UID 'user_abc' can create a song at /artifacts/Aura/users/user_abc/songs/song_123.
-     * @allow (get, update, delete) - User with UID 'user_abc' can get, update, and delete their song at /artifacts/Aura/users/user_abc/songs/song_123.
-     * @deny (create) - User with UID 'user_xyz' cannot create a song at /artifacts/Aura/users/user_abc/songs/song_123.
-     * @deny (get, update, delete) - User with UID 'user_xyz' cannot get, update, and delete song at /artifacts/Aura/users/user_abc/songs/song_123.
-     * @principle Enforces document ownership for writes within a user's data tree.
+     * @allow (create) User with UID 'user123' can create a song at /artifacts/Aura/users/user123/songs/song1.
+     * @allow (get, list, update, delete) User with UID 'user123' can read, list, update, or delete their song at /artifacts/Aura/users/user123/songs/song1.
+     * @deny (create) User with UID 'user456' cannot create a song at /artifacts/Aura/users/user123/songs/song1.
+     * @deny (get, list, update, delete) User with UID 'user456' cannot read, list, update, or delete the song at /artifacts/Aura/users/user123/songs/song1.
+     * @principle Restricts access to a user's own data tree.
      */
     match /artifacts/Aura/users/{userId}/songs/{songId} {
       function isOwner(userId) {
         return request.auth.uid == userId;
       }
 
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) && resource != null;
-      allow delete: if isOwner(userId) && resource != null;
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Allows any authenticated user to create messages for a song, and allows anyone to read messages.
+     * @description Allows public read and write access to chat messages for songs. Consider moderating or restricting write access in production.
      * @path /artifacts/Aura/songs/{songId}/messages/{messageId}
-     * @allow (get, list) - Any user can read messages for a song.
-     * @allow (create) - Authenticated user can create messages for a song.
-     * @deny (update, delete) - Only authenticated user can create messages for a song, so updates and deletes are not permitted
-     * @principle Allows public read access with authentication required for writes.
+     * @allow (get, list, create, update, delete) Any user can read, list, create, update, or delete messages.
+     * @principle Open access for messages.
      */
     match /artifacts/Aura/songs/{songId}/messages/{messageId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
-
-      allow get: if true;
-      allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+      allow get, list, create, update, delete: if true;
     }
 
     /**
-     * @description Allows any authenticated user to add themselves as a live listener for a song, and allows anyone to read the list of live listeners.
-     * @path /artifacts/Aura/songs/{songId}/live_listeners/{userId}
-     * @allow (get, list) - Any user can read the list of live listeners for a song.
-     * @allow (create) - Authenticated user can add themselves as a live listener for a song.
-     * @deny (update, delete) - Only authenticated user can create a new listener, so updates and deletes are not permitted
-     * @principle Allows public read access with authentication required for writes.
+     * @description Allows public read access to the music catalog, but restricts write access.
+     * @path /artifacts/Aura/catalog/{songId}
+     * @allow (get, list) Any user can read and list catalog songs.
+     * @deny (create, update, delete) No client-side write access to the catalog.
+     * @principle Public read, restricted write.
      */
-    match /artifacts/Aura/songs/{songId}/live_listeners/{userId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
-
-      allow get: if true;
-      allow list: if true;
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+    match /artifacts/Aura/catalog/{songId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
   }
 }
