@@ -323,17 +323,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const song = playlist[currentIndex];
     const youtubePlayer = youtubePlayerRef.current;
     
-    if (!song || song.type !== 'youtube' || !youtubePlayer) {
+    if (!song || song.type !== 'youtube') {
       return;
     }
     
     if (isPlaying) {
-      if (typeof youtubePlayer.setVolume === 'function' && typeof youtubePlayer.playVideo === 'function') {
+      if (youtubePlayer && typeof youtubePlayer.setVolume === 'function' && typeof youtubePlayer.playVideo === 'function') {
         youtubePlayer.setVolume(100);
         youtubePlayer.playVideo();
       }
     } else {
-      if (typeof youtubePlayer.pauseVideo === 'function') {
+      if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
       }
     }
