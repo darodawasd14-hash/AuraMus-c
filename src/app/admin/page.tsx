@@ -73,7 +73,7 @@ export default function AdminPage() {
     }
     setIsClaimingAdmin(true);
     try {
-        const result = await setAdminClaim({ email: user.email });
+        const result = await setAdminClaim({ email: 'oguzhanarman01@gmail.com' });
         toast({ title: 'Admin Claim Set!', description: 'Please log out and log back in for changes to take effect.' });
         console.log(result.message);
     } catch(e: any) {
