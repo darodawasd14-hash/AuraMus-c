@@ -152,6 +152,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const getSongDetails = async (details: SongDetails, userId: string): Promise<Omit<Song, 'id'>> => {
     const { url } = details;
 
+    // If we already have the title and type, no need to fetch metadata.
     if (details.title && details.type) {
       return {
         title: details.title,
@@ -253,6 +254,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         ...(fullSongDetails.videoId && { videoId: fullSongDetails.videoId }),
       };
       
+      // Add to global catalog if it doesn't exist
       const songsColRef = collection(firestore, 'songs');
       const q = query(
         songsColRef, 
@@ -266,14 +268,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         await addDoc(songsColRef, songData);
       }
       
+      // Add to user's personal playlist
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
       await addDoc(userPlaylistRef, songData);
-  
-      if (songDetailsInput.title) {
-        toast({ title: `"${songDetailsInput.title}" eklendi!`});
-      } else {
-        toast({ title: "Şarkı eklendi!" });
-      }
   
     } catch (error: any) {
       console.error("Şarkı eklenirken hata:", error);

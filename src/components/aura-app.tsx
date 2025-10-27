@@ -343,7 +343,6 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
     }
     setIsAdding(videoId);
     const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    toast({ title: `"${title}" ekleniyor...` });
     
     const songDetails: SongDetails = {
       url: youtubeUrl,
@@ -354,6 +353,7 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
 
     await addSong(songDetails, user.uid);
     setIsAdding(null);
+    toast({ title: `"${title}" listenize eklendi!` });
     setView('player');
   };
 
