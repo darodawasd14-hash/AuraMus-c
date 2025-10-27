@@ -244,7 +244,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     try {
       const fullSongDetails = await getSongDetails(songDetailsInput, userId);
   
-      // Add the song directly to the user's personal playlist.
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
       await addDoc(userPlaylistRef, fullSongDetails);
   
@@ -268,13 +267,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
+      if (index !== currentIndex) {
+        resetPlayer(); // Şarkı değiştiğinde mevcut oynatıcıyı sıfırla
+      }
       setCurrentIndex(index);
       setIsPlaying(true);
     } else {
       setCurrentIndex(-1);
       setIsPlaying(false);
+      resetPlayer();
     }
-  }, [playlist.length]);
+  }, [playlist.length, currentIndex, resetPlayer]);
   
   const togglePlayPause = () => {
     if (currentIndex === -1 && playlist.length > 0) {
@@ -301,10 +304,18 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const setYoutubePlayer = (player: any) => {
     youtubePlayerRef.current = player;
+    // Yeni bir oynatıcı hazır olduğunda ve çalması gerekiyorsa, çalmaya başla
+    if (isPlaying && playlist[currentIndex]?.type === 'youtube') {
+      player.playVideo();
+    }
   };
   
   const setSoundcloudPlayer = (player: any) => {
     soundcloudPlayerRef.current = player;
+    // Yeni bir oynatıcı hazır olduğunda ve çalması gerekiyorsa, çalmaya başla
+    if (isPlaying && playlist[currentIndex]?.type === 'soundcloud') {
+       player.play();
+    }
   }
 
   // Unified useEffect for player control
@@ -313,9 +324,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const youtubePlayer = youtubePlayerRef.current;
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
-  
-    // Pause all players if not playing or no song
+
     if (!isPlaying || !song) {
+      // Pause all players if not playing
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
       }
