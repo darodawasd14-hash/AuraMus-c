@@ -207,30 +207,24 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
-      if (currentIndex !== index) {
-        setCurrentIndex(index);
-        setIsPlaying(true);
-      } else {
-        togglePlayPause();
-      }
+      setCurrentIndex(index);
+      setIsPlaying(true);
     } else {
       resetPlayer();
     }
-  }, [playlist, currentIndex, togglePlayPause]);
+  }, [playlist]);
 
 
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
-    setCurrentIndex(nextIndex);
-    setIsPlaying(true);
-  }, [currentIndex, playlist.length]);
+    playSong(nextIndex);
+  }, [currentIndex, playlist.length, playSong]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
     const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-    setCurrentIndex(prevIndex);
-    setIsPlaying(true);
+    playSong(prevIndex);
   };
   
   const currentSong = currentIndex !== -1 ? playlist[currentIndex] : null;
