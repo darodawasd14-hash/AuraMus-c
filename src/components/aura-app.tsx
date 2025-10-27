@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, FormEvent, useMemo } from 'react';
-import { usePlayer, type Song } from '@/context/player-context';
+import { usePlayer, type Song, type SongDetails } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,7 +39,7 @@ export function AuraApp() {
     e.preventDefault();
     if (!songUrl || !user) return;
     setIsAdding(true);
-    await addSong(songUrl, user.uid);
+    await addSong({url: songUrl}, user.uid);
     setSongUrl('');
     setIsAdding(false);
   };
@@ -344,7 +344,15 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
     setIsAdding(videoId);
     const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
     toast({ title: `"${title}" ekleniyor...` });
-    await addSong(youtubeUrl, user.uid);
+    
+    const songDetails: SongDetails = {
+      url: youtubeUrl,
+      title: title,
+      videoId: videoId,
+      type: 'youtube'
+    }
+
+    await addSong(songDetails, user.uid);
     setIsAdding(null);
     setView('player');
   };

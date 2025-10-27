@@ -16,13 +16,20 @@ export interface Song {
   timestamp?: any;
 }
 
+export type SongDetails = {
+  url: string;
+  title?: string;
+  videoId?: string;
+  type?: 'youtube' | 'soundcloud' | 'url';
+};
+
 type PlayerContextType = {
   playlist: Song[];
   currentSong: Song | null;
   currentIndex: number;
   isPlaying: boolean;
   isLoading: boolean;
-  addSong: (url: string, userId: string) => Promise<void>;
+  addSong: (songDetails: SongDetails, userId: string) => Promise<void>;
   deleteSong: (songId: string) => Promise<void>;
   playSong: (index: number) => void;
   togglePlayPause: () => void;
@@ -46,7 +53,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const youtubePlayerRef = useRef<any>(null);
   const soundcloudPlayerRef = useRef<any>(null);
-  const urlPlayerRef = useRef<HTMLAudioElement>(null);
+  const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
   
   const resetPlayer = () => {
     const youtubePlayer = youtubePlayerRef.current;
@@ -102,7 +109,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         dataLoadedRef.current = true; // Sadece bir kere çalışsın
         const addInitialSongs = async () => {
             for (const song of initialCatalog.songs) {
-                await addSong(song.url, user.uid);
+                await addSong({ url: song.url }, user.uid);
             }
         };
 
@@ -127,13 +134,39 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     return match ? match[1] : null;
   };
 
-  const getSongDetails = async (url: string, userId: string): Promise<Omit<Song, 'id'>> => {
+  const getSongDetails = async (details: SongDetails, userId: string): Promise<Omit<Song, 'id'>> => {
+    const { url } = details;
+
+    // If all details are provided, skip fetching
+    if (details.title && details.videoId && details.type === 'youtube') {
+      return {
+        title: details.title,
+        url: details.url,
+        type: 'youtube',
+        videoId: details.videoId,
+        userId: userId,
+        timestamp: serverTimestamp(),
+      };
+    }
+
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       const videoId = extractYouTubeID(url);
       if (!videoId) throw new Error("Geçersiz YouTube linki.");
       const canonicalYouTubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(canonicalYouTubeUrl)}`;
       
+      // If title is provided, no need to fetch oembed data
+      if (details.title) {
+        return {
+          title: details.title,
+          url: canonicalYouTubeUrl,
+          type: 'youtube',
+          videoId: videoId,
+          userId: userId,
+          timestamp: serverTimestamp(),
+        };
+      }
+      
+      const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(canonicalYouTubeUrl)}`;
       try {
         const response = await fetch(oembedUrl);
         if (!response.ok) throw new Error('YouTube metadata alınamadı');
@@ -200,23 +233,23 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addSong = async (url: string, userId: string) => {
+  const addSong = async (songDetailsInput: SongDetails, userId: string) => {
     if (!firestore || !user) {
       toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive'});
       return;
     }
   
     try {
-      const songDetails = await getSongDetails(url, userId);
+      const fullSongDetails = await getSongDetails(songDetailsInput, userId);
   
       // Prepare the data once, ensuring no undefined fields
       const songData: Omit<Song, 'id'> = {
-        title: songDetails.title,
-        url: songDetails.url,
-        type: songDetails.type,
-        userId: songDetails.userId,
-        timestamp: songDetails.timestamp,
-        ...(songDetails.videoId && { videoId: songDetails.videoId }),
+        title: fullSongDetails.title,
+        url: fullSongDetails.url,
+        type: fullSongDetails.type,
+        userId: fullSongDetails.userId,
+        timestamp: fullSongDetails.timestamp,
+        ...(fullSongDetails.videoId && { videoId: fullSongDetails.videoId }),
       };
       
       // Check if song already exists in the main catalog
@@ -323,7 +356,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const song = playlist[currentIndex];
     const youtubePlayer = youtubePlayerRef.current;
     
-    if (!song || song.type !== 'youtube') {
+    if (!song || song.type !== 'youtube' || !youtubePlayer) {
       return;
     }
     
