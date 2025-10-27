@@ -5,7 +5,7 @@ import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, ShieldCheck } from '@/components/icons';
-import { useUser, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 import { doc, onSnapshot, setDoc, collection, query, orderBy, addDoc } from 'firebase/firestore';
 import { signOut, updateProfile } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -29,6 +29,9 @@ interface CatalogSong {
   title: string;
   url: string;
 }
+interface AdminDoc {
+    isAdmin?: boolean;
+}
 
 export function AuraApp() {
   const { playlist, currentIndex, isPlaying, playSong, addSong, deleteSong, togglePlayPause, playNext, playPrev, isLoading } = usePlayer();
@@ -38,17 +41,14 @@ export function AuraApp() {
   const { user } = useUser();
   const firestore = useFirestore();
   const [userProfile, setUserProfile] = useState<UserProfile>({});
-  const [isAdmin, setIsAdmin] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      user.getIdTokenResult().then(idTokenResult => {
-        setIsAdmin(!!idTokenResult.claims.isAdmin);
-      });
-    } else {
-      setIsAdmin(false);
-    }
-  }, [user]);
+  const adminDocRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'admins', user.uid);
+  }, [user, firestore]);
+  const { data: adminData } = useDoc<AdminDoc>(adminDocRef);
+  const isAdmin = !!adminData;
+
 
   const profileRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -61,6 +61,12 @@ export function AuraApp() {
       if (docSnap.exists()) {
         setUserProfile(docSnap.data() as UserProfile);
       }
+    }, (err) => {
+        const permissionError = new FirestorePermissionError({
+            path: profileRef.path,
+            operation: 'get',
+        });
+        errorEmitter.emit('permission-error', permissionError);
     });
     return unsubscribe;
   }, [profileRef]);
@@ -236,12 +242,29 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
     return collection(firestore, 'artifacts', appId, 'catalog');
   }, [firestore]);
 
-  const catalogQuery = useMemoFirebase(() => {
-    if (!catalogCollectionRef) return null;
-    return query(catalogCollectionRef, orderBy('title', 'asc'));
-  }, [catalogCollectionRef]);
+  const [catalogSongs, setCatalogSongs] = useState<CatalogSong[]>([]);
+  const [isCatalogLoading, setIsCatalogLoading] = useState(true);
 
-  const { data: catalogSongs, isLoading: isCatalogLoading } = useCollection<CatalogSong>(catalogQuery);
+  useEffect(() => {
+    if (!catalogCollectionRef) {
+      setIsCatalogLoading(false);
+      return;
+    }
+    const q = query(catalogCollectionRef, orderBy('title', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const songs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CatalogSong));
+      setCatalogSongs(songs);
+      setIsCatalogLoading(false);
+    }, (err) => {
+      const permissionError = new FirestorePermissionError({
+          path: catalogCollectionRef.path,
+          operation: 'list',
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      setIsCatalogLoading(false);
+    });
+    return unsubscribe;
+  }, [catalogCollectionRef]);
 
   const handleAddFromCatalog = async (url: string, title: string) => {
     if (!user) {
@@ -302,28 +325,23 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
 
   const handleSearch = async (e: FormEvent) => {
     e.preventDefault();
-    toast({
-      title: 'Feature Disabled',
-      description: 'The AI-powered search is currently disabled to prevent accidental costs.',
-      variant: 'destructive',
-    });
-    // if (!searchQuery.trim()) return;
+    if (!searchQuery.trim()) return;
 
-    // setIsSearching(true);
-    // setSearchResults(null);
-    // try {
-    //   const results = await searchYoutube({ query: searchQuery });
-    //   setSearchResults(results);
-    // } catch (error) {
-    //   console.error('YouTube search failed:', error);
-    //   toast({
-    //     title: 'Search Failed',
-    //     description: 'Could not fetch search results. Please try again.',
-    //     variant: 'destructive',
-    //   });
-    // } finally {
-    //   setIsSearching(false);
-    // }
+    setIsSearching(true);
+    setSearchResults(null);
+    try {
+      const results = await searchYoutube({ query: searchQuery });
+      setSearchResults(results);
+    } catch (error) {
+      console.error('YouTube search failed:', error);
+      toast({
+        title: 'Search Failed',
+        description: 'Could not fetch search results. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const handleAddFromSearch = async (videoId: string, title: string) => {
@@ -351,8 +369,8 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-grow"
           />
-          <Button type="submit" disabled={true}>
-            <Search />
+          <Button type="submit" disabled={isSearching}>
+            {isSearching ? <Loader2 className="animate-spin" /> : <Search />}
           </Button>
         </form>
 
@@ -431,10 +449,8 @@ const ProfileModal = ({ isOpen, setIsOpen, profile }: { isOpen?: boolean; setIsO
     const profileData = { displayName: newName };
   
     try {
-      // First update Firestore
       await setDoc(profileRef, profileData, { merge: true });
       
-      // Then update Firebase Auth user profile
       if(auth.currentUser) {
         await updateProfile(auth.currentUser, { displayName: newName });
       }
@@ -442,7 +458,6 @@ const ProfileModal = ({ isOpen, setIsOpen, profile }: { isOpen?: boolean; setIsO
       toast({ title: 'Profile saved!' });
       if (setIsOpen) setIsOpen(false);
     } catch (error: any) {
-       // This is a generic catch, but we can make the error more specific if needed
        const permissionError = new FirestorePermissionError({
         path: profileRef.path,
         operation: 'update',
@@ -504,3 +519,5 @@ const ProfileModal = ({ isOpen, setIsOpen, profile }: { isOpen?: boolean; setIsO
     </div>
   );
 };
+
+    

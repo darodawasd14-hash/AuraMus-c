@@ -1,8 +1,8 @@
 'use client';
 import React, { useState } from 'react';
-import { useUser, useFirestore, useMemoFirebase, useDoc, useCollection } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { collection, addDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, query, orderBy, getDocs } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Music, ShieldCheck, Trash2 } from 'lucide-react';
@@ -23,6 +23,11 @@ interface AdminDoc {
   isAdmin?: boolean;
 }
 
+// This interface is only for the local state, not a Firestore entity.
+interface CatalogSongWithId extends CatalogSong {
+  id: string;
+}
+
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
@@ -32,6 +37,8 @@ export default function AdminPage() {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [catalogSongs, setCatalogSongs] = useState<CatalogSongWithId[]>([]);
+  const [isCatalogLoading, setIsCatalogLoading] = useState(true);
 
   // Check for admin status by reading a specific document
   const adminDocRef = useMemoFirebase(() => {
@@ -40,24 +47,45 @@ export default function AdminPage() {
     return doc(firestore, 'admins', user.uid);
   }, [user, firestore]);
 
-  // useDoc will fetch the document. `data` will be non-null if the document exists.
   const { data: adminData, isLoading: isCheckingAdmin } = useDoc<AdminDoc>(adminDocRef);
+  const isAdmin = !!adminData;
 
-  // The user is an admin if the admin document exists and contains isAdmin: true (or just exists)
-  const isAdmin = adminData ? (adminData.isAdmin === true || 'isAdmin' in adminData) : false;
+  // Manual catalog fetching effect
+  React.useEffect(() => {
+    if (!firestore || !isAdmin) {
+      if (!isCheckingAdmin) {
+        setIsCatalogLoading(false);
+      }
+      return;
+    }
 
+    const fetchCatalog = async () => {
+      setIsCatalogLoading(true);
+      const catalogCollectionRef = collection(firestore, 'artifacts', appId, 'catalog');
+      const q = query(catalogCollectionRef, orderBy('title', 'asc'));
+      
+      try {
+        const querySnapshot = await getDocs(q);
+        const songs = querySnapshot.docs.map(doc => ({ ...doc.data() as CatalogSong, id: doc.id }));
+        setCatalogSongs(songs);
+      } catch (err: any) {
+         const permissionError = new FirestorePermissionError({
+            path: catalogCollectionRef.path,
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      } finally {
+        setIsCatalogLoading(false);
+      }
+    };
 
-  const catalogQuery = useMemoFirebase(() => {
-    // Only build the query if the user is confirmed to be an admin
-    if(!firestore || !isAdmin) return null;
-    return query(collection(firestore, 'artifacts', appId, 'catalog'), orderBy('title', 'asc'));
-  }, [firestore, isAdmin]);
+    fetchCatalog();
+  }, [firestore, isAdmin, isCheckingAdmin]);
 
-  const { data: catalogSongs, isLoading: isCatalogLoading } = useCollection<CatalogSong>(catalogQuery);
 
   // Effect to redirect non-logged-in users
   React.useEffect(() => {
-    if (isUserLoading) return; // Wait until user status is resolved
+    if (isUserLoading) return;
     if (!user) {
       router.push('/auth');
     }
@@ -66,15 +94,16 @@ export default function AdminPage() {
 
   const handleAddSong = async (e: React.FormEvent) => {
     e.preventDefault();
-    const catalogCollectionRef = collection(firestore, 'artifacts', appId, 'catalog');
-    if (!title.trim() || !url.trim() || !catalogCollectionRef) return;
+    if (!title.trim() || !url.trim() || !firestore) return;
 
     setIsAdding(true);
+    const catalogCollectionRef = collection(firestore, 'artifacts', appId, 'catalog');
     const newSong = { title, url };
 
     addDoc(catalogCollectionRef, newSong)
-      .then(() => {
+      .then((docRef) => {
         toast({ title: 'Song added to catalog!' });
+        setCatalogSongs(prevSongs => [...prevSongs, { ...newSong, id: docRef.id }].sort((a,b) => a.title.localeCompare(b.title)));
         setTitle('');
         setUrl('');
       })
@@ -98,6 +127,7 @@ export default function AdminPage() {
       deleteDoc(songDocRef)
       .then(() => {
         toast({ title: 'Song deleted from catalog' });
+        setCatalogSongs(prevSongs => prevSongs.filter(s => s.id !== songId));
       })
       .catch((err) => {
         const permissionError = new FirestorePermissionError({
@@ -108,7 +138,6 @@ export default function AdminPage() {
       });
   }
 
-  // Show a loading state while we check for user and admin status
   if (isUserLoading || isCheckingAdmin) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -117,7 +146,6 @@ export default function AdminPage() {
     );
   }
   
-  // If not an admin, show the access denied message.
   if (!isAdmin) {
     return (
         <div className="flex h-screen w-full items-center justify-center bg-background p-4">
@@ -133,7 +161,6 @@ export default function AdminPage() {
     )
   }
 
-  // If the user is an admin, render the admin panel.
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
@@ -209,3 +236,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    
