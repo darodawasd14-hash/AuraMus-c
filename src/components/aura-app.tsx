@@ -188,7 +188,7 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
 
 
 const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'search') => void }) => {
-  const { addSongToUserPlaylist } = usePlayer();
+  const { addSong } = usePlayer();
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -196,7 +196,7 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
 
   const songsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'songs'), orderBy('timestamp', 'desc'), limit(50));
+    return query(collection(firestore, 'songs_v3'), orderBy('timestamp', 'desc'), limit(50));
   }, [firestore]);
 
   const { data: catalogSongs, isLoading, error } = useCollection<Song>(songsQuery);
@@ -208,17 +208,21 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
     }
     setIsAdding(song.id);
 
-    const newSongForPlaylist: Omit<Song, 'id'> = {
+    // Since the song is already in the catalog, we just add it to the user's playlist
+    const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
+    
+    const songData: Omit<Song, 'id'> = {
       title: song.title,
       url: song.url,
       type: song.type,
-      videoId: song.videoId,
       userId: user.uid,
       timestamp: serverTimestamp(),
     };
+    if (song.videoId) {
+      (songData as Song).videoId = song.videoId;
+    }
 
-    const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-    await addDoc(userPlaylistRef, newSongForPlaylist);
+    await addDoc(userPlaylistRef, songData);
     
     toast({ title: `"${song.title}" listenize eklendi!` });
     setIsAdding(null);

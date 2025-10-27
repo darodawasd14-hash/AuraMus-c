@@ -1,32 +1,32 @@
 {
   "songs": [
     {
-      "id": "cat-001",
-      "title": "Tame Impala - The Less I Know The Better",
-      "artist": "Tame Impala",
-      "url": "https://www.youtube.com/watch?v=sBzrzS1Ag_g",
-      "thumbnailUrl": "https://i.ytimg.com/vi/sBzrzS1Ag_g/hqdefault.jpg"
+        "id": "cat-001",
+        "title": "Tame Impala - The Less I Know The Better",
+        "artist": "Tame Impala",
+        "url": "https://www.youtube.com/watch?v=sBzrzS1Ag_g",
+        "thumbnailUrl": "https://i.ytimg.com/vi/sBzrzS1Ag_g/hqdefault.jpg"
     },
     {
-      "id": "cat-002",
-      "title": "Daft Punk - One More Time",
-      "artist": "Daft Punk",
-      "url": "https://www.youtube.com/watch?v=FGBhQbmPwH8",
-      "thumbnailUrl": "https://i.ytimg.com/vi/FGBhQbmPwH8/hqdefault.jpg"
+        "id": "cat-002",
+        "title": "Daft Punk - One More Time",
+        "artist": "Daft Punk",
+        "url": "https://www.youtube.com/watch?v=FGBhQbmPwH8",
+        "thumbnailUrl": "https://i.ytimg.com/vi/FGBhQbmPwH8/hqdefault.jpg"
     },
     {
-      "id": "cat-003",
-      "title": "The Strokes - Reptilia",
-      "artist": "The Strokes",
-      "url": "https://www.youtube.com/watch?v=b8-tXG8KrWs",
-      "thumbnailUrl": "https://i.ytimg.com/vi/b8-tXG8KrWs/hqdefault.jpg"
+        "id": "cat-003",
+        "title": "The Strokes - Reptilia",
+        "artist": "The Strokes",
+        "url": "https://www.youtube.com/watch?v=b8-tXG8KrWs",
+        "thumbnailUrl": "https://i.ytimg.com/vi/b8-tXG8KrWs/hqdefault.jpg"
     },
     {
-      "id": "cat-004",
-      "title": "Gorillaz - Feel Good Inc.",
-      "artist": "Gorillaz",
-      "url": "https://www.youtube.com/watch?v=HyHNuVaZJ-k",
-      "thumbnailUrl": "https://i.ytimg.com/vi/HyHNuVaZJ-k/hqdefault.jpg"
+        "id": "cat-004",
+        "title": "Gorillaz - Feel Good Inc.",
+        "artist": "Gorillaz",
+        "url": "https://www.youtube.com/watch?v=HyHNuVaZJ-k",
+        "thumbnailUrl": "https://i.ytimg.com/vi/HyHNuVaZJ-k/hqdefault.jpg"
     },
     {
         "id": "cat-005",
@@ -37,24 +37,24 @@
     },
     {
         "id": "cat-006",
+        "title": "Manifest - RÜYA (Slowed + Reverb)",
+        "artist": "Manifest",
+        "url": "https://www.youtube.com/watch?v=WEAS-pp8-iM",
+        "thumbnailUrl": "https://i.ytimg.com/vi/WEAS-pp8-iM/hqdefault.jpg"
+    },
+    {
+        "id": "cat-007",
         "title": "Glass Animals - Heat Waves",
         "artist": "Glass Animals",
         "url": "https://www.youtube.com/watch?v=mRD0-GxqHVo",
         "thumbnailUrl": "https://i.ytimg.com/vi/mRD0-GxqHVo/hqdefault.jpg"
     },
     {
-        "id": "cat-007",
+        "id": "cat-008",
         "title": "Phoenix - Lisztomania",
         "artist": "Phoenix",
         "url": "https://www.youtube.com/watch?v=uF3re6_B_nQ",
         "thumbnailUrl": "https://i.ytimg.com/vi/uF3re6_B_nQ/hqdefault.jpg"
-    },
-    {
-        "id": "cat-008",
-        "title": "MGMT - Little Dark Age",
-        "artist": "MGMT",
-        "url": "https://www.youtube.com/watch?v=rtL5oMyBHPs",
-        "thumbnailUrl": "https://i.ytimg.com/vi/rtL5oMyBHPs/hqdefault.jpg"
     }
   ]
 }
