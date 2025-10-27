@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -38,6 +38,8 @@ type PlayerContextType = {
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
+const appId = 'Aura';
+
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -54,7 +56,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const songsCollectionRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    return collection(firestore, 'artifacts', 'Aura', 'users', user.uid, 'songs');
+    return collection(firestore, 'artifacts', appId, 'users', user.uid, 'songs');
   }, [user, firestore]);
 
   useEffect(() => {
@@ -94,8 +96,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
   useEffect(() => {
-    // CRITICAL FIX: Ensure both player and song exist before calling player functions.
-    if (youtubePlayer && currentSong && typeof youtubePlayer.playVideo === 'function' && typeof youtubePlayer.pauseVideo === 'function') {
+    if (youtubePlayer && currentSong) {
       if (currentSong.type === 'youtube') {
         if (isPlaying) {
           youtubePlayer.playVideo();
@@ -106,11 +107,43 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isPlaying, currentSong, youtubePlayer]);
 
+
   useEffect(() => {
-    if (youtubePlayer && typeof youtubePlayer.setVolume === 'function') {
-      youtubePlayer.setVolume(volume);
+    if (!firestore || !user || !user.displayName) return;
+
+    let listenerRef: any;
+
+    if (currentSong && isPlaying) {
+      // User started playing a song, add them to listeners
+      listenerRef = doc(firestore, 'artifacts', appId, 'songs', currentSong.id, 'live_listeners', user.uid);
+      const listenerData = {
+        uid: user.uid,
+        displayName: user.displayName,
+        timestamp: serverTimestamp(),
+      };
+      setDoc(listenerRef, listenerData).catch(e => {
+        const permissionError = new FirestorePermissionError({
+            path: listenerRef.path,
+            operation: 'create',
+            requestResourceData: listenerData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
     }
-  }, [volume, youtubePlayer]);
+
+    return () => {
+      // Cleanup: remove user from listeners when they stop playing or change song
+      if (listenerRef) {
+        deleteDoc(listenerRef).catch(e => {
+            const permissionError = new FirestorePermissionError({
+                path: listenerRef.path,
+                operation: 'delete',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
+      }
+    };
+  }, [currentSong, isPlaying, firestore, user]);
 
   useEffect(() => {
     const currentSongId = playlist[currentIndex]?.id;

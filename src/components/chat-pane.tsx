@@ -5,7 +5,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebas
 import { collection, query, orderBy, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Send, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -22,6 +22,12 @@ interface Message {
     timestamp: Timestamp;
 }
 
+interface LiveListener {
+    id: string;
+    uid: string;
+    displayName: string;
+}
+
 export function ChatPane({ song, displayName }: { song: Song | null, displayName?: string }) {
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
@@ -35,12 +41,18 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         return collection(firestore, 'artifacts', appId, 'songs', song.id, 'messages');
     }, [song, firestore]);
 
+    const listenersCollectionRef = useMemoFirebase(() => {
+        if (!song || !firestore) return null;
+        return collection(firestore, 'artifacts', appId, 'songs', song.id, 'live_listeners');
+    }, [song, firestore]);
+
     const messagesQuery = useMemoFirebase(() => {
         if (!messagesCollectionRef) return null;
         return query(messagesCollectionRef, orderBy('timestamp', 'asc'));
     }, [messagesCollectionRef]);
 
     const { data: messages, isLoading: isMessagesLoading } = useCollection<Message>(messagesQuery);
+    const { data: listeners } = useCollection<LiveListener>(listenersCollectionRef);
     
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -95,7 +107,14 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         <aside className="w-80 bg-background/50 border-l border-border flex flex-col">
             <div className="p-4 border-b border-border">
                 <h3 className="font-semibold truncate">{song.title}</h3>
-                <p className="text-sm text-muted-foreground">Sohbet</p>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                    <p>Sohbet</p>
+                    <div className="flex-grow border-t border-dashed border-border/50"></div>
+                    <div className="flex items-center gap-1.5">
+                        <Users className="w-4 h-4" />
+                        <span>{listeners ? listeners.length : 0}</span>
+                    </div>
+                </div>
             </div>
 
             <div className="flex-grow p-4 overflow-y-auto space-y-4">

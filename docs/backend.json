@@ -98,6 +98,32 @@
         "sender",
         "timestamp"
       ]
+    },
+    "LiveListener": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LiveListener",
+      "description": "Represents a user who is currently listening to a specific song.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The user ID of the listener."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The display name of the listener."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the user started listening."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "timestamp"
+      ]
     }
   },
   "auth": {
@@ -124,6 +150,12 @@
         "$ref": "#/entities/Message"
       },
       "description": "Stores chat messages for a specific song."
+    },
+    "/artifacts/Aura/songs/{songId}/live_listeners/{userId}": {
+      "schema": {
+        "$ref": "#/entities/LiveListener"
+      },
+      "description": "Stores a list of users currently listening to a song."
     }
   }
 }
