@@ -14,59 +14,58 @@ const SoundCloudPlayer = ({ song, isPlaying, volume, onEnded }: { song: Song; is
   const widgetRef = useRef<any>(null);
   const isReadyRef = useRef(false);
 
+  // Effect to handle song changes and widget creation
   useEffect(() => {
-    if (iframeRef.current) {
-      const widget = (window as any).SC.Widget(iframeRef.current);
-      widgetRef.current = widget;
-      
-      const onReady = () => {
-        isReadyRef.current = true;
-        if (widgetRef.current) {
-            widgetRef.current.setVolume(volume / 100);
-            if (isPlaying) {
-              widgetRef.current.play();
-            }
-            widgetRef.current.unbind((window as any).SC.Widget.Events.FINISH);
-            widgetRef.current.bind((window as any).SC.Widget.Events.FINISH, () => {
-              onEnded();
-            });
-        }
-      };
+    // Only run when the song ID changes
+    if (!iframeRef.current) return;
 
-      widget.bind((window as any).SC.Widget.Events.READY, onReady);
+    const widget = (window as any).SC.Widget(iframeRef.current);
+    widgetRef.current = widget;
+    isReadyRef.current = false; // Reset ready state for new widget
 
+    const onReady = () => {
+      isReadyRef.current = true;
       const currentWidget = widgetRef.current;
-      return () => {
-        if (currentWidget && typeof currentWidget.unbind === 'function') {
-          try {
-            currentWidget.unbind((window as any).SC.Widget.Events.READY);
-            currentWidget.unbind((window as any).SC.Widget.Events.FINISH);
-          } catch (e) {
-            // Suppress error: If the iframe is already gone, unbinding will fail.
-            // This is a safe error to ignore during component cleanup.
-          }
+      if (currentWidget) {
+        currentWidget.setVolume(volume / 100);
+        // Autoplay is handled by the URL, so no need to call play() here
+        
+        // Setup finish event listener
+        currentWidget.unbind((window as any).SC.Widget.Events.FINISH);
+        currentWidget.bind((window as any).SC.Widget.Events.FINISH, () => {
+          onEnded();
+        });
+      }
+    };
+
+    widget.bind((window as any).SC.Widget.Events.READY, onReady);
+    
+    // Cleanup function for when the component unmounts or song changes
+    return () => {
+      const currentWidget = widgetRef.current;
+      if (currentWidget && typeof currentWidget.unbind === 'function') {
+        try {
+          // Unbind events to prevent memory leaks and errors on unmount
+          currentWidget.unbind((window as any).SC.Widget.Events.READY);
+          currentWidget.unbind((window as any).SC.Widget.Events.FINISH);
+        } catch (e) {
+          // Suppress error: If the iframe is already gone, unbinding will fail.
+          // This is a safe error to ignore during component cleanup.
         }
       }
-    }
-  }, [song.id, onEnded, isPlaying, volume]);
+    };
+  }, [song.id, onEnded, volume]); // Depend on song.id to re-create widget, and others for closure.
 
+  // Effect to handle volume changes
   useEffect(() => {
-    if (widgetRef.current && isReadyRef.current && typeof widgetRef.current.setVolume === 'function') {
-        widgetRef.current.setVolume(volume / 100);
+    if (widgetRef.current && isReadyRef.current) {
+      widgetRef.current.setVolume(volume / 100);
     }
   }, [volume]);
-
-  useEffect(() => {
-    if (widgetRef.current && isReadyRef.current && typeof widgetRef.current.play === 'function' && typeof widgetRef.current.pause === 'function') {
-      if (isPlaying) {
-        widgetRef.current.play();
-      } else {
-        widgetRef.current.pause();
-      }
-    }
-  }, [isPlaying, song.id]);
-
-
+  
+  // The key prop ensures the iframe is re-created when the song ID changes.
+  // auto_play=true handles starting the music, removing the need for a complex isPlaying effect.
+  // When the component is unmounted (e.g., song changes or paused from context), the iframe is destroyed, stopping the music.
   return (
     <iframe
       ref={iframeRef}
@@ -76,7 +75,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume, onEnded }: { song: Song; is
       scrolling="no"
       frameBorder="no"
       allow="autoplay"
-      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=false&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
+      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=true&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
     ></iframe>
   );
 };
@@ -94,7 +93,7 @@ export function Player({ song }: PlayerProps) {
     playNext();
   };
 
-  if (!song) {
+  if (!song || !isPlaying) { // Also check for isPlaying
     return (
       <div id="player-wrapper" className="aspect-video bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
         <div id="player-placeholder" className="text-muted-foreground flex flex-col items-center gap-4">
@@ -115,7 +114,7 @@ export function Player({ song }: PlayerProps) {
             width: '100%',
             height: '100%',
             playerVars: {
-              autoplay: isPlaying ? 1 : 0,
+              autoplay: 1, // Always autoplay when the component is rendered
               controls: 1,
               modestbranding: 1,
               rel: 0,
