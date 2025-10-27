@@ -38,12 +38,17 @@ const SoundCloudPlayer = ({ song, isPlaying, volume, onEnded }: { song: Song; is
       const currentWidget = widgetRef.current;
       return () => {
         if (currentWidget && typeof currentWidget.unbind === 'function') {
-          currentWidget.unbind((window as any).SC.Widget.Events.READY);
-          currentWidget.unbind((window as any).SC.Widget.Events.FINISH);
+          try {
+            currentWidget.unbind((window as any).SC.Widget.Events.READY);
+            currentWidget.unbind((window as any).SC.Widget.Events.FINISH);
+          } catch (e) {
+            // Suppress error: If the iframe is already gone, unbinding will fail.
+            // This is a safe error to ignore during component cleanup.
+          }
         }
       }
     }
-  }, [song.id]);
+  }, [song.id, onEnded, volume, isPlaying]);
 
   useEffect(() => {
     if (widgetRef.current && isReadyRef.current && typeof widgetRef.current.setVolume === 'function') {
@@ -60,6 +65,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume, onEnded }: { song: Song; is
       }
     }
   }, [isPlaying, song.id]);
+
 
   return (
     <iframe
