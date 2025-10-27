@@ -1,12 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
-import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
-import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
-import { FirestorePermissionError } from '@/firebase/errors';
-import { errorEmitter } from '@/firebase/error-emitter';
 
 export interface Song {
   id: string;
@@ -34,58 +29,14 @@ type PlayerContextType = {
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
-const appId = 'Aura';
-
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
-  const { user } = useUser();
-  const firestore = useFirestore();
   const { toast } = useToast();
 
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false); // No longer loading from Firestore
   const youtubePlayerRef = useRef<any>(null);
-  
-  const songsCollectionRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    // NOTE: The path was updated to match the backend.json structure.
-    return collection(firestore, 'users', user.uid, 'songs');
-  }, [user, firestore]);
-
-  useEffect(() => {
-    if (!songsCollectionRef) {
-      setPlaylist([]);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    const q = query(songsCollectionRef, orderBy('timestamp', 'asc'));
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const serverPlaylist: Song[] = [];
-        snapshot.forEach((doc) => {
-          serverPlaylist.push({ id: doc.id, ...doc.data() } as Song);
-        });
-
-        setPlaylist(serverPlaylist);
-        setIsLoading(false);
-      },
-      (error) => {
-        const contextualError = new FirestorePermissionError({
-          path: songsCollectionRef.path,
-          operation: 'list',
-        });
-        errorEmitter.emit('permission-error', contextualError);
-        setIsLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [songsCollectionRef]);
   
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
@@ -103,7 +54,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const newCurrentIndex = playlist.findIndex(song => song.id === currentSongId);
   
     if (currentIndex !== -1 && newCurrentIndex === -1) {
-      // Current song was deleted from the playlist
       resetPlayer();
     } else {
       setCurrentIndex(newCurrentIndex);
@@ -118,7 +68,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getSongDetails = async (url: string): Promise<Omit<Song, 'id' | 'timestamp'>> => {
-    // Firebase Storage URLs are not handled in this version.
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       const videoId = extractYouTubeID(url);
       if (!videoId) throw new Error("Invalid YouTube link.");
@@ -160,28 +109,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addSong = async (url: string) => {
-    if (!songsCollectionRef) {
-      toast({ title: "You must be logged in to add songs.", variant: 'destructive' });
-      return;
-    }
     try {
-      const songData = await getSongDetails(url);
-      const fullSongData = { ...songData, timestamp: serverTimestamp() };
-      
-      addDoc(songsCollectionRef, fullSongData)
-        .then(() => {
-            toast({ title: "Song added!" });
-        })
-        .catch((serverError) => {
-            const permissionError = new FirestorePermissionError({
-                path: songsCollectionRef.path,
-                operation: 'create',
-                requestResourceData: fullSongData,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            toast({ title: "Error adding song.", variant: 'destructive' });
-        });
-
+      const songDetails = await getSongDetails(url);
+      const newSong: Song = {
+        ...songDetails,
+        id: new Date().toISOString(), // Use a simple unique ID for in-memory list
+        timestamp: new Date()
+      };
+      setPlaylist(prev => [...prev, newSong]);
+      toast({ title: "Song added!" });
     } catch (error: any) {
       console.error("Error adding song:", error);
       toast({ title: error.message || "Failed to add song.", variant: 'destructive' });
@@ -189,21 +125,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteSong = async (songId: string) => {
-    if (!user || !firestore) return;
-    const songRef = doc(firestore, 'users', user.uid, 'songs', songId);
-
-    deleteDoc(songRef)
-      .then(() => {
-          toast({ title: "Song deleted." });
-      })
-      .catch((serverError) => {
-          const permissionError = new FirestorePermissionError({
-              path: songRef.path,
-              operation: 'delete',
-          });
-          errorEmitter.emit('permission-error', permissionError);
-          toast({ title: 'Error deleting song.', variant: 'destructive' });
-      });
+    setPlaylist(prev => prev.filter(song => song.id !== songId));
+    toast({ title: "Song deleted." });
   };
   
   const playSong = (index: number) => {
@@ -228,7 +151,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
     playSong(nextIndex);
-  }, [currentIndex, playlist.length, playSong]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, playlist.length]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
@@ -284,5 +208,3 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
-
-    
