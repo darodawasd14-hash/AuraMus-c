@@ -5,7 +5,7 @@ import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2 } from '@/components/icons';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -201,9 +201,14 @@ const ProfileModal = ({ isOpen, setIsOpen }: { isOpen?: boolean; setIsOpen?: (op
   const [displayName, setDisplayName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  const profileRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'artifacts', appId, 'users', user.uid);
+  }, [user, firestore]);
+
   useEffect(() => {
-    if (!user || !firestore) return;
-    const profileRef = doc(firestore, 'artifacts', appId, 'users', user.uid);
+    if (!profileRef) return;
+    
     const unsubscribe = onSnapshot(profileRef, (docSnap) => {
       if (docSnap.exists()) {
         setDisplayName(docSnap.data().displayName || '');
@@ -217,10 +222,10 @@ const ProfileModal = ({ isOpen, setIsOpen }: { isOpen?: boolean; setIsOpen?: (op
       errorEmitter.emit('permission-error', contextualError);
     });
     return unsubscribe;
-  }, [user, firestore]);
+  }, [profileRef]);
 
   const handleSave = async () => {
-    if (!user || !firestore) return;
+    if (!user || !firestore || !profileRef) return;
     const newName = displayName.trim();
     if (!newName) {
       toast({ title: 'Please enter a valid name.', variant: 'destructive' });
@@ -228,7 +233,6 @@ const ProfileModal = ({ isOpen, setIsOpen }: { isOpen?: boolean; setIsOpen?: (op
     }
   
     setIsSaving(true);
-    const profileRef = doc(firestore, 'artifacts', appId, 'users', user.uid);
     const profileData = { displayName: newName };
   
     setDoc(profileRef, profileData, { merge: true })
