@@ -9,7 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 
 const YouTubeSearchInputSchema = z.object({
   query: z.string().describe('The search query for YouTube.'),
@@ -48,7 +48,7 @@ const prompt = ai.definePrompt({
 
     Search Query: {{{query}}}
 
-    Find 12 relevant songs on YouTube based on the query. Ensure the videoId is a valid YouTube video ID. For the thumbnailUrl, use the format 'https://i.ytimg.com/vi/VIDEO_ID/hqdefault.jpg'.
+    Find 16 relevant songs on YouTube based on the query. Ensure the videoId is a valid YouTube video ID. For the thumbnailUrl, use the format 'https://i.ytimg.com/vi/VIDEO_ID/hqdefault.jpg'.
     Return a JSON object with a "songs" array.`,
 });
 
