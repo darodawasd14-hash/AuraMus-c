@@ -18,7 +18,12 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
       const widget = (window as any).SC.Widget(iframeRef.current);
       widgetRef.current = widget;
       widget.bind((window as any).SC.Widget.Events.READY, () => {
-        // Widget is ready
+        if (widgetRef.current) {
+          widgetRef.current.setVolume(volume / 100);
+          if (isPlaying) {
+            widgetRef.current.play();
+          }
+        }
       });
       widget.bind((window as any).SC.Widget.Events.FINISH, () => {
         // Handle song finishing if needed
@@ -48,7 +53,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
         scrolling="no"
         frameBorder="no"
         allow="autoplay"
-        src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=false&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
+        src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=true&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
     ></iframe>
   );
 };
@@ -59,7 +64,7 @@ export function Player({ song }: PlayerProps) {
 
   useEffect(() => {
     if (youtubePlayer) {
-        youtubePlayer.setVolume(volume);
+      youtubePlayer.setVolume(volume);
     }
   }, [volume, youtubePlayer]);
 
@@ -71,7 +76,7 @@ export function Player({ song }: PlayerProps) {
         youtubePlayer.pauseVideo();
       }
     }
-  }, [isPlaying, youtubePlayer]);
+  }, [isPlaying, song, youtubePlayer]);
 
 
   const onReady = (event: any) => {

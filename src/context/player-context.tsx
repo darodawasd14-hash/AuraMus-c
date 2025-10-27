@@ -22,6 +22,7 @@ type PlayerContextType = {
   currentIndex: number;
   isPlaying: boolean;
   isLoading: boolean;
+
   addSong: (url: string) => Promise<void>;
   deleteSong: (songId: string) => Promise<void>;
   playSong: (index: number) => void;
@@ -101,7 +102,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     } else {
       setCurrentIndex(newCurrentIndex);
     }
-  }, [playlist, currentIndex]);
+  }, [playlist]);
 
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -197,21 +198,23 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
-      setCurrentIndex(index);
-      setIsPlaying(false); // Don't autoplay
+      if (currentIndex !== index) {
+        setCurrentIndex(index);
+        setIsPlaying(true);
+      } else {
+        togglePlayPause();
+      }
     } else {
       resetPlayer();
     }
-  }, [playlist]);
+  }, [playlist, currentIndex]);
 
 
   const togglePlayPause = () => {
     if(currentIndex === -1 && playlist.length > 0) {
-      // If nothing is selected, play the first song
       setCurrentIndex(0);
       setIsPlaying(true);
     } else if (currentIndex !== -1) {
-      // If a song is selected, toggle its play state
       setIsPlaying(prev => !prev);
     }
   };
@@ -219,14 +222,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
-    playSong(nextIndex);
+    setCurrentIndex(nextIndex);
     setIsPlaying(true);
-  }, [currentIndex, playlist.length, playSong]);
+  }, [currentIndex, playlist.length]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
     const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-    playSong(prevIndex);
+    setCurrentIndex(prevIndex);
     setIsPlaying(true);
   };
   
