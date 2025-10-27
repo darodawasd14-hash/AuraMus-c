@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { addDoc, collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 
 
@@ -195,15 +195,26 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     try {
       const songDetails = await getSongDetails(url, userId);
       
-      // Save to global songs collection (non-blocking)
-      const songsCol = collection(firestore, 'songs');
-      addDoc(songsCol, songDetails);
-
-      // Save to user's personal playlist
+      // Save to user's personal playlist first
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-      const docRef = await addDoc(userPlaylistRef, songDetails);
+      await addDoc(userPlaylistRef, songDetails);
+      
+      // Check if song already exists in the global catalog
+      const songsCol = collection(firestore, 'songs');
+      let q;
+      if (songDetails.videoId) {
+        q = query(songsCol, where('videoId', '==', songDetails.videoId), limit(1));
+      } else {
+        q = query(songsCol, where('url', '==', songDetails.url), limit(1));
+      }
+      
+      const querySnapshot = await getDocs(q);
+      
+      // If it doesn't exist, add it to the global catalog
+      if (querySnapshot.empty) {
+        await addDoc(songsCol, songDetails);
+      }
 
-      // The useCollection hook will automatically update the playlist state
       toast({ title: "Şarkı eklendi!" });
 
     } catch (error: any) {
@@ -298,7 +309,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const song = playlist[currentIndex];
     const youtubePlayer = youtubePlayerRef.current;
     
-    if (song?.type !== 'youtube' || !youtubePlayer || typeof youtubePlayer.playVideo !== 'function') {
+    if (!song || song.type !== 'youtube' || !youtubePlayer || typeof youtubePlayer.playVideo !== 'function') {
       return;
     }
     
@@ -315,7 +326,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const song = playlist[currentIndex];
       const soundcloudPlayer = soundcloudPlayerRef.current;
 
-      if (song?.type !== 'soundcloud' || !soundcloudPlayer || typeof soundcloudPlayer.play !== 'function') {
+      if (!song || song.type !== 'soundcloud' || !soundcloudPlayer || typeof soundcloudPlayer.play !== 'function') {
           return;
       }
       
