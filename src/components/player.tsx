@@ -10,40 +10,27 @@ type PlayerProps = {
 };
 
 export function Player({ song }: PlayerProps) {
-  const { isPlaying, playNext, setYoutubePlayer, volume } = usePlayer();
-  const playerRef = useRef<any>(null);
+  const { isPlaying, playNext, youtubePlayer, setYoutubePlayer, volume } = usePlayer();
 
   useEffect(() => {
-    if (playerRef.current && song) {
-      const player = playerRef.current;
-      const playerState = player.getPlayerState ? player.getPlayerState() : -1;
-      
-      if (isPlaying && playerState !== 1) { // 1 = playing
-        if (song.type === 'youtube' && player.playVideo) {
-          player.playVideo();
-        }
-      } else if (!isPlaying && playerState === 1) {
-        if (song.type === 'youtube' && player.pauseVideo) {
-          player.pauseVideo();
-        }
+    if (youtubePlayer) {
+        youtubePlayer.setVolume(volume);
+    }
+  }, [volume, youtubePlayer]);
+
+  useEffect(() => {
+    if (youtubePlayer) {
+      if (isPlaying) {
+        youtubePlayer.playVideo();
+      } else {
+        youtubePlayer.pauseVideo();
       }
     }
-  }, [isPlaying, song]);
-  
-  useEffect(() => {
-    if (playerRef.current && song && song.type === 'youtube' && playerRef.current.setVolume) {
-      playerRef.current.setVolume(volume);
-    }
-  }, [volume, song]);
+  }, [isPlaying, youtubePlayer]);
 
 
   const onReady = (event: any) => {
-    playerRef.current = event.target;
     setYoutubePlayer(event.target);
-    event.target.setVolume(volume);
-    if (isPlaying) {
-      event.target.playVideo();
-    }
   };
 
   const onEnd = () => {

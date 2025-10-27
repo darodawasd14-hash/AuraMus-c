@@ -141,14 +141,13 @@ const VolumeControl = () => {
           <Volume2 />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-2">
+      <PopoverContent className="w-48 p-2">
         <Slider
           defaultValue={[volume]}
           onValueChange={(value) => setVolume(value[0])}
           max={100}
           step={1}
-          orientation="vertical"
-          className="h-32"
+          className="w-full"
         />
       </PopoverContent>
     </Popover>
