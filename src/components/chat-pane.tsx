@@ -1,15 +1,13 @@
 'use client';
 import React, { useState, useEffect, FormEvent, useRef } from 'react';
 import type { Song } from '@/context/player-context';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { FirestorePermissionError } from '@/firebase/errors';
-import { errorEmitter } from '@/firebase/error-emitter';
 
+// Simplified Message interface, no longer using Firestore Timestamp
 interface Message {
     id: string;
     text: string;
@@ -17,36 +15,33 @@ interface Message {
         uid: string;
         displayName: string;
     };
-    timestamp: Timestamp;
+    timestamp: Date; // Using native Date object
 }
 
 export function ChatPane({ song, displayName }: { song: Song | null, displayName?: string }) {
     const [message, setMessage] = useState('');
+    const [messages, setMessages] = useState<Message[]>([]);
     const [isSending, setIsSending] = useState(false);
     const { user } = useUser();
-    const firestore = useFirestore();
     const { toast } = useToast();
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [currentSongId, setCurrentSongId] = useState<string | null>(null);
 
-    const messagesCollectionRef = useMemoFirebase(() => {
-        if (!song || !firestore) return null;
-        return collection(firestore, 'songs', song.id, 'messages');
-    }, [song, firestore]);
+    // Clear messages when song changes
+    useEffect(() => {
+        if (song?.id !== currentSongId) {
+            setMessages([]);
+            setCurrentSongId(song?.id ?? null);
+        }
+    }, [song, currentSongId]);
 
-    const messagesQuery = useMemoFirebase(() => {
-        if (!messagesCollectionRef) return null;
-        return query(messagesCollectionRef, orderBy('timestamp', 'asc'));
-    }, [messagesCollectionRef]);
-
-    const { data: messages, isLoading: isMessagesLoading } = useCollection<Message>(messagesQuery);
-    
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
     const handleSendMessage = async (e: FormEvent) => {
         e.preventDefault();
-        if (!message.trim() || !user || !messagesCollectionRef) return;
+        if (!message.trim() || !user) return;
         
         if (!displayName) {
             toast({ title: 'You must set a display name in your profile to chat.', variant: 'destructive'});
@@ -54,31 +49,23 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         }
 
         setIsSending(true);
-        const newMessage = {
+
+        const newMessage: Message = {
+            id: new Date().toISOString(),
             text: message,
             sender: {
                 uid: user.uid,
                 displayName: displayName,
             },
-            timestamp: serverTimestamp(),
+            timestamp: new Date(),
         };
 
-        addDoc(messagesCollectionRef, newMessage)
-            .then(() => {
-                setMessage('');
-            })
-            .catch((serverError) => {
-                const permissionError = new FirestorePermissionError({
-                    path: messagesCollectionRef.path,
-                    operation: 'create',
-                    requestResourceData: newMessage,
-                });
-                errorEmitter.emit('permission-error', permissionError);
-                toast({ title: 'Error sending message.', variant: 'destructive' });
-            })
-            .finally(() => {
-                setIsSending(false);
-            });
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        setMessages(prevMessages => [...prevMessages, newMessage]);
+        setMessage('');
+        setIsSending(false);
     };
 
     if (!song) {
@@ -97,12 +84,12 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
             </div>
 
             <div className="flex-grow p-4 overflow-y-auto space-y-4">
-                {isMessagesLoading ? (
+                {messages.length === 0 ? (
                     <div className="flex justify-center items-center h-full">
-                        <Loader2 className="animate-spin text-muted-foreground" />
+                        <p className="text-muted-foreground text-sm">Be the first to say something!</p>
                     </div>
                 ) : (
-                    messages?.map(msg => (
+                    messages.map(msg => (
                         <div key={msg.id} className={`flex flex-col ${msg.sender.uid === user?.uid ? 'items-end' : 'items-start'}`}>
                             <div className={`p-2 rounded-lg max-w-xs ${msg.sender.uid === user?.uid ? 'bg-primary/90 text-primary-foreground' : 'bg-secondary'}`}>
                                 <p className="text-xs font-bold text-accent mb-1">{msg.sender.displayName}</p>
