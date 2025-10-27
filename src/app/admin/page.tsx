@@ -1,6 +1,6 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import React, { useState } from 'react';
+import { useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { collection, addDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,7 @@ interface CatalogSong {
 }
 
 interface AdminDoc {
-  isAdmin: boolean;
+  isAdmin?: boolean;
 }
 
 export default function AdminPage() {
@@ -33,30 +33,33 @@ export default function AdminPage() {
   const [url, setUrl] = useState('');
   const [isAdding, setIsAdding] = useState(false);
 
-  // New, reliable way to check for admin status
+  // Check for admin status by reading a specific document
   const adminDocRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
+    // Path to the document that confirms admin status
     return doc(firestore, 'admins', user.uid);
   }, [user, firestore]);
 
+  // useDoc will fetch the document. `data` will be non-null if the document exists.
   const { data: adminData, isLoading: isCheckingAdmin } = useDoc<AdminDoc>(adminDocRef);
-  const isAdmin = !!adminData;
+
+  // The user is an admin if the admin document exists and contains isAdmin: true (or just exists)
+  const isAdmin = adminData ? (adminData.isAdmin === true || 'isAdmin' in adminData) : false;
 
 
-  // IMPORTANT: Only create the query if the user is an admin
   const catalogQuery = useMemoFirebase(() => {
+    // Only build the query if the user is confirmed to be an admin
     if(!firestore || !isAdmin) return null;
     return query(collection(firestore, 'artifacts', appId, 'catalog'), orderBy('title', 'asc'));
   }, [firestore, isAdmin]);
 
   const { data: catalogSongs, isLoading: isCatalogLoading } = useCollection<CatalogSong>(catalogQuery);
 
-  useEffect(() => {
-    if (isUserLoading) return;
-    
+  // Effect to redirect non-logged-in users
+  React.useEffect(() => {
+    if (isUserLoading) return; // Wait until user status is resolved
     if (!user) {
       router.push('/auth');
-      return;
     }
   }, [user, isUserLoading, router]);
 
@@ -105,6 +108,7 @@ export default function AdminPage() {
       });
   }
 
+  // Show a loading state while we check for user and admin status
   if (isUserLoading || isCheckingAdmin) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -113,6 +117,7 @@ export default function AdminPage() {
     );
   }
   
+  // If not an admin, show the access denied message.
   if (!isAdmin) {
     return (
         <div className="flex h-screen w-full items-center justify-center bg-background p-4">
@@ -128,6 +133,7 @@ export default function AdminPage() {
     )
   }
 
+  // If the user is an admin, render the admin panel.
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
