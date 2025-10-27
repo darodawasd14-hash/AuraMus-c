@@ -167,6 +167,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       if (!videoId) throw new Error("Geçersiz YouTube linki.");
       const canonicalYouTubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
       
+      // Use noembed.com as a proxy to fetch YouTube metadata to avoid CORS issues
       const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(canonicalYouTubeUrl)}`;
       try {
         const response = await fetch(oembedUrl);
@@ -175,7 +176,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         if (data.error) throw new Error(data.error);
 
         return {
-          title: data.title || `YouTube: ${videoId}`,
+          title: data.title || `YouTube Video [${videoId}]`,
           url: canonicalYouTubeUrl,
           type: 'youtube',
           videoId: videoId,
@@ -183,8 +184,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           timestamp: serverTimestamp(),
         };
       } catch (e) {
+         // Fallback if metadata fetch fails
          return {
-            title: `YouTube: ${videoId}`,
+            title: `YouTube Video [${videoId}]`,
             url: canonicalYouTubeUrl,
             type: 'youtube',
             videoId: videoId,
@@ -194,9 +196,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       }
 
     } else if (url.includes('soundcloud.com')) {
+      // Use noembed.com for SoundCloud as well for simplicity and to avoid CORS
       const urlParts = url.split('?');
       const cleanUrl = urlParts[0];
-      const oembedUrl = `https://soundcloud.com/oembed?url=${encodeURIComponent(cleanUrl)}&format=json`;
+      const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(cleanUrl)}`;
       
       try {
         const response = await fetch(oembedUrl);
@@ -211,6 +214,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           timestamp: serverTimestamp(),
         };
       } catch(e) {
+         // Fallback if metadata fetch fails
          return {
             title: "SoundCloud Şarkısı",
             url: cleanUrl,
@@ -241,36 +245,25 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   
     try {
+      // Get full song details (either from input or by fetching)
       const fullSongDetails = await getSongDetails(songDetailsInput, userId);
   
-      const songData: Omit<Song, 'id'> = {
-        title: fullSongDetails.title,
-        url: fullSongDetails.url,
-        type: fullSongDetails.type,
-        userId: fullSongDetails.userId,
-        timestamp: fullSongDetails.timestamp,
-        ...(fullSongDetails.videoId && { videoId: fullSongDetails.videoId }),
-      };
-      
+      // Add the song directly to the user's playlist
+      const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
+      await addDoc(userPlaylistRef, fullSongDetails);
+  
+      // Check if the song exists in the global catalog and add it if it doesn't
       const songsColRef = collection(firestore, 'songs');
-      
-      const uniqueField = songData.videoId ? 'videoId' : 'url';
-      const uniqueValue = songData.videoId || songData.url;
-      
-      const q = query(
-        songsColRef, 
-        where(uniqueField, '==', uniqueValue), 
-        limit(1)
-      );
-      
+      const uniqueField = fullSongDetails.videoId ? 'videoId' : 'url';
+      const q = query(songsColRef, where(uniqueField, '==', fullSongDetails[uniqueField]), limit(1));
       const querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
-        await addDoc(songsColRef, songData);
+        // We can add to the global catalog without blocking the user
+        addDoc(songsColRef, fullSongDetails).catch(error => {
+          console.error("Error adding song to global catalog:", error);
+        });
       }
-      
-      const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-      await addDoc(userPlaylistRef, songData);
   
     } catch (error: any) {
       console.error("Şarkı eklenirken hata:", error);
@@ -331,13 +324,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     soundcloudPlayerRef.current = player;
   }
 
+  // Unified useEffect for player control
   useEffect(() => {
     const song = playlist[currentIndex];
     const youtubePlayer = youtubePlayerRef.current;
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
 
-    // Pause all players if not playing or no song
+    // If not playing or no song, pause everything
     if (!isPlaying || !song) {
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
@@ -351,7 +345,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     
-    // If playing, manage players based on song type
+    // If playing, manage players based on the current song's type
     switch (song.type) {
       case 'youtube':
         if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();

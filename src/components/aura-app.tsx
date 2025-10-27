@@ -344,12 +344,13 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
     setIsAdding(videoId);
     const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
     
+    // Pass all known details directly to addSong
     const songDetails: SongDetails = {
       url: youtubeUrl,
       title: title,
       videoId: videoId,
       type: 'youtube'
-    }
+    };
 
     await addSong(songDetails, user.uid);
     setIsAdding(null);
