@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { addDoc, collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs } from 'firebase/firestore';
-import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 
 
 export interface Song {
@@ -67,35 +67,35 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   // Fetch user's playlist from Firestore on login
-  useEffect(() => {
+  const userPlaylistQuery = useMemoFirebase(() => {
     if (user && firestore) {
-      setIsLoading(true);
-      const playlistRef = collection(firestore, 'users', user.uid, 'playlist');
-      const q = query(playlistRef, orderBy('timestamp', 'asc'));
-      
-      getDocs(q).then(snapshot => {
-        const userPlaylist = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Song));
+      return query(collection(firestore, 'users', user.uid, 'playlist'), orderBy('timestamp', 'asc'));
+    }
+    return null;
+  }, [user, firestore]);
+
+  const { data: userPlaylist, isLoading: isPlaylistLoading } = useCollection<Song>(userPlaylistQuery);
+  
+  useEffect(() => {
+    setIsLoading(isPlaylistLoading);
+    if (!isPlaylistLoading) {
+      if (userPlaylist) {
         setPlaylist(userPlaylist);
-        if (userPlaylist.length > 0) {
+        if (userPlaylist.length > 0 && currentIndex === -1) {
           setCurrentIndex(0);
-          setIsPlaying(false); // Don't autoplay on load
-        } else {
+          setIsPlaying(false);
+        } else if (userPlaylist.length === 0) {
           setCurrentIndex(-1);
         }
-        setIsLoading(false);
-      }).catch(error => {
-        console.error("Error fetching user playlist:", error);
-        toast({ title: 'Çalma listesi yüklenemedi.', variant: 'destructive'});
-        setIsLoading(false);
-      });
-    } else if (!isUserLoading) {
-      // User is logged out or still loading, clear playlist
-      setPlaylist([]);
-      setCurrentIndex(-1);
-      setIsLoading(false);
+      } else if (!user) { // User logged out
+        setPlaylist([]);
+        setCurrentIndex(-1);
+        setIsPlaying(false);
+        resetPlayer();
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, firestore, isUserLoading]);
+  }, [userPlaylist, isPlaylistLoading, user]);
 
 
   useEffect(() => {
@@ -195,29 +195,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     try {
       const songDetails = await getSongDetails(url, userId);
       
-      // Save to global songs collection
+      // Save to global songs collection (non-blocking)
       const songsCol = collection(firestore, 'songs');
-      addDoc(songsCol, songDetails); // Non-blocking
+      addDoc(songsCol, songDetails);
 
       // Save to user's personal playlist
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
       const docRef = await addDoc(userPlaylistRef, songDetails);
 
-      const newSong = {
-        ...songDetails,
-        id: docRef.id, // Use the real ID from Firestore
-        timestamp: new Date() // Use local date for immediate UI update
-      } as Song;
-      
-      setPlaylist(prevPlaylist => {
-        const updatedPlaylist = [...prevPlaylist, newSong];
-        // If this is the first song added, start playing it.
-        if (currentIndex === -1 && updatedPlaylist.length === 1) {
-            setCurrentIndex(0);
-            setIsPlaying(true);
-        }
-        return updatedPlaylist;
-      });
+      // The useCollection hook will automatically update the playlist state
       toast({ title: "Şarkı eklendi!" });
 
     } catch (error: any) {
@@ -231,34 +217,33 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
     // Delete from Firestore
     const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
-    deleteDoc(songDocRef); // Non-blocking
+    await deleteDoc(songDocRef);
 
-    setPlaylist(prevPlaylist => {
-        const songIndex = prevPlaylist.findIndex(s => s.id === songId);
-        if (songIndex === -1) return prevPlaylist;
+    // After deletion, the useCollection hook will update the playlist
+    // We just need to handle the currently playing index
+    
+    const songIndex = playlist.findIndex(s => s.id === songId);
+    if (songIndex === -1) return; // Should not happen
 
-        const isCurrentlyPlaying = songIndex === currentIndex;
-        
-        const newPlaylist = prevPlaylist.filter(s => s.id !== songId);
+    const isCurrentlyPlaying = songIndex === currentIndex;
+    const newPlaylist = playlist.filter(s => s.id !== songId);
 
-        if (isCurrentlyPlaying) {
-          resetPlayer();
-          if (newPlaylist.length === 0) {
-            setCurrentIndex(-1);
-            setIsPlaying(false);
-          } else {
-            // Play the next song, wrapping around if it was the last one
-            const nextIndex = songIndex % newPlaylist.length;
-            setCurrentIndex(nextIndex);
-            setIsPlaying(true);
-          }
-        } else if (songIndex < currentIndex) {
-            // If a song before the current one is deleted, adjust the index
-            setCurrentIndex(prevIndex => prevIndex - 1);
-        }
-        
-        return newPlaylist;
-    });
+    if (isCurrentlyPlaying) {
+      resetPlayer();
+      if (newPlaylist.length === 0) {
+        setCurrentIndex(-1);
+        setIsPlaying(false);
+      } else {
+        // Play the next song, wrapping around if it was the last one
+        const nextIndex = songIndex % newPlaylist.length;
+        setCurrentIndex(nextIndex);
+        setIsPlaying(true);
+      }
+    } else if (songIndex < currentIndex) {
+        // If a song before the current one is deleted, adjust the index
+        setCurrentIndex(prevIndex => prevIndex - 1);
+    }
+    
     toast({ title: "Şarkı silindi." });
   };
   
