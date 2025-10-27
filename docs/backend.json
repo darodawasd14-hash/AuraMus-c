@@ -71,37 +71,23 @@
     ]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores user profile information. Each user has a document identified by their unique user ID."
-        }
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
       },
-      {
-        "path": "/users/{userId}/playlist/{songId}",
-        "definition": {
-            "entityName": "Song",
-            "schema": {
-                "$ref": "#/backend/entities/Song"
-            },
-            "description": "Sub-collection storing the songs in a specific user's personal playlist."
-        }
+      "description": "Stores user profile information. Each user has a document identified by their unique user ID."
+    },
+    "/users/{userId}/playlist/{songId}": {
+      "schema": {
+        "$ref": "#/entities/Song"
       },
-      {
-        "path": "/songs/{songId}",
-        "definition": {
-          "entityName": "Song",
-          "schema": {
-            "$ref": "#/backend/entities/Song"
-          },
-          "description": "Stores all songs added by any user, forming a global catalog."
-        }
-      }
-    ]
+      "description": "Sub-collection storing the songs in a specific user's personal playlist."
+    },
+    "/songs/{songId}": {
+      "schema": {
+        "$ref": "#/entities/Song"
+      },
+      "description": "Stores all songs added by any user, forming a global catalog."
+    }
   }
 }
