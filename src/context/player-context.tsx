@@ -11,7 +11,7 @@ export interface Song {
   id: string;
   title: string;
   url: string;
-  type: 'youtube' | 'soundcloud';
+  type: 'youtube' | 'soundcloud' | 'url';
   videoId?: string;
   timestamp?: any;
 }
@@ -135,8 +135,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         url: cleanUrl,
         type: 'soundcloud'
       };
+    } else if (url.match(/\.(mp3|wav|ogg|m4a)$/)) {
+        const fileName = url.split('/').pop() || 'URL Song';
+        return {
+          title: fileName,
+          url: url,
+          type: 'url'
+        };
     } else {
-      throw new Error("Only YouTube and SoundCloud links are supported.");
+      throw new Error("Only YouTube, SoundCloud, or direct audio links are supported.");
     }
   };
 
@@ -200,12 +207,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (index >= 0 && index < playlist.length) {
       setCurrentIndex(index);
       setIsPlaying(true);
-      const song = playlist[index];
-      const youtubePlayer = youtubePlayerRef.current;
-      if (song.type === 'youtube' && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-        youtubePlayer.setVolume(100);
-        youtubePlayer.playVideo();
-      }
     } else {
       resetPlayer();
     }
@@ -217,26 +218,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     
-    const newIsPlaying = !isPlaying;
-    setIsPlaying(newIsPlaying);
-
-    const song = playlist[currentIndex];
-    const youtubePlayer = youtubePlayerRef.current;
-    if (song?.type === 'youtube' && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-      if (newIsPlaying) {
-        youtubePlayer.setVolume(100);
-        youtubePlayer.playVideo();
-      } else {
-        youtubePlayer.pauseVideo();
-      }
-    }
+    setIsPlaying(!isPlaying);
   };
 
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
     playSong(nextIndex);
-  }, [currentIndex, playlist, playSong]);
+  }, [currentIndex, playlist.length]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
@@ -247,6 +236,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const setYoutubePlayer = (player: any) => {
     youtubePlayerRef.current = player;
   };
+
+  useEffect(() => {
+    const youtubePlayer = youtubePlayerRef.current;
+    const song = playlist[currentIndex];
+
+    if (!song || song.type !== 'youtube' || !youtubePlayer) return;
+    
+    if (isPlaying) {
+      youtubePlayer.setVolume(100);
+      youtubePlayer.playVideo();
+    } else {
+      youtubePlayer.pauseVideo();
+    }
+  }, [isPlaying, currentIndex, playlist]);
+  
 
   const value: PlayerContextType = {
     playlist,

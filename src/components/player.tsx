@@ -23,9 +23,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
     const onReady = () => {
       isReadyRef.current = true;
       widget.setVolume(100);
-      widget.bind((window as any).SC.Widget.Events.FINISH, () => {
-        onEnded();
-      });
+      widget.bind((window as any).SC.Widget.Events.FINISH, onEnded);
     };
 
     widget.bind((window as any).SC.Widget.Events.READY, onReady);
@@ -57,6 +55,35 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
   );
 };
 
+const UrlPlayer = ({ song, onEnded, isPlaying }: { song: Song; onEnded: () => void; isPlaying: boolean; }) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.play().catch(e => console.error("Audio play failed:", e));
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying, song.url]);
+
+  useEffect(() => {
+    if(audioRef.current) {
+      audioRef.current.volume = 1;
+    }
+  }, [song.url])
+
+  return (
+    <audio
+      ref={audioRef}
+      src={song.url}
+      onEnded={onEnded}
+      key={song.id}
+      className="w-full h-full"
+    />
+  );
+};
+
 export function Player({ song }: PlayerProps) {
   const { isPlaying, playNext, setYoutubePlayer } = usePlayer();
 
@@ -80,33 +107,44 @@ export function Player({ song }: PlayerProps) {
     );
   }
 
+  const renderPlayer = () => {
+    switch (song.type) {
+      case 'youtube':
+        return song.videoId ? (
+          <YouTube
+            key={song.id}
+            videoId={song.videoId}
+            opts={{
+              width: '100%',
+              height: '100%',
+              playerVars: {
+                autoplay: 1,
+                controls: 1,
+                modestbranding: 1,
+                rel: 0,
+              },
+            }}
+            onReady={onReady}
+            onEnd={onEnd}
+            className="w-full h-full"
+          />
+        ) : null;
+      case 'soundcloud':
+        return <SoundCloudPlayer song={song} onEnded={onEnd} />;
+      case 'url':
+        return <UrlPlayer song={song} onEnded={onEnd} isPlaying={isPlaying} />;
+      default:
+        return (
+          <div className="aspect-video bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
+            <div className="text-muted-foreground">Unsupported song type.</div>
+          </div>
+        );
+    }
+  }
+
   return (
     <div id="player-wrapper" className="aspect-video bg-black rounded-lg shadow-lg overflow-hidden">
-      {song.type === 'youtube' && song.videoId ? (
-        <YouTube
-          key={song.id}
-          videoId={song.videoId}
-          opts={{
-            width: '100%',
-            height: '100%',
-            playerVars: {
-              autoplay: 1,
-              controls: 1,
-              modestbranding: 1,
-              rel: 0,
-            },
-          }}
-          onReady={onReady}
-          onEnd={onEnd}
-          className="w-full h-full"
-        />
-      ) : song.type === 'soundcloud' ? (
-        <SoundCloudPlayer song={song} onEnded={onEnd} />
-      ) : (
-        <div className="aspect-video bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
-          <div className="text-muted-foreground">Unsupported song type.</div>
-        </div>
-      )}
+      {renderPlayer()}
     </div>
   );
 }

@@ -70,7 +70,7 @@ export function AuraApp() {
                     <h3 id="current-song-title" className="text-2xl font-bold truncate">
                       {currentSong?.title || 'No Song Selected'}
                     </h3>
-                    <p className="text-muted-foreground mt-1">{currentSong?.type === 'youtube' ? 'YouTube' : currentSong?.type === 'soundcloud' ? 'SoundCloud' : '...'}</p>
+                    <p className="text-muted-foreground mt-1">{currentSong?.type === 'youtube' ? 'YouTube' : currentSong?.type === 'soundcloud' ? 'SoundCloud' : currentSong?.type === 'url' ? 'URL' : '...'}</p>
                   </div>
                   <div className="flex items-center justify-center space-x-4 mt-6">
                     <Button id="prev-button" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={playPrev}>
@@ -91,7 +91,7 @@ export function AuraApp() {
                   <Input
                     type="url"
                     id="song-url-input"
-                    placeholder="YouTube or SoundCloud link..."
+                    placeholder="YouTube, SoundCloud, or MP3 link..."
                     required
                     value={songUrl}
                     onChange={(e) => setSongUrl(e.target.value)}
@@ -154,13 +154,31 @@ const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 
 };
 
 const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song; index: number; isActive: boolean; onPlay: (index: number) => void; onDelete: (id: string) => void; }) => {
+  const getIcon = (type: Song['type']) => {
+    switch (type) {
+      case 'youtube': return '📺';
+      case 'soundcloud': return '☁️';
+      case 'url': return '🎵';
+      default: return '🎤';
+    }
+  }
+
+  const getSourceText = (type: Song['type']) => {
+    switch (type) {
+      case 'youtube': return 'YouTube';
+      case 'soundcloud': return 'SoundCloud';
+      case 'url': return 'URL';
+      default: return 'Unknown';
+    }
+  }
+
   return (
     <div className={`playlist-item flex items-center justify-between p-3 rounded-lg cursor-pointer ${isActive ? 'playing' : ''}`} onClick={() => onPlay(index)}>
       <div className="flex items-center flex-grow min-w-0 gap-4">
-        <span className={`text-xl ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>{song.type === 'youtube' ? '📺' : '☁️'}</span>
+        <span className={`text-xl ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>{getIcon(song.type)}</span>
         <div className="truncate">
           <p className={`font-semibold ${isActive ? 'text-primary-foreground' : ''}`}>{song.title || 'Untitled Song'}</p>
-          <p className="text-sm text-muted-foreground">{song.type === 'youtube' ? 'YouTube' : 'SoundCloud'}</p>
+          <p className="text-sm text-muted-foreground">{getSourceText(song.type)}</p>
         </div>
       </div>
       <Button
