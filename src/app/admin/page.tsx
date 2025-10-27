@@ -10,13 +10,14 @@ import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
+import { setAdminClaim } from '@/ai/flows/set-admin-claim';
 
 const appId = 'Aura';
 
 interface CatalogSong {
   id: string;
   title: string;
-  url: string;
+  url:string;
 }
 
 export default function AdminPage() {
@@ -29,6 +30,7 @@ export default function AdminPage() {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [isClaimingAdmin, setIsClaimingAdmin] = useState(false);
 
   const catalogCollectionRef = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -48,16 +50,30 @@ export default function AdminPage() {
         router.push('/auth');
         return;
       }
-      user.getIdTokenResult().then(idTokenResult => {
+      user.getIdTokenResult(true).then(idTokenResult => { // Force refresh token
         if (!idTokenResult.claims.isAdmin) {
-          router.push('/');
-          toast({ title: 'Access Denied', description: 'You do not have permission to view this page.', variant: 'destructive' });
+           // Don't redirect, just show limited view
+           setIsAdmin(false);
         } else {
           setIsAdmin(true);
         }
       });
     }
   }, [user, isUserLoading, router, toast]);
+
+  const handleMakeAdmin = async () => {
+    setIsClaimingAdmin(true);
+    try {
+        const result = await setAdminClaim({ email: 'oguzhanarman01@gmail.com' });
+        toast({ title: 'Admin Claim Set!', description: 'Please log out and log back in for changes to take effect.' });
+        console.log(result.message);
+    } catch(e: any) {
+        console.error(e);
+        toast({ title: 'Error setting admin claim', description: e.message, variant: 'destructive'});
+    } finally {
+        setIsClaimingAdmin(false);
+    }
+  }
 
   const handleAddSong = async (e: FormEvent) => {
     e.preventDefault();
@@ -104,12 +120,31 @@ export default function AdminPage() {
       });
   }
 
-  if (isUserLoading || !isAdmin) {
+  if (isUserLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
+  }
+  
+  if (!isAdmin) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center bg-background p-4">
+            <Card className="max-w-md text-center">
+                <CardHeader>
+                    <CardTitle>Admin Access Required</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <p className="text-muted-foreground">You do not have permission to view this page. If you are the admin, click the button below to claim your privileges.</p>
+                    <Button onClick={handleMakeAdmin} disabled={isClaimingAdmin}>
+                        {isClaimingAdmin ? <Loader2 className="h-4 w-4 animate-spin"/> : "Claim Admin Role"}
+                    </Button>
+                    <p className="text-xs text-muted-foreground pt-4">After claiming, you must log out and log back in for the changes to take effect.</p>
+                </CardContent>
+            </Card>
+        </div>
+    )
   }
 
   return (
