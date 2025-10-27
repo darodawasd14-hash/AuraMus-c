@@ -96,17 +96,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
   useEffect(() => {
-    if (youtubePlayer && typeof youtubePlayer.playVideo === 'function' && currentSong && currentSong.type === 'youtube') {
-        if (isPlaying) {
-          youtubePlayer.playVideo();
-        } else {
-          youtubePlayer.pauseVideo();
-        }
-    }
-  }, [isPlaying, currentSong, youtubePlayer]);
-
-
-  useEffect(() => {
     const currentSongId = playlist[currentIndex]?.id;
     const newCurrentIndex = playlist.findIndex(song => song.id === currentSongId);
   
@@ -212,11 +201,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   }
   
   const togglePlayPause = () => {
-    if(currentIndex === -1 && playlist.length > 0) {
-      setCurrentIndex(0);
-      setIsPlaying(true);
-    } else if (currentIndex !== -1) {
-      setIsPlaying(prev => !prev);
+    if (currentIndex === -1 && playlist.length > 0) {
+      playSong(0);
+      return;
+    }
+    
+    const newIsPlaying = !isPlaying;
+    setIsPlaying(newIsPlaying);
+  
+    const song = playlist[currentIndex];
+    if (youtubePlayer && typeof youtubePlayer.playVideo === 'function' && song?.type === 'youtube') {
+      if (newIsPlaying) {
+        youtubePlayer.playVideo();
+      } else {
+        youtubePlayer.pauseVideo();
+      }
     }
   };
   
@@ -224,8 +223,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (index >= 0 && index < playlist.length) {
       if (currentIndex !== index) {
         setCurrentIndex(index);
-        setIsPlaying(true);
+        setIsPlaying(true); // Always play new song
       } else {
+        // If it's the same song, just toggle
         togglePlayPause();
       }
     } else {
