@@ -96,6 +96,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
   useEffect(() => {
+    if (youtubePlayer && typeof youtubePlayer.setVolume === 'function') {
+      youtubePlayer.setVolume(volume);
+    }
+  }, [volume, youtubePlayer]);
+
+  useEffect(() => {
     const currentSongId = playlist[currentIndex]?.id;
     const newCurrentIndex = playlist.findIndex(song => song.id === currentSongId);
   
@@ -196,6 +202,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const resetPlayer = () => {
+    if (youtubePlayer && typeof youtubePlayer.stopVideo === 'function') {
+      youtubePlayer.stopVideo();
+    }
     setIsPlaying(false);
     setCurrentIndex(-1);
   }
@@ -216,17 +225,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         } else {
           youtubePlayer.pauseVideo();
         }
-      }
-    // SoundCloud is handled by its own component's useEffect
+    }
   };
   
   const playSong = (index: number) => {
     if (index >= 0 && index < playlist.length) {
       if (currentIndex !== index) {
         setCurrentIndex(index);
-        setIsPlaying(true); // Always play new song
+        setIsPlaying(true);
       } else {
-        // If it's the same song, just toggle
         togglePlayPause();
       }
     } else {
@@ -247,9 +254,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const handleSetVolume = (newVolume: number) => {
-    if (newVolume > 0) {
+    if (newVolume > 0 && isMuted) {
       setIsMuted(false);
-    } else {
+    } else if (newVolume === 0 && !isMuted) {
       setIsMuted(true);
     }
     setVolume(newVolume);
@@ -262,7 +269,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         setPreviousVolume(volume);
         setVolume(0);
       } else {
-        setVolume(previousVolume > 0 ? previousVolume : 80); // Restore to a non-zero volume
+        setVolume(previousVolume > 0 ? previousVolume : 80);
       }
       return newMuteState;
     });
