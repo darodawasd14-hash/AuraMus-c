@@ -2,7 +2,7 @@
 import React, { useState, useEffect, FormEvent } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { collection, addDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, query, orderBy, Query } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Music, ShieldCheck, Trash2 } from 'lucide-react';
@@ -37,34 +37,43 @@ export default function AdminPage() {
     return collection(firestore, 'artifacts', appId, 'catalog');
   }, [firestore]);
   
+  // IMPORTANT: Only create the query if the user is an admin
   const catalogQuery = useMemoFirebase(() => {
-    if(!catalogCollectionRef) return null;
-    return query(catalogCollectionRef, orderBy('title', 'asc'));
-  }, [catalogCollectionRef]);
+    if(!firestore || !isAdmin) return null;
+    return query(collection(firestore, 'artifacts', appId, 'catalog'), orderBy('title', 'asc'));
+  }, [firestore, isAdmin]);
 
   const { data: catalogSongs, isLoading: isCatalogLoading } = useCollection<CatalogSong>(catalogQuery);
 
   useEffect(() => {
-    if (!isUserLoading) {
-      if (!user) {
-        router.push('/auth');
-        return;
-      }
-      user.getIdTokenResult(true).then(idTokenResult => { // Force refresh token
-        if (!idTokenResult.claims.isAdmin) {
-           // Don't redirect, just show limited view
-           setIsAdmin(false);
-        } else {
-          setIsAdmin(true);
-        }
-      });
+    if (isUserLoading) return;
+    
+    if (!user) {
+      router.push('/auth');
+      return;
     }
-  }, [user, isUserLoading, router, toast]);
+
+    user.getIdTokenResult(true).then(idTokenResult => {
+      const userIsAdmin = !!idTokenResult.claims.isAdmin;
+      setIsAdmin(userIsAdmin);
+
+      // If the user is not an admin and tries to access the page,
+      // we show them the "Claim Admin Role" card. We don't redirect.
+      if (!userIsAdmin) {
+        console.log("User is not an admin.");
+      }
+    });
+  }, [user, isUserLoading, router]);
+
 
   const handleMakeAdmin = async () => {
+    if (!user || !user.email) {
+      toast({ title: 'Error', description: 'User email not found.', variant: 'destructive'});
+      return;
+    }
     setIsClaimingAdmin(true);
     try {
-        const result = await setAdminClaim({ email: 'oguzhanarman01@gmail.com' });
+        const result = await setAdminClaim({ email: user.email });
         toast({ title: 'Admin Claim Set!', description: 'Please log out and log back in for changes to take effect.' });
         console.log(result.message);
     } catch(e: any) {
@@ -95,7 +104,8 @@ export default function AdminPage() {
             requestResourceData: newSong,
         });
         errorEmitter.emit('permission-error', permissionError);
-        toast({ title: 'Error adding song', description: 'Check permissions and try again.', variant: 'destructive' });
+        // Toast is now handled by the global error listener, but we can keep a fallback
+        // toast({ title: 'Error adding song', description: 'Check permissions and try again.', variant: 'destructive' });
       })
       .finally(() => {
         setIsAdding(false);
@@ -116,7 +126,7 @@ export default function AdminPage() {
             operation: 'delete',
         });
         errorEmitter.emit('permission-error', permissionError);
-        toast({ title: 'Error deleting song', variant: 'destructive' });
+        // toast({ title: 'Error deleting song', variant: 'destructive' });
       });
   }
 
@@ -137,7 +147,7 @@ export default function AdminPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <p className="text-muted-foreground">You do not have permission to view this page. If you are the admin, click the button below to claim your privileges.</p>
-                    <Button onClick={handleMakeAdmin} disabled={isClaimingAdmin}>
+                    <Button onClick={handleMakeAdmin} disabled={isClaimingAdmin || !user}>
                         {isClaimingAdmin ? <Loader2 className="h-4 w-4 animate-spin"/> : "Claim Admin Role"}
                     </Button>
                     <p className="text-xs text-muted-foreground pt-4">After claiming, you must log out and log back in for the changes to take effect.</p>
