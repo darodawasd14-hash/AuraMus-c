@@ -5,6 +5,8 @@ import { useToast } from '@/hooks/use-toast';
 import { addDoc, collection, serverTimestamp, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import initialCatalog from '@/app/lib/catalog.json';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 export interface Song {
   id: string;
@@ -29,7 +31,7 @@ type PlayerContextType = {
   currentIndex: number;
   isPlaying: boolean;
   isLoading: boolean;
-  addSong: (songDetails: SongDetails, userId: string) => Promise<void>;
+  addSong: (songDetails: SongDetails, userId: string) => void;
   deleteSong: (songId: string) => Promise<void>;
   playSong: (index: number) => void;
   togglePlayPause: () => void;
@@ -64,7 +66,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const { data: userPlaylist, isLoading: isPlaylistLoading } = useCollection<Song>(userPlaylistQuery);
   
-  // Effect for handling playlist data from Firestore
   useEffect(() => {
     const isActuallyLoading = isPlaylistLoading || isUserLoading;
     setIsLoading(isActuallyLoading);
@@ -98,30 +99,31 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     return match ? match[1] : null;
   };
 
-  // Effect for adding initial songs for new users
   useEffect(() => {
     if (firestore && user && !isPlaylistLoading && !dataLoadedRef.current && userPlaylist?.length === 0) {
       dataLoadedRef.current = true;
       const addInitialSongs = async () => {
-        try {
-          const songsToAdd = initialCatalog.songs;
-          for (const song of songsToAdd) {
-            const videoId = extractYouTubeID(song.url);
-            if (videoId) {
-              const songData = {
-                url: song.url,
-                title: song.title,
-                videoId: videoId,
-                type: 'youtube' as const,
-                userId: user.uid,
-                timestamp: serverTimestamp(),
-              };
-              const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-              await addDoc(userPlaylistRef, songData);
-            }
+        const songsToAdd = initialCatalog.songs;
+        for (const song of songsToAdd) {
+          const videoId = extractYouTubeID(song.url);
+          if (videoId) {
+            const songData = {
+              url: song.url,
+              title: song.title,
+              videoId: videoId,
+              type: 'youtube' as const,
+              userId: user.uid,
+              timestamp: serverTimestamp(),
+            };
+            const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
+            addDoc(userPlaylistRef, songData).catch(serverError => {
+              errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userPlaylistRef.path,
+                operation: 'create',
+                requestResourceData: songData,
+              }));
+            });
           }
-        } catch (error) {
-          console.error("Error adding initial songs:", error);
         }
       };
       addInitialSongs();
@@ -129,37 +131,43 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   }, [firestore, user, isPlaylistLoading, userPlaylist]);
 
 
-  const addSong = async (songDetails: SongDetails, userId: string) => {
+  const addSong = (songDetails: SongDetails, userId: string) => {
     if (!firestore || !user) {
       toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
       return;
     }
 
-    try {
-      const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-      const songData = {
-        ...songDetails,
-        userId: userId,
-        timestamp: serverTimestamp(),
-      };
-      await addDoc(userPlaylistRef, songData);
-    } catch (error: any) {
-      console.error("Şarkı eklenirken hata:", error);
-      toast({ title: error.message || "Şarkı eklenemedi.", variant: 'destructive' });
-    }
+    const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
+    const songData = {
+      ...songDetails,
+      userId: userId,
+      timestamp: serverTimestamp(),
+    };
+    
+    addDoc(userPlaylistRef, songData).catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: userPlaylistRef.path,
+            operation: 'create',
+            requestResourceData: songData,
+        }));
+    });
   };
 
   const deleteSong = async (songId: string) => {
     if (!firestore || !user) return;
 
-    try {
-      const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
-      await deleteDoc(songDocRef);
-      toast({ title: "Şarkı silindi." });
-    } catch (error) {
-        console.error("Error deleting song:", error);
-        toast({ title: "Şarkı silinirken bir hata oluştu.", variant: 'destructive' });
-    }
+    const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
+    
+    deleteDoc(songDocRef)
+      .then(() => {
+        toast({ title: "Şarkı silindi." });
+      })
+      .catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: songDocRef.path,
+            operation: 'delete',
+        }));
+      });
   };
 
   const playSong = useCallback((index: number) => {
@@ -192,14 +200,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playSong(prevIndex);
   };
   
-  // Unified useEffect for player control. THIS is the source of truth.
   useEffect(() => {
     const song = playlist[currentIndex];
     const youtubePlayer = youtubePlayerRef.current;
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
 
-    // SCENARIO 1: Stop everything if not playing or no song selected
     if (!isPlaying || !song) {
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
@@ -213,7 +219,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // SCENARIO 2: A song should be playing. Play the correct one and pause others.
     switch (song.type) {
       case 'youtube':
         if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
@@ -243,7 +248,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         }
         break;
       default:
-        // If song type is unknown, pause everything just in case.
         if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
         if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
         if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();

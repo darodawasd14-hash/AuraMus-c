@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Loader2, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 // Firestore'dan gelen mesajların arayüzü
 interface Message {
@@ -44,7 +46,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    const handleSendMessage = async (e: FormEvent) => {
+    const handleSendMessage = (e: FormEvent) => {
         e.preventDefault();
         if (!message.trim() || !user || !firestore || !song) return;
         
@@ -56,23 +58,29 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         setIsSending(true);
 
         const messagesColRef = collection(firestore, 'songs', song.id, 'messages');
+        const messageData = {
+            text: message,
+            sender: {
+                uid: user.uid,
+                displayName: displayName,
+            },
+            timestamp: serverTimestamp(),
+        };
 
-        try {
-            await addDoc(messagesColRef, {
-                text: message,
-                sender: {
-                    uid: user.uid,
-                    displayName: displayName,
-                },
-                timestamp: serverTimestamp(),
+        addDoc(messagesColRef, messageData)
+            .then(() => {
+                setMessage('');
+            })
+            .catch(serverError => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: messagesColRef.path,
+                    operation: 'create',
+                    requestResourceData: messageData,
+                }));
+            })
+            .finally(() => {
+                setIsSending(false);
             });
-            setMessage('');
-        } catch (error) {
-            console.error("Mesaj gönderilirken hata:", error);
-            toast({ title: 'Mesaj gönderilemedi.', variant: 'destructive'});
-        } finally {
-            setIsSending(false);
-        }
     };
 
     if (!song) {
