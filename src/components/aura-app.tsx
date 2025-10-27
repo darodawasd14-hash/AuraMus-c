@@ -39,7 +39,21 @@ export function AuraApp() {
     e.preventDefault();
     if (!songUrl || !user) return;
     setIsAdding(true);
-    await addSong({url: songUrl}, user.uid);
+    
+    // Basit URL ayrıştırma
+    let type: 'youtube' | 'soundcloud' | 'url' = 'url';
+    let videoId: string | undefined = undefined;
+
+    if (songUrl.includes('youtube.com') || songUrl.includes('youtu.be')) {
+        type = 'youtube';
+        const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+        const match = songUrl.match(regex);
+        videoId = match ? match[1] : undefined;
+    } else if (songUrl.includes('soundcloud.com')) {
+        type = 'soundcloud';
+    }
+
+    await addSong({url: songUrl, title: songUrl, type, videoId}, user.uid);
     setSongUrl('');
     setIsAdding(false);
   };
@@ -196,6 +210,7 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
 
   const songsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    // Artık merkezi /songs koleksiyonunu dinliyoruz
     return query(collection(firestore, 'songs'), orderBy('timestamp', 'desc'), limit(50));
   }, [firestore]);
 
@@ -208,14 +223,8 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
     }
     setIsAdding(song.id);
 
-    const songData: SongDetails = {
-      title: song.title,
-      url: song.url,
-      type: song.type,
-      videoId: song.videoId
-    };
-
-    await addSong(songData, user.uid);
+    // addSong fonksiyonu artık tüm işi yapacak (globale ekleme/kontrol etme ve kullanıcının listesine ekleme)
+    await addSong(song, user.uid);
     
     toast({ title: `"${song.title}" listenize eklendi!` });
     setIsAdding(null);
@@ -226,7 +235,8 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
     if (song.type === 'youtube' && song.videoId) {
       return `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
     }
-    return 'https://picsum.photos/seed/1/168/94';
+    // Fallback resmi
+    return `https://i.ytimg.com/vi/default/hqdefault.jpg`;
   }
 
   return (

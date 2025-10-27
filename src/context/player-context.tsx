@@ -2,19 +2,19 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { addDoc, collection, serverTimestamp, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, addDoc, getDocs, where, limit, writeBatch } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import initialCatalog from '@/app/lib/catalog.json';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 
 export interface Song {
-  id: string;
+  id: string; // Bu ID artık /songs koleksiyonundaki merkezi ID olacak
   title: string;
   url: string;
   type: 'youtube' | 'soundcloud' | 'url';
   videoId?: string;
-  userId?: string;
+  userId?: string; // Bu, şarkıyı ilk ekleyen kişi olabilir, ama anahtar değil
   timestamp?: any;
 }
 
@@ -31,7 +31,7 @@ type PlayerContextType = {
   currentIndex: number;
   isPlaying: boolean;
   isLoading: boolean;
-  addSong: (songDetails: SongDetails, userId: string) => void;
+  addSong: (songDetails: SongDetails, userId: string) => Promise<Song | null>;
   deleteSong: (songId: string) => Promise<void>;
   playSong: (index: number) => void;
   togglePlayPause: () => void;
@@ -70,11 +70,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const isActuallyLoading = isPlaylistLoading || isUserLoading;
     setIsLoading(isActuallyLoading);
     if (isActuallyLoading) return;
-
+  
     if (userPlaylist) {
       const currentSongId = playlist[currentIndex]?.id;
       setPlaylist(userPlaylist);
-
+  
       if (userPlaylist.length === 0) {
         setCurrentIndex(-1);
         setIsPlaying(false);
@@ -84,6 +84,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           setCurrentIndex(newIndex);
         } else if (currentIndex >= userPlaylist.length) {
           setCurrentIndex(0);
+        } else if (currentIndex === -1 && userPlaylist.length > 0) {
+          setCurrentIndex(0);
         }
       }
     } else if (!user) {
@@ -91,7 +93,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
-  }, [userPlaylist, isPlaylistLoading, isUserLoading, user, playlist, currentIndex]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userPlaylist, isPlaylistLoading, isUserLoading, user]);
+
 
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -101,66 +105,98 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (firestore && user && !isPlaylistLoading && !dataLoadedRef.current && userPlaylist?.length === 0) {
-      dataLoadedRef.current = true;
+      dataLoadedRef.current = true; // Sadece bir kez çalışmasını sağla
       const addInitialSongs = async () => {
         const songsToAdd = initialCatalog.songs;
         for (const song of songsToAdd) {
-          const videoId = extractYouTubeID(song.url);
-          if (videoId) {
-            const songData = {
-              url: song.url,
-              title: song.title,
-              videoId: videoId,
-              type: 'youtube' as const,
-              userId: user.uid,
-              timestamp: serverTimestamp(),
-            };
-            const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-            addDoc(userPlaylistRef, songData).catch(serverError => {
-              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: userPlaylistRef.path,
-                operation: 'create',
-                requestResourceData: songData,
-              }));
-            });
-          }
+            const videoId = extractYouTubeID(song.url);
+            if (videoId) {
+                const songData: SongDetails = {
+                    url: song.url,
+                    title: song.title,
+                    videoId,
+                    type: 'youtube'
+                };
+                // addSong fonksiyonunu kullanarak hem globale hem kullanıcının listesine ekle
+                await addSong(songData, user.uid);
+            }
         }
+        toast({ title: "Hoş geldin! Başlangıç için birkaç şarkı ekledik."});
       };
       addInitialSongs();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firestore, user, isPlaylistLoading, userPlaylist]);
 
 
-  const addSong = (songDetails: SongDetails, userId: string) => {
+  const addSong = async (songDetails: SongDetails, userId: string): Promise<Song | null> => {
     if (!firestore || !user) {
       toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
-      return;
+      return null;
     }
 
+    const songsCollectionRef = collection(firestore, 'songs');
     const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-    const songData = {
-      ...songDetails,
-      userId: userId,
-      timestamp: serverTimestamp(),
-    };
-    
-    addDoc(userPlaylistRef, songData).catch(serverError => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: userPlaylistRef.path,
-            operation: 'create',
-            requestResourceData: songData,
-        }));
-    });
+
+    try {
+        // 1. Şarkının globalde var olup olmadığını kontrol et (videoId veya url ile)
+        const queryIdentifier = songDetails.videoId || songDetails.url;
+        const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
+        const querySnapshot = await getDocs(q);
+
+        let songId: string;
+        let finalSongData: Song;
+
+        if (querySnapshot.empty) {
+            // 2a. Şarkı globalde yoksa, oluştur
+            const newSongDocRef = doc(songsCollectionRef);
+            songId = newSongDocRef.id;
+            finalSongData = {
+                id: songId,
+                ...songDetails,
+                userId: userId, // ilk ekleyen
+                timestamp: serverTimestamp(),
+            };
+            await addDoc(songsCollectionRef, finalSongData);
+
+        } else {
+            // 2b. Şarkı globalde varsa, ID'sini ve verisini al
+            const existingDoc = querySnapshot.docs[0];
+            songId = existingDoc.id;
+            finalSongData = { id: songId, ...existingDoc.data() } as Song;
+        }
+
+        // 3. Şarkıyı kullanıcının çalma listesine (playlist) ekle (eğer zaten yoksa)
+        const userSongDocRef = doc(userPlaylistRef, songId);
+        // Kullanıcının listesine de tüm şarkı bilgisini ekliyoruz ki UI hızlıca güncellensin.
+        // Bu, sohbet için kullanılacak 'id'nin merkezi ID olmasını sağlar.
+        const userSongData = {
+            ...finalSongData, // merkezi şarkının tüm bilgileri
+            id: songId,       // merkezi şarkının ID'si
+            timestamp: serverTimestamp(), // kullanıcının kendi listesine ekleme zamanı
+        };
+        
+        await addDoc(collection(firestore, 'users', user.uid, 'playlist'), userSongData);
+
+        return finalSongData;
+    } catch (error) {
+        console.error("addSong hatası:", error);
+        toast({ title: "Şarkı eklenirken bir hata oluştu.", variant: 'destructive' });
+        return null;
+    }
   };
+
 
   const deleteSong = async (songId: string) => {
     if (!firestore || !user) return;
-
+    
+    // NOT: Bu artık şarkıyı sadece kullanıcının çalma listesinden siler.
+    // Global /songs koleksiyonundan silmez.
     const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
     
     deleteDoc(songDocRef)
       .then(() => {
-        toast({ title: "Şarkı silindi." });
+        toast({ title: "Şarkı listenizden silindi." });
       })
       .catch(serverError => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -205,54 +241,75 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const youtubePlayer = youtubePlayerRef.current;
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
-
-    if (!isPlaying || !song) {
+  
+    // Herhangi bir oynatıcıyı kontrol etmeden önce varlıklarından emin ol
+    const safelyPauseYoutube = () => {
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
       }
+    };
+  
+    const safelyPauseSoundcloud = () => {
       if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
         soundcloudPlayer.pause();
       }
+    };
+  
+    const safelyPauseUrl = () => {
       if (urlPlayer && !urlPlayer.paused) {
         urlPlayer.pause();
       }
+    };
+  
+    if (!isPlaying) {
+      safelyPauseYoutube();
+      safelyPauseSoundcloud();
+      safelyPauseUrl();
       return;
     }
-
+  
+    if (!song) {
+      // Çalacak şarkı yoksa tüm oynatıcıları durdur
+      safelyPauseYoutube();
+      safelyPauseSoundcloud();
+      safelyPauseUrl();
+      return;
+    }
+  
+    // Şarkı türüne göre doğru oynatıcıyı çalıştır ve diğerlerini durdur
     switch (song.type) {
       case 'youtube':
-        if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
-        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
-        
+        safelyPauseSoundcloud();
+        safelyPauseUrl();
         if (youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-            youtubePlayer.playVideo();
+          youtubePlayer.playVideo();
         }
         break;
       case 'soundcloud':
-        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
-        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
-        
+        safelyPauseYoutube();
+        safelyPauseUrl();
         if (soundcloudPlayer && typeof soundcloudPlayer.play === 'function') {
-            soundcloudPlayer.play();
+          soundcloudPlayer.play();
         }
         break;
       case 'url':
-        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
-        if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
-
+        safelyPauseYoutube();
+        safelyPauseSoundcloud();
         if (urlPlayer) {
           if (urlPlayer.src !== song.url) {
             urlPlayer.src = song.url;
           }
-          urlPlayer.play().catch(e => console.error("URL audio playback failed:", e));
+          urlPlayer.play().catch(e => console.error("URL ses oynatma hatası:", e));
         }
         break;
       default:
-        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
-        if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
-        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
+        // Bilinmeyen tür, hepsini durdur
+        safelyPauseYoutube();
+        safelyPauseSoundcloud();
+        safelyPauseUrl();
     }
   }, [isPlaying, currentIndex, playlist]);
+
 
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
