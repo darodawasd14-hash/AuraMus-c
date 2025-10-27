@@ -2,6 +2,22 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+  type Timestamp,
+} from 'firebase/firestore';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
+
+const appId = 'Aura';
 
 export interface Song {
   id: string;
@@ -9,7 +25,8 @@ export interface Song {
   url: string;
   type: 'youtube' | 'soundcloud' | 'url';
   videoId?: string;
-  timestamp?: any;
+  timestamp?: Timestamp;
+  userId?: string;
 }
 
 type PlayerContextType = {
@@ -31,14 +48,50 @@ const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
+  const { user } = useUser();
+  const firestore = useFirestore();
 
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(false); // No longer loading from Firestore
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const youtubePlayerRef = useRef<any>(null);
-  
-  const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
+
+  const songsCollectionRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return collection(firestore, 'users', user.uid, 'songs');
+  }, [user, firestore]);
+
+  useEffect(() => {
+    if (!songsCollectionRef) {
+      setPlaylist([]);
+      setIsLoading(false);
+      return;
+    }
+    
+    setIsLoading(true);
+    const q = query(songsCollectionRef, orderBy('timestamp', 'desc'));
+
+    const unsubscribe = onSnapshot(q,
+      (snapshot) => {
+        const songs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Song));
+        setPlaylist(songs);
+        setIsLoading(false);
+      },
+      (error) => {
+        const contextualError = new FirestorePermissionError({
+          path: songsCollectionRef.path,
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', contextualError);
+        setIsLoading(false);
+        setPlaylist([]);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [songsCollectionRef]);
+
 
   const resetPlayer = () => {
     const youtubePlayer = youtubePlayerRef.current;
@@ -46,15 +99,19 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       youtubePlayer.stopVideo();
     }
     setIsPlaying(false);
-    setCurrentIndex(-1);
   };
-
+  
   useEffect(() => {
     const currentSongId = playlist[currentIndex]?.id;
+    if (currentIndex === -1 || !currentSongId) {
+       resetPlayer();
+       return;
+    }
+    
     const newCurrentIndex = playlist.findIndex(song => song.id === currentSongId);
   
-    if (currentIndex !== -1 && newCurrentIndex === -1) {
-      resetPlayer();
+    if (newCurrentIndex === -1) {
+      setCurrentIndex(-1);
     } else {
       setCurrentIndex(newCurrentIndex);
     }
@@ -67,22 +124,35 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     return match ? match[1] : null;
   };
 
-  const getSongDetails = async (url: string): Promise<Omit<Song, 'id' | 'timestamp'>> => {
+  const getSongDetails = async (url: string): Promise<Omit<Song, 'id' | 'timestamp' | 'userId'>> => {
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       const videoId = extractYouTubeID(url);
       if (!videoId) throw new Error("Invalid YouTube link.");
       const canonicalYouTubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
       const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(canonicalYouTubeUrl)}`;
-      const response = await fetch(oembedUrl);
-      if (!response.ok) return { title: `YouTube: ${videoId}`, url: canonicalYouTubeUrl, type: 'youtube', videoId: videoId };
-      const data = await response.json();
-      if (data.error) return { title: `YouTube: ${videoId}`, url: canonicalYouTubeUrl, type: 'youtube', videoId: videoId };
-      return {
-        title: data.title || `YouTube: ${videoId}`,
-        url: canonicalYouTubeUrl,
-        type: 'youtube',
-        videoId: videoId
-      };
+      
+      try {
+        const response = await fetch(oembedUrl);
+        if (!response.ok) throw new Error('Could not fetch YouTube metadata');
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        return {
+          title: data.title || `YouTube: ${videoId}`,
+          url: canonicalYouTubeUrl,
+          type: 'youtube',
+          videoId: videoId
+        };
+      } catch (e) {
+         // Fallback for when oembed fails (e.g. private videos)
+         return {
+            title: `YouTube: ${videoId}`,
+            url: canonicalYouTubeUrl,
+            type: 'youtube',
+            videoId: videoId
+        };
+      }
+
     } else if (url.includes('soundcloud.com')) {
       const urlParts = url.split('?');
       const cleanUrl = urlParts[0];
@@ -109,15 +179,29 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addSong = async (url: string) => {
+    if (!user || !songsCollectionRef) {
+      toast({ title: 'You must be logged in to add songs.', variant: 'destructive' });
+      return;
+    }
     try {
       const songDetails = await getSongDetails(url);
-      const newSong: Song = {
+      const newSong = {
         ...songDetails,
-        id: new Date().toISOString(), // Use a simple unique ID for in-memory list
-        timestamp: new Date()
+        timestamp: serverTimestamp(),
+        userId: user.uid,
       };
-      setPlaylist(prev => [...prev, newSong]);
+      
+      addDoc(songsCollectionRef, newSong)
+        .catch((serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: songsCollectionRef.path,
+                operation: 'create',
+                requestResourceData: newSong,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
       toast({ title: "Song added!" });
+
     } catch (error: any) {
       console.error("Error adding song:", error);
       toast({ title: error.message || "Failed to add song.", variant: 'destructive' });
@@ -125,7 +209,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteSong = async (songId: string) => {
-    setPlaylist(prev => prev.filter(song => song.id !== songId));
+    if (!user || !firestore) return;
+    const songDocRef = doc(firestore, 'users', user.uid, 'songs', songId);
+
+    deleteDoc(songDocRef)
+      .catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: songDocRef.path,
+            operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
     toast({ title: "Song deleted." });
   };
   
@@ -134,7 +228,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setCurrentIndex(index);
       setIsPlaying(true);
     } else {
-      resetPlayer();
+      setCurrentIndex(-1);
+      setIsPlaying(false);
     }
   };
   
@@ -144,7 +239,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     
-    setIsPlaying(!isPlaying);
+    if (playlist.length > 0) {
+      setIsPlaying(!isPlaying);
+    }
   };
 
   const playNext = useCallback(() => {
@@ -181,7 +278,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       youtubePlayer.pauseVideo();
     }
   }, [isPlaying, currentIndex, playlist]);
-  
+
+  const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
   const value: PlayerContextType = {
     playlist,

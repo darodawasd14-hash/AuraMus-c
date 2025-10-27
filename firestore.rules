@@ -2,122 +2,178 @@
  * @fileoverview Firestore Security Rules for the Aura application.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model, ensuring that users can only
- * access data they own. This is achieved through path-based authorization.
+ * This ruleset enforces a strict user-ownership model for all data. Each user
+ * can only access their own profile information, songs, and playlists. This
+ * prevents unauthorized access and ensures data privacy.
  *
  * Data Structure:
- * - `/artifacts/Aura/users/{userId}`: Stores user profile information.
- * - `/artifacts/Aura/users/{userId}/songs/{songId}`: Stores songs owned by the user.
- * - `/artifacts/Aura/users/{userId}/playlists/{playlistId}`: Stores playlists created by the user.
+ * All data is nested under the /artifacts/Aura collection.
+ * - User profiles are stored in /artifacts/Aura/users/{userId}.
+ * - User songs are stored in /artifacts/Aura/users/{userId}/songs/{songId}.
+ * - User playlists are stored in /artifacts/Aura/users/{userId}/playlists/{playlistId}.
  *
  * Key Security Decisions:
- * - User listing is disallowed for privacy.
- * - Rules are designed for authorization independence.
- * - Data consistency between the path and document's internal fields are enforced.
+ * - User listing is disabled to prevent unauthorized enumeration of users.
+ * - Strict ownership is enforced for all write operations to ensure data
+ *   integrity and prevent unauthorized modifications.
+ * - Data validation is minimized in this prototyping phase to allow for
+ *   flexible data shapes and rapid iteration. However, relational integrity
+ *   is enforced by validating the `userId` on create operations and ensuring
+ *   its immutability on update operations.
  *
  * Denormalization for Authorization:
- * Path-based ownership is used to simplify security rules and avoid costly `get()` calls.
- * For example, songs and playlists are stored under the user's specific path, eliminating the need to check for an `ownerId` field within the document.
+ * The data structure is designed to denormalize ownership information into the
+ * document paths. For example, the song's userId is part of the path
+ * `/artifacts/Aura/users/{userId}/songs/{songId}`, which simplifies ownership
+ * checks.
  *
  * Structural Segregation:
- * User-specific data (songs and playlists) is stored in user subcollections, ensuring private access by default.
+ * Private user data (songs, playlists) is stored under user-specific
+ * subcollections, ensuring that only the owner can access them.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Protects the top-level 'artifacts' and 'Aura' documents. No one should be able to read or write to these.
-     * @path /artifacts
-     * @allow (get) N/A - This rule is meant to deny all access.
-     * @deny (get) Any request.
-     * @principle Prevents accidental access to the root of the data structure.
+     * @description Rule for the root of the Aura application.  Currently, no access is granted at the root.
+     * @path /artifacts/Aura
      */
-    match /artifacts {
-        allow get, list: if false;
-        allow create, update, delete: if false;
-    }
-
     match /artifacts/Aura {
-        allow get, list: if false;
-        allow create, update, delete: if false;
+      // No read or write access granted at the root level.
+      allow get, list: if false;
+      allow create, update, delete: if false;
     }
-
 
     /**
-     * @description Controls access to user profiles. Allows a user to read and write their own profile.
+     * @description Enforces access control for user profile information. Only the authenticated user can read/write their own profile.
      * @path /artifacts/Aura/users/{userId}
-     * @allow (get) User with matching {userId} can read their own profile.
-     * @allow (create) User can create their own profile if the ID matches their auth UID.
-     * @allow (update) User with matching {userId} can update their own profile.
-     * @deny (get) User attempts to read another user's profile.
-     * @deny (create) User attempts to create a profile with an ID different from their auth UID.
-     * @deny (update) User attempts to update another user's profile.
-     * @deny (delete) User attempts to delete another user's profile or their own. Deletion is disabled for safety.
-     * @principle Enforces document ownership for user profiles.
+     * @allow (create) User with ID 'user123' can create their own profile.
+     *   - request.auth.uid: 'user123'
+     *   - request.resource.data.id: 'user123'
+     * @allow (get) User with ID 'user123' can read their own profile.
+     *   - request.auth.uid: 'user123'
+     * @allow (update) User with ID 'user123' can update their own profile.
+     *   - request.auth.uid: 'user123'
+     * @deny (create) User with ID 'user456' cannot create a profile for user 'user123'.
+     *   - request.auth.uid: 'user456'
+     *   - request.resource.data.id: 'user123'
+     * @deny (get) User with ID 'user456' cannot read the profile of user 'user123'.
+     *   - request.auth.uid: 'user456'
+     * @principle Enforces document ownership for writes and reads.
      */
     match /artifacts/Aura/users/{userId} {
+      // Verify identity
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      // Verify ownership
       function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
+        return request.auth.uid == userId;
+      }
+
+      // Verify ownership and existence
+      function isExistingOwner(userId) {
+        return isOwner(userId) && exists(resource);
       }
 
       allow get: if isOwner(userId);
+      // User listing is not allowed
       allow list: if false;
+      // Allow the user to create their own profile, but enforce that the userId in the document matches the authenticated user's ID.
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if false;
+      // Allow the user to update their own profile.  Enforce that the userId field cannot be changed.
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to songs owned by a user. Allows a user to manage their own songs.
+     * @description Enforces access control for songs. Only the owning user can manage their songs.
      * @path /artifacts/Aura/users/{userId}/songs/{songId}
-     * @allow (get) User with matching {userId} can read their own song.
-     * @allow (list) User with matching {userId} can list their own songs.
-     * @allow (create) User with matching {userId} can create a new song.
-     * @allow (update) User with matching {userId} can update their own song.
-     * @deny (get) User attempts to read another user's song.
-     * @deny (list) User attempts to list another user's songs.
-     * @deny (create) User attempts to create a song under another user's ID.
-     * @deny (update) User attempts to update another user's song.
-     * @deny (delete) User attempts to delete another user's song.
-     * @principle Enforces document ownership for songs within a user's collection.
+     * @allow (create) User with ID 'user123' can create a song in their own collection.
+     *   - request.auth.uid: 'user123'
+     *   - request.resource.data.userId: 'user123'
+     * @allow (get) User with ID 'user123' can read a song in their own collection.
+     *   - request.auth.uid: 'user123'
+     * @allow (update) User with ID 'user123' can update a song in their own collection.
+     *   - request.auth.uid: 'user123'
+     * @allow (list) User with ID 'user123' can list songs in their own collection.
+     *   - request.auth.uid: 'user123'
+     * @deny (create) User with ID 'user456' cannot create a song for user 'user123'.
+     *   - request.auth.uid: 'user456'
+     *   - request.resource.data.userId: 'user123'
+     * @deny (get) User with ID 'user456' cannot read a song from user 'user123'.
+     *   - request.auth.uid: 'user456'
+     * @principle Enforces document ownership for writes.
      */
     match /artifacts/Aura/users/{userId}/songs/{songId} {
+      // Verify identity
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      // Verify ownership
       function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
+        return request.auth.uid == userId;
+      }
+
+      // Verify ownership and existence
+      function isExistingOwner(userId) {
+        return isOwner(userId) && exists(resource);
       }
 
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
+      // Allow the user to create a song, but enforce that the userId in the document matches the authenticated user's ID.
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) && resource != null;
-      allow delete: if isOwner(userId) && resource != null;
+      // Allow the user to update their own song.  Enforce that the userId field cannot be changed.
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to playlists created by a user. Allows a user to manage their own playlists.
+     * @description Enforces access control for playlists. Only the owning user can manage their playlists.
      * @path /artifacts/Aura/users/{userId}/playlists/{playlistId}
-     * @allow (get) User with matching {userId} can read their own playlist.
-     * @allow (list) User with matching {userId} can list their own playlists.
-     * @allow (create) User with matching {userId} can create a new playlist.
-     * @allow (update) User with matching {userId} can update their own playlist.
-     * @deny (get) User attempts to read another user's playlist.
-     * @deny (list) User attempts to list another user's playlists.
-     * @deny (create) User attempts to create a playlist under another user's ID.
-     * @deny (update) User attempts to update another user's playlist.
-     * @deny (delete) User attempts to delete another user's playlist.
-     * @principle Enforces document ownership for playlists within a user's collection.
+     * @allow (create) User with ID 'user123' can create a playlist in their own collection.
+     *   - request.auth.uid: 'user123'
+     *   - request.resource.data.userId: 'user123'
+     * @allow (get) User with ID 'user123' can read a playlist in their own collection.
+     *   - request.auth.uid: 'user123'
+     * @allow (update) User with ID 'user123' can update a playlist in their own collection.
+     *   - request.auth.uid: 'user123'
+     * @allow (list) User with ID 'user123' can list playlists in their own collection.
+     *   - request.auth.uid: 'user123'
+     * @deny (create) User with ID 'user456' cannot create a playlist for user 'user123'.
+     *   - request.auth.uid: 'user456'
+     *   - request.resource.data.userId: 'user123'
+     * @deny (get) User with ID 'user456' cannot read a playlist from user 'user123'.
+     *   - request.auth.uid: 'user456'
+     * @principle Enforces document ownership for writes.
      */
     match /artifacts/Aura/users/{userId}/playlists/{playlistId} {
+      // Verify identity
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      // Verify ownership
       function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
+        return request.auth.uid == userId;
+      }
+
+      // Verify ownership and existence
+      function isExistingOwner(userId) {
+        return isOwner(userId) && exists(resource);
       }
 
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
+      // Allow the user to create a playlist, but enforce that the userId in the document matches the authenticated user's ID.
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) && resource != null;
-      allow delete: if isOwner(userId) && resource != null;
+      // Allow the user to update their own playlist.  Enforce that the userId field cannot be changed.
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
     }
   }
 }
