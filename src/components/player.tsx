@@ -31,7 +31,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
         // In a real app, you'd call playNext() here through the context.
       });
     }
-  }, [song.id]);
+  }, [song.id, volume, isPlaying]);
 
   useEffect(() => {
     if (widgetRef.current) {
