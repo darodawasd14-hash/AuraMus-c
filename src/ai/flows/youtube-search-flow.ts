@@ -12,10 +12,6 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { google } from 'googleapis';
 
-if (!process.env.YOUTUBE_API_KEY) {
-  throw new Error("YOUTUBE_API_KEY ortam değişkeni ayarlanmamış. Lütfen .env dosyanızı kontrol edin.");
-}
-
 // YouTube API'sini başlatma
 const youtube = google.youtube({
   version: 'v3',
@@ -39,6 +35,12 @@ const youtubeSearchTool = ai.defineTool(
     }),
   },
   async ({ query }) => {
+    // API anahtarı yoksa, hata vermek yerine boş sonuç döndür
+    if (!process.env.YOUTUBE_API_KEY) {
+      console.warn("YOUTUBE_API_KEY ayarlanmamış. Arama aracı atlanıyor.");
+      return { videos: [] };
+    }
+    
     try {
       const response = await youtube.search.list({
         part: ['snippet'],
