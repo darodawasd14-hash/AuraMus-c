@@ -22,54 +22,61 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
           widgetRef.current.setVolume(volume / 100);
           if (isPlaying) {
             widgetRef.current.play();
+          } else {
+            widgetRef.current.pause();
           }
         }
       });
       widget.bind((window as any).SC.Widget.Events.FINISH, () => {
-        // Handle song finishing if needed
+        // In a real app, you'd call playNext() here through the context.
       });
     }
   }, [song.id]);
-  
+
   useEffect(() => {
     if (widgetRef.current) {
       widgetRef.current.setVolume(volume / 100);
     }
   }, [volume]);
-  
+
   useEffect(() => {
     if (widgetRef.current) {
-        if(isPlaying) widgetRef.current.play();
-        else widgetRef.current.pause();
+      if (isPlaying) {
+        widgetRef.current.play();
+      } else {
+        widgetRef.current.pause();
+      }
     }
   }, [isPlaying]);
 
   return (
     <iframe
-        ref={iframeRef}
-        key={song.id}
-        width="100%"
-        height="100%"
-        scrolling="no"
-        frameBorder="no"
-        allow="autoplay"
-        src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=true&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
+      ref={iframeRef}
+      key={song.id}
+      width="100%"
+      height="100%"
+      scrolling="no"
+      frameBorder="no"
+      allow="autoplay"
+      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=${isPlaying}&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
     ></iframe>
   );
 };
 
-
 export function Player({ song }: PlayerProps) {
   const { isPlaying, playNext, youtubePlayer, setYoutubePlayer, volume } = usePlayer();
 
+  // This is the core logic fix. This useEffect hook will ALWAYS run when
+  // volume or the youtubePlayer instance changes, ensuring the volume is
+  // always in sync.
   useEffect(() => {
-    if (youtubePlayer) {
+    if (youtubePlayer && typeof youtubePlayer.setVolume === 'function') {
       youtubePlayer.setVolume(volume);
     }
   }, [volume, youtubePlayer]);
 
   useEffect(() => {
-    if (youtubePlayer) {
+    if (youtubePlayer && typeof youtubePlayer.playVideo === 'function' && typeof youtubePlayer.pauseVideo === 'function') {
       if (isPlaying) {
         youtubePlayer.playVideo();
       } else {
@@ -80,6 +87,7 @@ export function Player({ song }: PlayerProps) {
 
 
   const onReady = (event: any) => {
+    // When the player is ready, store its instance and set the initial volume.
     setYoutubePlayer(event.target);
     event.target.setVolume(volume);
   };

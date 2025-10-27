@@ -216,7 +216,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     } else {
       resetPlayer();
     }
-  }, [playlist, currentIndex]);
+  }, [playlist, currentIndex, togglePlayPause]);
 
 
   const playNext = useCallback(() => {
