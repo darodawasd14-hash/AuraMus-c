@@ -5,7 +5,7 @@ import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2 } from '@/components/icons';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -206,6 +206,13 @@ const ProfileModal = ({ isOpen, setIsOpen }: { isOpen?: boolean; setIsOpen?: (op
       if (docSnap.exists()) {
         setDisplayName(docSnap.data().displayName || '');
       }
+    },
+    (error) => {
+      const contextualError = new FirestorePermissionError({
+        path: profileRef.path,
+        operation: 'get',
+      });
+      errorEmitter.emit('permission-error', contextualError);
     });
     return unsubscribe;
   }, [user, firestore]);
@@ -220,16 +227,24 @@ const ProfileModal = ({ isOpen, setIsOpen }: { isOpen?: boolean; setIsOpen?: (op
 
     setIsSaving(true);
     const profileRef = doc(firestore, 'artifacts', appId, 'users', user.uid);
-    try {
-      await setDoc(profileRef, { displayName: newName }, { merge: true });
-      toast({ title: 'Profile saved!' });
-      if (setIsOpen) setIsOpen(false);
-    } catch (error) {
-      console.error("Error saving profile:", error);
-      toast({ title: 'Failed to save profile.', variant: 'destructive' });
-    } finally {
-      setIsSaving(false);
-    }
+    const profileData = { displayName: newName };
+
+    setDoc(profileRef, profileData, { merge: true })
+      .then(() => {
+        toast({ title: 'Profile saved!' });
+        if (setIsOpen) setIsOpen(false);
+      })
+      .catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: profileRef.path,
+          operation: 'update',
+          requestResourceData: profileData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setIsSaving(false);
+      });
   };
 
   const handleLogout = async () => {

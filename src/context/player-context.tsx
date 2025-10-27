@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
@@ -72,8 +72,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         }
       },
       (error) => {
-        console.error("Playlist subscription error:", error);
-        toast({ title: "Error loading playlist.", variant: 'destructive' });
+        const contextualError = new FirestorePermissionError({
+          path: songsCollectionRef.path,
+          operation: 'list',
+        });
+        errorEmitter.emit('permission-error', contextualError);
         setIsLoading(false);
       }
     );
@@ -128,8 +131,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
     try {
       const songData = await getSongDetails(url);
-      await addDoc(songsCollectionRef, { ...songData, timestamp: serverTimestamp() });
-      toast({ title: "Song added!" });
+      const fullSongData = { ...songData, timestamp: serverTimestamp() };
+      
+      addDoc(songsCollectionRef, fullSongData)
+        .then(() => {
+            toast({ title: "Song added!" });
+        })
+        .catch((serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: songsCollectionRef.path,
+                operation: 'create',
+                requestResourceData: fullSongData,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
+
     } catch (error: any) {
       console.error("Error adding song:", error);
       toast({ title: error.message || "Failed to add song.", variant: 'destructive' });
@@ -138,13 +154,19 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteSong = async (songId: string) => {
     if (!user || !firestore) return;
-    try {
-      await deleteDoc(doc(firestore, 'artifacts', 'Aura', 'users', user.uid, 'songs', songId));
-      toast({ title: "Song deleted." });
-    } catch (error) {
-      console.error("Error deleting song:", error);
-      toast({ title: "Failed to delete song.", variant: 'destructive' });
-    }
+    const songRef = doc(firestore, 'artifacts', 'Aura', 'users', user.uid, 'songs', songId);
+
+    deleteDoc(songRef)
+        .then(() => {
+            toast({ title: "Song deleted." });
+        })
+        .catch((serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: songRef.path,
+                operation: 'delete',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
   };
   
   const resetPlayer = () => {
