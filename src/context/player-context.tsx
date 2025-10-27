@@ -101,7 +101,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     } else {
       setCurrentIndex(newCurrentIndex);
     }
-  }, [playlist, currentIndex]);
+  }, [playlist]);
 
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -198,11 +198,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
       setCurrentIndex(index);
-      setIsPlaying(false); 
+      setIsPlaying(false);
       
       if (youtubePlayer && playlist[index].type === 'youtube') {
         setTimeout(() => {
-          youtubePlayer.setVolume(volume);
+          if (youtubePlayer) { // Re-check player existence inside timeout
+            youtubePlayer.setVolume(volume);
+          }
         }, 100);
       }
     } else {
@@ -213,7 +215,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const togglePlayPause = () => {
     if(currentIndex === -1 && playlist.length > 0) {
-      setCurrentIndex(0);
+      playSong(0);
       setIsPlaying(true);
     } else if (currentIndex !== -1) {
       setIsPlaying(prev => !prev);
@@ -223,14 +225,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
-    setCurrentIndex(nextIndex);
+    playSong(nextIndex);
     setIsPlaying(true);
-  }, [currentIndex, playlist.length]);
+  }, [currentIndex, playlist.length, playSong]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
     const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-    setCurrentIndex(prevIndex);
+    playSong(prevIndex);
     setIsPlaying(true);
   };
   
