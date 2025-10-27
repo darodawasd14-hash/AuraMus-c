@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { collection, addDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -19,10 +19,12 @@ interface CatalogSong {
   url:string;
 }
 
+interface AdminDoc {
+  isAdmin: boolean;
+}
+
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
   const router = useRouter();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -30,6 +32,16 @@ export default function AdminPage() {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+
+  // New, reliable way to check for admin status
+  const adminDocRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'admins', user.uid);
+  }, [user, firestore]);
+
+  const { data: adminData, isLoading: isCheckingAdmin } = useDoc<AdminDoc>(adminDocRef);
+  const isAdmin = !!adminData;
+
 
   // IMPORTANT: Only create the query if the user is an admin
   const catalogQuery = useMemoFirebase(() => {
@@ -46,22 +58,6 @@ export default function AdminPage() {
       router.push('/auth');
       return;
     }
-
-    setIsCheckingAdmin(true);
-    // Force a refresh of the ID token to get the latest custom claims.
-    user.getIdTokenResult(true).then(idTokenResult => {
-      const userIsAdmin = !!idTokenResult.claims.isAdmin;
-      setIsAdmin(userIsAdmin);
-      setIsCheckingAdmin(false);
-      
-      if (!userIsAdmin) {
-        console.log("User is not an admin. Custom claims:", idTokenResult.claims);
-      }
-    }).catch(error => {
-        console.error("Error fetching ID token result:", error);
-        setIsAdmin(false);
-        setIsCheckingAdmin(false);
-    });
   }, [user, isUserLoading, router]);
 
 
@@ -126,7 +122,6 @@ export default function AdminPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <p className="text-muted-foreground">You do not have permission to view this page. To become an admin, please ask a project owner to grant you privileges using the gcloud CLI.</p>
-                     <p className="text-xs text-muted-foreground pt-4">After getting admin privileges, you must log out and log back in for the changes to take effect.</p>
                 </CardContent>
             </Card>
         </div>

@@ -25,6 +25,27 @@
         "email"
       ]
     },
+    "Admin": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Admin",
+      "type": "object",
+      "description": "Represents an admin user. The document ID should be the user's UID.",
+      "properties": {
+        "isAdmin": {
+          "type": "boolean",
+          "description": "Flag to indicate admin status, should always be true."
+        },
+        "addedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the user was made an admin."
+        }
+      },
+      "required": [
+        "isAdmin",
+        "addedAt"
+      ]
+    },
     "Song": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Song",
@@ -128,6 +149,12 @@
     ]
   },
   "firestore": {
+    "/admins/{userId}": {
+      "schema": {
+        "$ref": "#/entities/Admin"
+      },
+      "description": "Stores a list of admin user UIDs."
+    },
     "/artifacts/Aura/users/{userId}": {
       "schema": {
         "$ref": "#/entities/User"
