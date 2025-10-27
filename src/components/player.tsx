@@ -11,21 +11,27 @@ type PlayerProps = {
 
 const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const widgetRef = useRef<any>(null);
+  const isReadyRef = useRef(false);
 
   useEffect(() => {
     if (!iframeRef.current) return;
 
-    const widget = (window as any).SC.Widget(iframeRef.current);
+    widgetRef.current = (window as any).SC.Widget(iframeRef.current);
+    const widget = widgetRef.current;
+
     const onReady = () => {
-        widget.setVolume(80 / 100);
-        widget.bind((window as any).SC.Widget.Events.FINISH, () => {
-          onEnded();
-        });
+      isReadyRef.current = true;
+      widget.setVolume(100);
+      widget.bind((window as any).SC.Widget.Events.FINISH, () => {
+        onEnded();
+      });
     };
+
     widget.bind((window as any).SC.Widget.Events.READY, onReady);
-    
+
     return () => {
-      const currentWidget = widget;
+      const currentWidget = widgetRef.current;
       if (currentWidget && typeof currentWidget.unbind === 'function') {
         try {
           currentWidget.unbind((window as any).SC.Widget.Events.READY);
@@ -56,7 +62,7 @@ export function Player({ song }: PlayerProps) {
 
   const onReady = (event: any) => {
     setYoutubePlayer(event.target);
-    event.target.setVolume(80);
+    event.target.setVolume(100);
   };
 
   const onEnd = () => {

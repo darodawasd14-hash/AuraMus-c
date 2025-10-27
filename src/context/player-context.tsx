@@ -203,6 +203,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const song = playlist[index];
       const youtubePlayer = youtubePlayerRef.current;
       if (song.type === 'youtube' && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
+        youtubePlayer.setVolume(100);
         youtubePlayer.playVideo();
       }
     } else {
@@ -223,6 +224,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const youtubePlayer = youtubePlayerRef.current;
     if (song?.type === 'youtube' && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
       if (newIsPlaying) {
+        youtubePlayer.setVolume(100);
         youtubePlayer.playVideo();
       } else {
         youtubePlayer.pauseVideo();
@@ -234,7 +236,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
     playSong(nextIndex);
-  }, [currentIndex, playlist.length, playSong]);
+  }, [currentIndex, playlist, playSong]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
@@ -245,18 +247,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const setYoutubePlayer = (player: any) => {
     youtubePlayerRef.current = player;
   };
-
-  useEffect(() => {
-    const youtubePlayer = youtubePlayerRef.current;
-    if (youtubePlayer && typeof youtubePlayer.playVideo === 'function' && currentSong?.type === 'youtube') {
-      if (isPlaying) {
-        youtubePlayer.playVideo();
-      } else {
-        youtubePlayer.pauseVideo();
-      }
-    }
-  }, [isPlaying, currentSong, currentIndex]);
-
 
   const value: PlayerContextType = {
     playlist,
