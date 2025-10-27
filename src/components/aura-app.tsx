@@ -37,28 +37,8 @@ export function AuraApp() {
   const [view, setView] = useState<'player' | 'catalog' | 'search'>('player');
   const { user } = useUser();
   const firestore = useFirestore();
-  const [userProfile, setUserProfile] = useState<UserProfile>({});
+  const [userProfile, setUserProfile] = useState<UserProfile>({ displayName: user?.displayName || user?.email || undefined });
 
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-
-  useEffect(() => {
-    if (!profileRef) return;
-    const unsubscribe = onSnapshot(profileRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setUserProfile(docSnap.data() as UserProfile);
-      }
-    }, (err) => {
-        const permissionError = new FirestorePermissionError({
-            path: profileRef.path,
-            operation: 'get',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
-    return unsubscribe;
-  }, [profileRef]);
 
   const handleAddSong = async (e: FormEvent) => {
     e.preventDefault();
