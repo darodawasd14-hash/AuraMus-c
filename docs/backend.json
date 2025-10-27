@@ -4,141 +4,137 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents a user of the Aura music application.",
+      "description": "Represents a user of the Aura application.",
       "properties": {
         "id": {
           "type": "string",
           "description": "Unique identifier for the User entity."
         },
+        "name": {
+          "type": "string",
+          "description": "The user's name."
+        },
         "email": {
           "type": "string",
-          "description": "Email address of the user.",
+          "description": "The user's email address.",
           "format": "email"
-        },
-        "displayName": {
-          "type": "string",
-          "description": "The user's preferred display name."
         }
       },
       "required": [
         "id",
+        "name",
         "email"
-      ]
-    },
-    "Admin": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Admin",
-      "type": "object",
-      "description": "Represents an admin user. The document ID should be the user's UID.",
-      "properties": {
-        "isAdmin": {
-          "type": "boolean",
-          "description": "Flag to indicate admin status, should always be true."
-        },
-        "addedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The timestamp when the user was made an admin."
-        }
-      },
-      "required": [
-        "isAdmin",
-        "addedAt"
       ]
     },
     "Song": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Song",
       "type": "object",
-      "description": "Represents a song in the user's music library or a general catalog.",
+      "description": "Represents a song in the user's music library.",
       "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Song entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Song)"
+        },
         "title": {
           "type": "string",
-          "description": "Title of the song."
+          "description": "The title of the song."
         },
-        "url": {
+        "artist": {
           "type": "string",
-          "description": "URL where the song can be accessed (e.g., YouTube or SoundCloud link).",
-          "format": "uri"
+          "description": "The artist of the song."
         },
-        "type": {
+        "album": {
           "type": "string",
-          "enum": ["youtube", "soundcloud"],
-          "description": "The service that hosts the music. This will tell us the type of song source."
+          "description": "The album the song belongs to."
         },
-        "videoId": {
+        "filePath": {
           "type": "string",
-          "description": "The video ID for YouTube songs."
-        },
-        "timestamp": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The timestamp when the song was added."
+          "description": "The file path to the song."
         }
       },
       "required": [
+        "id",
+        "userId",
         "title",
-        "url",
-        "type",
-        "timestamp"
+        "artist",
+        "album",
+        "filePath"
       ]
     },
-    "CatalogSong": {
+    "Playlist": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "CatalogSong",
+      "title": "Playlist",
       "type": "object",
-      "description": "Represents a song in the public catalog.",
+      "description": "Represents a playlist created by the user.",
       "properties": {
-        "title": {
+        "id": {
           "type": "string",
-          "description": "Title of the song."
+          "description": "Unique identifier for the Playlist entity."
         },
-        "url": {
+        "userId": {
           "type": "string",
-          "description": "URL where the song can be accessed (e.g., YouTube, SoundCloud, or MP3 link).",
-          "format": "uri"
+          "description": "Reference to User. (Relationship: User 1:N Playlist)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the playlist."
+        },
+        "songIds": {
+          "type": "array",
+          "description": "References to Songs. (Relationship: Playlist N:N Song)",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
-        "title",
-        "url"
+        "id",
+        "userId",
+        "name",
+        "songIds"
       ]
     },
-    "Message": {
+    "SmartPlaylist": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Message",
+      "title": "SmartPlaylist",
       "type": "object",
-      "description": "Represents a single chat message for a specific song.",
+      "description": "Represents a smart playlist generated by the AI based on user's listening habits.",
       "properties": {
-        "text": {
+        "id": {
           "type": "string",
-          "description": "The content of the chat message."
+          "description": "Unique identifier for the SmartPlaylist entity."
         },
-        "sender": {
-          "type": "object",
-          "properties": {
-            "uid": {
-              "type": "string"
-            },
-            "displayName": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "uid",
-            "displayName"
-          ]
-        },
-        "timestamp": {
+        "userId": {
           "type": "string",
-          "format": "date-time",
-          "description": "The timestamp when the message was sent."
+          "description": "Reference to User. (Relationship: User 1:N SmartPlaylist)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the smart playlist."
+        },
+        "songIds": {
+          "type": "array",
+          "description": "References to Songs. (Relationship: SmartPlaylist N:N Song)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "criteria": {
+          "type": "string",
+          "description": "The criteria used to generate the playlist (e.g., mood, genre)."
         }
       },
       "required": [
-        "text",
-        "sender",
-        "timestamp"
+        "id",
+        "userId",
+        "name",
+        "songIds",
+        "criteria"
       ]
     }
   },
@@ -149,35 +145,100 @@
     ]
   },
   "firestore": {
-    "/admins/{userId}": {
-      "schema": {
-        "$ref": "#/entities/Admin"
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information. Path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, matching their Firebase Auth UID."
+            }
+          ]
+        }
       },
-      "description": "Stores a list of admin user UIDs."
-    },
-    "/artifacts/Aura/users/{userId}": {
-      "schema": {
-        "$ref": "#/entities/User"
+      {
+        "path": "/users/{userId}/songs/{songId}",
+        "definition": {
+          "entityName": "Song",
+          "schema": {
+            "$ref": "#/backend/entities/Song"
+          },
+          "description": "Stores songs owned by a specific user. Path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user who owns the song."
+            },
+            {
+              "name": "songId",
+              "description": "The unique identifier for the song."
+            }
+          ]
+        }
       },
-      "description": "Stores user profiles, including email and display name."
-    },
-    "/artifacts/Aura/users/{userId}/songs/{songId}": {
-      "schema": {
-        "$ref": "#/entities/Song"
+      {
+        "path": "/users/{userId}/playlists/{playlistId}",
+        "definition": {
+          "entityName": "Playlist",
+          "schema": {
+            "$ref": "#/backend/entities/Playlist"
+          },
+          "description": "Stores playlists created by a specific user. Path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user who created the playlist."
+            },
+            {
+              "name": "playlistId",
+              "description": "The unique identifier for the playlist."
+            }
+          ]
+        }
       },
-      "description": "Stores songs specific to each user."
-    },
-    "/artifacts/Aura/songs/{songId}/messages/{messageId}": {
-      "schema": {
-        "$ref": "#/entities/Message"
+      {
+        "path": "/users/{userId}/smartPlaylists/{smartPlaylistId}",
+        "definition": {
+          "entityName": "SmartPlaylist",
+          "schema": {
+            "$ref": "#/backend/entities/SmartPlaylist"
+          },
+          "description": "Stores smart playlists generated for a specific user. Path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user the smart playlist is generated for."
+            },
+            {
+              "name": "smartPlaylistId",
+              "description": "The unique identifier for the smart playlist."
+            }
+          ]
+        }
       },
-      "description": "Stores chat messages for a specific song."
-    },
-    "/artifacts/Aura/catalog/{songId}": {
-      "schema": {
-        "$ref": "#/entities/CatalogSong"
-      },
-      "description": "Stores the public music catalog, managed by admins."
-    }
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "admin",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Indicates admin role for a user. Document existence grants admin privileges.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user with admin privileges."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The error indicates a permission issue when trying to `get` the document at `/admins/{userId}`. This suggests the application is attempting to check if the current user is an admin by reading their document in the `admins` collection. To resolve this, we should use a dedicated collection for admin roles and structure the data to ensure authorization independence and efficient QAPs (Queries are not filters). Also, based on the core principles, roles must be stored in the database and authorization should rely solely on `request.auth.uid`. Path-Based ownership is used for user related data.\n\nHere's how the data structure addresses the core design principles:\n\n*   **Authorization Independence:** The `/roles_admin/{userId}` collection directly indicates admin status based on document existence, eliminating the need for `get()` calls to other documents and maintaining atomic operation capabilities.\n*   **Clarity of Intent:** The existence of a document in `/roles_admin/{userId}` clearly signifies admin status.\n*   **DBAC (No Custom Claims):** Admin roles are stored directly in the database.\n*   **QAPs (Rules are not Filters):** The structure allows secure `list` operations by directly querying the `roles_admin` collection (if needed, though listing all admins should be rare).\n*   **Invariants:** User ownership is enforced using path-based ownership for user-specific data like songs and playlists.\n\nBased on the application requirements, the following structure is recommended, focusing on path-based ownership for user data and a dedicated collection for admin roles:"
   }
 }
