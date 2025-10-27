@@ -1,97 +1,139 @@
 /**
- * @fileoverview Firestore Security Rules for the Aura music application.
+ * @file Firebase Security Rules for Aura Music App
  *
- * Core Philosophy:
- * This ruleset prioritizes user data privacy and enforces strict ownership for user-specific data. Public read access is granted to the catalog, but write access is restricted.
+ * @core_philosophy This ruleset implements a role-based access control model with an emphasis on user-owned data and administrative privileges.
  *
- * Data Structure:
- * - /artifacts/Aura/users/{userId}: User profile information.
- * - /artifacts/Aura/users/{userId}/songs/{songId}: Songs specific to each user.
- * - /artifacts/Aura/songs/{songId}/messages/{messageId}: Chat messages for a specific song (public context).
- * - /artifacts/Aura/catalog/{songId}: Public music catalog.
+ * @data_structure
+ *  - `/admins/{userId}`: Documents indicating admin status.  Document ID is the user's UID.
+ *  - `/artifacts/Aura/users/{userId}`:  User profile data.
+ *  - `/artifacts/Aura/users/{userId}/songs/{songId}`: Songs specific to a user.
+ *  - `/artifacts/Aura/songs/{songId}/messages/{messageId}`: Chat messages for a specific song.
+ *  - `/artifacts/Aura/catalog/{songId}`: Public music catalog.
  *
- * Key Security Decisions:
- * - Users can only read and write their own user profiles and songs.
- * - Listing user documents is disallowed for privacy.
- * - The public catalog is readable by anyone, but only writable by a process outside the scope of these rules (e.g., a Firebase Function with admin privileges).
- * - Chat messages are publicly accessible (read and write) for simplicity in this prototype. In a production environment, consider moderating or restricting write access.
- *
- * Denormalization for Authorization:
- *  - User-owned resources (songs) do not require denormalization because the path itself encodes ownership (/users/{userId}/songs/{songId}).
+ * @key_security_decisions
+ *  - Admin role is checked by looking up a document in the `/admins` collection.
+ *  - User data is primarily accessible only to the owning user.
+ *  - Public catalog data is readable by anyone, but only modifiable by admins.
+ *  - Listing of documents in `/admins` collection is denied.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces access control for user profiles. Users can only read and write their own profile.
-     * @path /artifacts/Aura/users/{userId}
-     * @allow (create) User with UID 'user123' can create their profile at /artifacts/Aura/users/user123.
-     * @allow (get, update, delete) User with UID 'user123' can read, update, or delete their profile at /artifacts/Aura/users/user123.
-     * @deny (create) User with UID 'user456' cannot create a profile at /artifacts/Aura/users/user123.
-     * @deny (get, update, delete) User with UID 'user456' cannot read, update, or delete the profile at /artifacts/Aura/users/user123.
-     * @principle Enforces document ownership for writes.
+     * @description Admin role management.
+     * @path /admins/{userId}
+     * @allow (get) User with UID 'adminUserId' can get their own admin record if it exists.
+     * @allow (create) User with UID 'adminUserId' can create their own admin record if it doesn't exist. This assumes an admin-creation backend process exists.
+     * @allow (update) Not allowed through rules. Admin records should be managed via a backend process.
+     * @allow (delete) Not allowed through rules. Admin records should be managed via a backend process.
+     * @deny (get) User with UID 'otherUserId' cannot get the admin record of 'adminUserId'.
+     * @deny (create) User with UID 'otherUserId' cannot create the admin record of 'adminUserId'.
+     * @deny (update) Any user cannot update any admin record through client-side rules.
+     * @deny (delete) Any user cannot delete any admin record through client-side rules.
+     * @principle Enforces strict control over admin role assignments.
      */
-    match /artifacts/Aura/users/{userId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if false; // Disallowing listing of user documents for privacy.
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+    match /admins/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list: if false;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Enforces access control for user-specific songs. Users can only manage songs under their own profile.
+     * @description User profile data.
+     * @path /artifacts/Aura/users/{userId}
+     * @allow (get) User with UID 'user123' can get their own profile data.
+     * @allow (create) User with UID 'user123' can create their profile, but only if the document ID matches their UID.
+     * @allow (update) User with UID 'user123' can update their own profile data.
+     * @allow (delete) User with UID 'user123' can delete their own profile data.
+     * @deny (get) User with UID 'otherUser' cannot get the profile data of 'user123'.
+     * @deny (create) User with UID 'user123' cannot create a profile with a different ID.
+     * @deny (update) User with UID 'otherUser' cannot update the profile data of 'user123'.
+     * @deny (delete) User with UID 'otherUser' cannot delete the profile data of 'user123'.
+     * @principle Enforces document ownership for user profiles.
+     */
+    match /artifacts/Aura/users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // User listing is not allowed
+      allow create: if isOwner(userId) && request.auth.uid == userId;
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    /**
+     * @description User-specific song library.
      * @path /artifacts/Aura/users/{userId}/songs/{songId}
-     * @allow (create) User with UID 'user123' can create a song at /artifacts/Aura/users/user123/songs/song1.
-     * @allow (get, list, update, delete) User with UID 'user123' can read, list, update, or delete their song at /artifacts/Aura/users/user123/songs/song1.
-     * @deny (create) User with UID 'user456' cannot create a song at /artifacts/Aura/users/user123/songs/song1.
-     * @deny (get, list, update, delete) User with UID 'user456' cannot read, list, update, or delete the song at /artifacts/Aura/users/user123/songs/song1.
-     * @principle Restricts access to a user's own data tree.
+     * @allow (get) User with UID 'user123' can get a song from their own library.
+     * @allow (create) User with UID 'user123' can add a song to their own library.
+     * @allow (update) User with UID 'user123' can update a song in their own library.
+     * @allow (delete) User with UID 'user123' can delete a song from their own library.
+     * @deny (get) User with UID 'otherUser' cannot get a song from 'user123''s library.
+     * @deny (create) User with UID 'otherUser' cannot add a song to 'user123''s library.
+     * @deny (update) User with UID 'otherUser' cannot update a song in 'user123''s library.
+     * @deny (delete) User with UID 'otherUser' cannot delete a song from 'user123''s library.
+     * @principle Restricts access to a user's own music library.
      */
     match /artifacts/Aura/users/{userId}/songs/{songId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Allows public read and write access to chat messages for songs. Consider moderating or restricting write access in production.
+     * @description Chat messages for a specific song.
      * @path /artifacts/Aura/songs/{songId}/messages/{messageId}
-     * @allow (get, list, create, update, delete) Any user can read, list, create, update, or delete messages.
-     * @principle Open access for messages.
+     * @allow (get) Any user can read messages for a song.
+     * @allow (create) Any signed-in user can create messages for a song.
+     * @allow (update) Not allowed. Messages cannot be edited.
+     * @allow (delete) Not allowed. Messages cannot be deleted.
+     * @deny (update) No user can update any message through client-side rules.
+     * @deny (delete) No user can delete any message through client-side rules.
+     * @principle Allows public read access for chat messages, but restricts modification.
      */
     match /artifacts/Aura/songs/{songId}/messages/{messageId} {
-      allow get, list, create, update, delete: if true;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Allows public read access to the music catalog, but restricts write access.
+     * @description Public music catalog, managed by admins.
      * @path /artifacts/Aura/catalog/{songId}
-     * @allow (get, list) Any user can read and list catalog songs.
-     * @deny (create, update, delete) No client-side write access to the catalog.
-     * @principle Public read, restricted write.
+     * @allow (get) Any user can read the catalog.
+     * @allow (list) Any user can list the catalog.
+     * @allow (create) Only admins can add songs to the catalog.
+     * @allow (update) Only admins can modify songs in the catalog.
+     * @allow (delete) Only admins can remove songs from the catalog.
+     * @deny (create) Regular users cannot add songs to the catalog.
+     * @deny (update) Regular users cannot modify songs in the catalog.
+     * @deny (delete) Regular users cannot remove songs from the catalog.
+     * @principle Restricts write access to the public catalog to admins only.
      */
     match /artifacts/Aura/catalog/{songId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
+  }
+
+  // Helper functions
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  function isOwner(userId) {
+    return isSignedIn() && request.auth.uid == userId;
+  }
+
+  function isAdmin() {
+    return isSignedIn() && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data != null;
   }
 }
