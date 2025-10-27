@@ -11,7 +11,7 @@ type PlayerProps = {
 
 const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const { setSoundcloudPlayer } = usePlayer();
+  const { setSoundcloudPlayer, isPlaying } = usePlayer();
 
   useEffect(() => {
     if (!iframeRef.current) return;
@@ -20,8 +20,10 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
     setSoundcloudPlayer(widget);
 
     const onReady = () => {
+      if(isPlaying) {
+        widget.play();
+      }
       widget.bind((window as any).SC.Widget.Events.FINISH, onEnded);
-      widget.play();
     };
 
     widget.bind((window as any).SC.Widget.Events.READY, onReady);
@@ -47,7 +49,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
       scrolling="no"
       frameBorder="no"
       allow="autoplay"
-      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=true&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
+      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=false&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
     ></iframe>
   );
 };
