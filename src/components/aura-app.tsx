@@ -41,7 +41,7 @@ export function AuraApp() {
 
   const profileRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    return doc(firestore, 'artifacts', appId, 'users', user.uid);
+    return doc(firestore, 'users', user.uid);
   }, [user, firestore]);
 
   useEffect(() => {
@@ -411,32 +411,27 @@ const ProfileModal = ({ isOpen, setIsOpen, profile }: { isOpen?: boolean; setIsO
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (isOpen && profile.displayName) {
-      setDisplayName(profile.displayName);
-    } else if (isOpen && user?.displayName) {
+    if (isOpen && user?.displayName) {
       setDisplayName(user.displayName);
     }
-  }, [isOpen, profile, user]);
+  }, [isOpen, user]);
 
   const handleSave = async () => {
-    if (!user || !firestore) return;
+    if (!user || !auth.currentUser) return;
     const newName = displayName.trim();
     if (!newName) {
       toast({ title: 'Please enter a valid name.', variant: 'destructive' });
       return;
     }
-  
+
     setIsSaving(true);
-    const profileRef = doc(firestore, 'artifacts', appId, 'users', user.uid);
-    const profileData = { displayName: newName };
+    const profileRef = doc(firestore, 'users', user.uid);
+    const profileData = { displayName: newName, email: user.email };
   
     try {
+      await updateProfile(auth.currentUser, { displayName: newName });
       await setDoc(profileRef, profileData, { merge: true });
       
-      if(auth.currentUser) {
-        await updateProfile(auth.currentUser, { displayName: newName });
-      }
-
       toast({ title: 'Profile saved!' });
       if (setIsOpen) setIsOpen(false);
     } catch (error: any) {

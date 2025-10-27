@@ -10,8 +10,6 @@ import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 
-const appId = 'Aura';
-
 interface Message {
     id: string;
     text: string;
@@ -32,7 +30,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
 
     const messagesCollectionRef = useMemoFirebase(() => {
         if (!song || !firestore) return null;
-        return collection(firestore, 'artifacts', appId, 'songs', song.id, 'messages');
+        return collection(firestore, 'songs', song.id, 'messages');
     }, [song, firestore]);
 
     const messagesQuery = useMemoFirebase(() => {
@@ -51,7 +49,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         if (!message.trim() || !user || !messagesCollectionRef) return;
         
         if (!displayName) {
-            toast({ title: 'Sohbet edebilmek için profilinizde bir görünen ad belirlemelisiniz.', variant: 'destructive'});
+            toast({ title: 'You must set a display name in your profile to chat.', variant: 'destructive'});
             return;
         }
 
@@ -76,7 +74,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
                     requestResourceData: newMessage,
                 });
                 errorEmitter.emit('permission-error', permissionError);
-                toast({ title: 'Mesaj gönderilirken bir hata oluştu.', variant: 'destructive' });
+                toast({ title: 'Error sending message.', variant: 'destructive' });
             })
             .finally(() => {
                 setIsSending(false);
@@ -86,7 +84,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
     if (!song) {
         return (
             <aside className="w-80 bg-background/50 border-l border-border flex flex-col p-4 justify-center items-center text-center">
-                <p className="text-muted-foreground">Sohbeti görmek için bir şarkı seçin.</p>
+                <p className="text-muted-foreground">Select a song to see the chat.</p>
             </aside>
         );
     }
@@ -95,7 +93,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         <aside className="w-80 bg-background/50 border-l border-border flex flex-col">
             <div className="p-4 border-b border-border">
                 <h3 className="font-semibold truncate">{song.title}</h3>
-                <p className="text-sm text-muted-foreground mt-1">Sohbet</p>
+                <p className="text-sm text-muted-foreground mt-1">Live Chat</p>
             </div>
 
             <div className="flex-grow p-4 overflow-y-auto space-y-4">
@@ -120,7 +118,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
                 <form onSubmit={handleSendMessage} className="flex gap-2">
                     <Input
                         type="text"
-                        placeholder="Bir şeyler söyle..."
+                        placeholder="Say something..."
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         disabled={!user || isSending}

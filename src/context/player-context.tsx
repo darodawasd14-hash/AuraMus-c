@@ -57,7 +57,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const songsCollectionRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    // Standard path: /users/{userId}/songs
     return collection(firestore, 'users', user.uid, 'songs');
   }, [user, firestore]);
 
