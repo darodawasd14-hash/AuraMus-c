@@ -2,20 +2,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  deleteDoc,
-  doc,
-  serverTimestamp,
-  type Timestamp,
-} from 'firebase/firestore';
-import { FirestorePermissionError } from '@/firebase/errors';
-import { errorEmitter } from '@/firebase/error-emitter';
 
 export interface Song {
   id: string;
@@ -23,8 +9,6 @@ export interface Song {
   url: string;
   type: 'youtube' | 'soundcloud' | 'url';
   videoId?: string;
-  timestamp?: Timestamp;
-  userId?: string;
 }
 
 type PlayerContextType = {
@@ -46,49 +30,12 @@ const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
-  const { user } = useUser();
-  const firestore = useFirestore();
 
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false); // No longer loading from Firestore
   const youtubePlayerRef = useRef<any>(null);
-
-  const songsCollectionRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return collection(firestore, 'users', user.uid, 'songs');
-  }, [user, firestore]);
-
-  useEffect(() => {
-    if (!songsCollectionRef) {
-      setPlaylist([]);
-      setIsLoading(false);
-      return;
-    }
-    
-    setIsLoading(true);
-    const q = query(songsCollectionRef, orderBy('timestamp', 'desc'));
-
-    const unsubscribe = onSnapshot(q,
-      (snapshot) => {
-        const songs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Song));
-        setPlaylist(songs);
-        setIsLoading(false);
-      },
-      (error) => {
-        const contextualError = new FirestorePermissionError({
-          path: songsCollectionRef.path,
-          operation: 'list',
-        });
-        errorEmitter.emit('permission-error', contextualError);
-        setIsLoading(false);
-        setPlaylist([]);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [songsCollectionRef]);
 
 
   const resetPlayer = () => {
@@ -100,18 +47,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   useEffect(() => {
-    const currentSongId = playlist[currentIndex]?.id;
-    if (currentIndex === -1 || !currentSongId) {
-       resetPlayer();
-       return;
-    }
-    
-    const newCurrentIndex = playlist.findIndex(song => song.id === currentSongId);
-  
-    if (newCurrentIndex === -1) {
+    if (playlist.length === 0) {
       setCurrentIndex(-1);
-    } else {
-      setCurrentIndex(newCurrentIndex);
+      setIsPlaying(false);
+      resetPlayer();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playlist]);
@@ -122,7 +61,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     return match ? match[1] : null;
   };
 
-  const getSongDetails = async (url: string): Promise<Omit<Song, 'id' | 'timestamp' | 'userId'>> => {
+  const getSongDetails = async (url: string): Promise<Omit<Song, 'id'>> => {
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       const videoId = extractYouTubeID(url);
       if (!videoId) throw new Error("Invalid YouTube link.");
@@ -142,7 +81,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           videoId: videoId
         };
       } catch (e) {
-         // Fallback for when oembed fails (e.g. private videos)
          return {
             title: `YouTube: ${videoId}`,
             url: canonicalYouTubeUrl,
@@ -177,27 +115,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addSong = async (url: string) => {
-    if (!user || !songsCollectionRef) {
-      toast({ title: 'You must be logged in to add songs.', variant: 'destructive' });
-      return;
-    }
     try {
       const songDetails = await getSongDetails(url);
       const newSong = {
         ...songDetails,
-        timestamp: serverTimestamp(),
-        userId: user.uid,
+        id: new Date().toISOString(), // Use timestamp as a unique ID for in-memory list
       };
       
-      addDoc(songsCollectionRef, newSong)
-        .catch((serverError) => {
-            const permissionError = new FirestorePermissionError({
-                path: songsCollectionRef.path,
-                operation: 'create',
-                requestResourceData: newSong,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
+      setPlaylist(prevPlaylist => [...prevPlaylist, newSong]);
       toast({ title: "Song added!" });
 
     } catch (error: any) {
@@ -207,17 +132,26 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteSong = async (songId: string) => {
-    if (!user || !firestore) return;
-    const songDocRef = doc(firestore, 'users', user.uid, 'songs', songId);
+    setPlaylist(prevPlaylist => {
+        const songIndex = prevPlaylist.findIndex(s => s.id === songId);
+        if (songIndex === -1) return prevPlaylist;
 
-    deleteDoc(songDocRef)
-      .catch((serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: songDocRef.path,
-            operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      });
+        // If the deleted song is the currently playing one
+        if (songIndex === currentIndex) {
+            if (prevPlaylist.length === 1) { // If it's the last song
+                setCurrentIndex(-1);
+                setIsPlaying(false);
+            } else { // Play the next song, or the first if it was the last
+                const nextIndex = (currentIndex % (prevPlaylist.length - 1));
+                setCurrentIndex(nextIndex);
+            }
+        } else if (songIndex < currentIndex) {
+            // If a song before the current one is deleted, shift index
+            setCurrentIndex(prevIndex => prevIndex -1);
+        }
+        
+        return prevPlaylist.filter(s => s.id !== songId);
+    });
     toast({ title: "Song deleted." });
   };
   
