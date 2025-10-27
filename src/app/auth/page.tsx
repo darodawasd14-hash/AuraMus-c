@@ -70,7 +70,7 @@ export default function AuthPage() {
             <Input type="email" id="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-3 py-2 mt-1 text-white bg-gray-700 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label htmlFor="password" d="block text-sm font-medium text-gray-300">Password</label>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-300">Password</label>
             <Input type="password" id="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-3 py-2 mt-1 text-white bg-gray-700 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
