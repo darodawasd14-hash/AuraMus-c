@@ -35,7 +35,7 @@ const youtubeSearchTool = ai.defineTool(
     }),
   },
   async ({ query }) => {
-    // API anahtarı yoksa, hata vermek yerine boş sonuç döndür
+    // GÜVENLİK KİLİDİ: API anahtarı yoksa, istek gönderme ve boş dön.
     if (!process.env.YOUTUBE_API_KEY) {
       console.warn("YOUTUBE_API_KEY ayarlanmamış. Arama aracı atlanıyor.");
       return { videos: [] };
