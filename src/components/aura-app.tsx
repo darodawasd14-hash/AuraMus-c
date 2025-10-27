@@ -36,8 +36,13 @@ export function AuraApp() {
   const [isAdding, setIsAdding] = useState(false);
   const [view, setView] = useState<'player' | 'catalog' | 'search'>('player');
   const { user } = useUser();
-  const firestore = useFirestore();
   const [userProfile, setUserProfile] = useState<UserProfile>({ displayName: user?.displayName || user?.email || undefined });
+
+  useEffect(() => {
+    if (user) {
+      setUserProfile({ displayName: user.displayName || user.email || undefined });
+    }
+  }, [user]);
 
 
   const handleAddSong = async (e: FormEvent) => {
@@ -53,7 +58,7 @@ export function AuraApp() {
 
   return (
     <div id="app-container" className="h-screen flex flex-col text-foreground">
-      <Header setView={setView} currentView={view} profile={userProfile} />
+      <Header setView={setView} currentView={view} profile={userProfile} setProfile={setUserProfile} />
       <main className="flex-grow overflow-hidden flex flex-row">
         <div id="main-content" className="flex-grow flex flex-col">
           {view === 'player' ? (
@@ -125,7 +130,7 @@ export function AuraApp() {
   );
 }
 
-const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 'catalog' | 'search') => void; currentView: 'player' | 'catalog' | 'search', profile: UserProfile }) => {
+const Header = ({ setView, currentView, profile, setProfile }: { setView: (view: 'player' | 'catalog' | 'search') => void; currentView: 'player' | 'catalog' | 'search', profile: UserProfile, setProfile: (profile: UserProfile) => void; }) => {
   const [isModalOpen, setModalOpen] = useState(false);
   
   return (
@@ -146,7 +151,7 @@ const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 
           </Button>
         </div>
       </header>
-      <ProfileModal isOpen={isModalOpen} setIsOpen={setModalOpen} profile={profile} />
+      <ProfileModal isOpen={isModalOpen} setIsOpen={setModalOpen} profile={profile} setProfile={setProfile} />
     </>
   );
 };
@@ -382,19 +387,18 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
 };
 
 
-const ProfileModal = ({ isOpen, setIsOpen, profile }: { isOpen?: boolean; setIsOpen?: (open: boolean) => void; profile: UserProfile }) => {
+const ProfileModal = ({ isOpen, setIsOpen, profile, setProfile }: { isOpen?: boolean; setIsOpen?: (open: boolean) => void; profile: UserProfile, setProfile: (profile: UserProfile) => void; }) => {
   const { user } = useUser();
   const auth = useAuth();
-  const firestore = useFirestore();
   const { toast } = useToast();
   const [displayName, setDisplayName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (isOpen && user?.displayName) {
-      setDisplayName(user.displayName);
+    if (isOpen) {
+      setDisplayName(profile.displayName || '');
     }
-  }, [isOpen, user]);
+  }, [isOpen, profile]);
 
   const handleSave = async () => {
     if (!user || !auth.currentUser) return;
@@ -405,23 +409,15 @@ const ProfileModal = ({ isOpen, setIsOpen, profile }: { isOpen?: boolean; setIsO
     }
 
     setIsSaving(true);
-    const profileRef = doc(firestore, 'users', user.uid);
-    const profileData = { displayName: newName, email: user.email };
   
     try {
       await updateProfile(auth.currentUser, { displayName: newName });
-      await setDoc(profileRef, profileData, { merge: true });
-      
+      setProfile({ displayName: newName });
       toast({ title: 'Profile saved!' });
       if (setIsOpen) setIsOpen(false);
     } catch (error: any) {
-       const permissionError = new FirestorePermissionError({
-        path: profileRef.path,
-        operation: 'update',
-        requestResourceData: profileData,
-      });
-      errorEmitter.emit('permission-error', permissionError);
-      toast({ title: 'Error saving profile.', variant: 'destructive' });
+      console.error('Error updating profile:', error);
+      toast({ title: 'Error saving profile.', variant: 'destructive', description: error.message });
     } finally {
       setIsSaving(false);
     }
