@@ -68,14 +68,6 @@ export function Player({ song }: PlayerProps) {
 
   useEffect(() => {
     // Ensure player and its functions exist before calling them.
-    if (youtubePlayer && song?.type === 'youtube' && typeof youtubePlayer.setVolume === 'function') {
-      youtubePlayer.setVolume(volume);
-    }
-  }, [volume, youtubePlayer, song]);
-
-
-  useEffect(() => {
-    // Ensure player and its functions exist before calling them.
     if (youtubePlayer && song?.type === 'youtube' && typeof youtubePlayer.playVideo === 'function' && typeof youtubePlayer.pauseVideo === 'function') {
       // Ensure we don't act on a stale player instance for a different song
       // This can happen if the component re-renders before the player is fully updated.
@@ -92,7 +84,7 @@ export function Player({ song }: PlayerProps) {
 
   const onReady = (event: any) => {
     setYoutubePlayer(event.target);
-    // Ensure setVolume is available before calling it.
+    // Ensure setVolume is available before calling it, and only call it when ready.
     if (event.target && typeof event.target.setVolume === 'function') {
         event.target.setVolume(volume);
     }

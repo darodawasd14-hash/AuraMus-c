@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -29,6 +29,7 @@ type PlayerContextType = {
   playNext: () => void;
   playPrev: () => void;
   volume: number;
+  setVolume: (volume: number) => void;
   isMuted: boolean;
   toggleMute: () => void;
   youtubePlayer: any;
@@ -230,6 +231,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlaying(true);
   };
   
+  const handleSetVolume = (newVolume: number) => {
+    if (newVolume > 0) {
+      setIsMuted(false);
+    } else {
+      setIsMuted(true);
+    }
+    setVolume(newVolume);
+  };
+
   const toggleMute = () => {
     setIsMuted(currentIsMuted => {
       const newMuteState = !currentIsMuted;
@@ -237,7 +247,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         setPreviousVolume(volume);
         setVolume(0);
       } else {
-        setVolume(previousVolume);
+        setVolume(previousVolume > 0 ? previousVolume : 80); // Restore to a non-zero volume
       }
       return newMuteState;
     });
@@ -258,6 +268,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playNext,
     playPrev,
     volume,
+    setVolume: handleSetVolume,
     isMuted,
     toggleMute,
     youtubePlayer,

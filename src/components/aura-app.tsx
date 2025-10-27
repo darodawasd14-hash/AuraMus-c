@@ -14,6 +14,7 @@ import { Loader2 } from 'lucide-react';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { ChatPane } from '@/components/chat-pane';
+import { Slider } from '@/components/ui/slider';
 
 const appId = 'Aura';
 
@@ -142,7 +143,7 @@ const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 
            <Button onClick={() => setView('player')} variant={currentView === 'player' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <ListMusic/> My List</Button>
            <Button onClick={() => setView('catalog')} variant={currentView === 'catalog' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Music/> Catalog</Button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           <VolumeControl />
           <Button onClick={() => setModalOpen(true)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
             <UserIcon/>
@@ -155,12 +156,22 @@ const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 
 };
 
 const VolumeControl = () => {
-  const { isMuted, toggleMute } = usePlayer();
-  
+  const { volume, setVolume, isMuted, toggleMute } = usePlayer();
+
   return (
-    <Button onClick={toggleMute} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-      {isMuted ? <VolumeX /> : <Volume1 />}
-    </Button>
+    <div className="flex items-center gap-2 w-32">
+      <Button onClick={toggleMute} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+        {isMuted || volume === 0 ? <VolumeX /> : <Volume1 />}
+      </Button>
+      <Slider
+        min={0}
+        max={100}
+        step={1}
+        value={[volume]}
+        onValueChange={(value) => setVolume(value[0])}
+        className="flex-grow"
+      />
+    </div>
   );
 };
 
