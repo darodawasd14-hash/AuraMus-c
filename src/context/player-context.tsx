@@ -101,7 +101,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     } else {
       setCurrentIndex(newCurrentIndex);
     }
-  }, [playlist]);
+  }, [playlist, currentIndex]);
 
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -198,26 +198,20 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
       setCurrentIndex(index);
-      setIsPlaying(false);
-      
-      if (youtubePlayer && playlist[index].type === 'youtube') {
-        setTimeout(() => {
-          if (youtubePlayer) { // Re-check player existence inside timeout
-            youtubePlayer.setVolume(volume);
-          }
-        }, 100);
-      }
+      setIsPlaying(false); // Don't autoplay
     } else {
       resetPlayer();
     }
-  }, [playlist, youtubePlayer, volume]);
+  }, [playlist]);
 
 
   const togglePlayPause = () => {
     if(currentIndex === -1 && playlist.length > 0) {
-      playSong(0);
+      // If nothing is selected, play the first song
+      setCurrentIndex(0);
       setIsPlaying(true);
     } else if (currentIndex !== -1) {
+      // If a song is selected, toggle its play state
       setIsPlaying(prev => !prev);
     }
   };
