@@ -1,0 +1,130 @@
+/**
+ * @fileoverview Firestore Security Rules for Aura application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a hybrid security model. Users own their profile data and playlists.
+ * A global "songs_v3" collection is publicly readable but only allows authorized users to create, update, or delete entries.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profile information.
+ * - /users/{userId}/playlist/{songId}: Stores songs in a user's playlist.
+ * - /songs_v3/{songId}: Stores a global catalog of songs added by users.
+ *
+ * Key Security Decisions:
+ * - Users can only manage their own profile and playlist data.
+ * - Listing all users is disallowed.
+ * - The "songs_v3" collection is publicly readable to allow for general browsing, but write access is restricted to prevent unauthorized modification of the global catalog.
+ * - Anonymous authentication is permitted, but all write operations still require appropriate authorization checks.
+ *
+ * Denormalization for Authorization:
+ *  - The Song entity contains a `userId` field to easily enforce ownership within the /users/{userId}/playlist/{songId} collection.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Secure user profile information. Only the user can read/write their own profile.
+     * @path /users/{userId}
+     * @allow (create) User with ID 'user123' can create their profile.
+     *   - Auth: { uid: 'user123' }
+     *   - Data: { id: 'user123', name: 'John Doe' }
+     * @allow (get) User with ID 'user123' can read their profile.
+     *   - Auth: { uid: 'user123' }
+     * @allow (update) User with ID 'user123' can update their profile.
+     *   - Auth: { uid: 'user123' }
+     *   - Data: { id: 'user123', name: 'Updated Name' }
+     * @allow (delete) User with ID 'user123' can delete their profile.
+     *   - Auth: { uid: 'user123' }
+     * @deny (get) User with ID 'user456' cannot read user 'user123' profile.
+     *   - Auth: { uid: 'user456' }
+     * @deny (create) User with ID 'user456' cannot create profile for user 'user123'.
+     *   - Auth: { uid: 'user456' }
+     *   - Data: { id: 'user123', name: 'John Doe' }
+     * @principle Enforces user-ownership: Only the authenticated user can access their own data.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Disallow listing all users
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secure user playlist data. Only the user can read/write songs in their own playlist.
+     * @path /users/{userId}/playlist/{songId}
+     * @allow (create) User with ID 'user123' can add a song to their playlist.
+     *   - Auth: { uid: 'user123' }
+     *   - Data: { userId: 'user123', title: 'My Song' }
+     * @allow (get) User with ID 'user123' can read a song from their playlist.
+     *   - Auth: { uid: 'user123' }
+     * @allow (update) User with ID 'user123' can update a song in their playlist.
+     *   - Auth: { uid: 'user123' }
+     *   - Data: { userId: 'user123', title: 'Updated Song Title' }
+     * @allow (delete) User with ID 'user123' can delete a song from their playlist.
+     *   - Auth: { uid: 'user123' }
+     * @deny (create) User with ID 'user456' cannot add a song to user 'user123' playlist.
+     *   - Auth: { uid: 'user456' }
+     *   - Data: { userId: 'user123', title: 'My Song' }
+     * @principle Enforces user-ownership: Only the authenticated user can manage their own playlist.
+     */
+    match /users/{userId}/playlist/{songId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Allow public read access to songs, but restrict write access to authorized users.
+     * @path /songs_v3/{songId}
+     * @allow (get) Any user can read song data.
+     *   - Auth: null
+     * @allow (list) Any user can list song data.
+     *   - Auth: null
+     * @deny (create) Any user cannot create a song data.
+     *   - Auth: null
+     * @deny (update) Any user cannot update a song data.
+     *   - Auth: null
+     * @deny (delete) Any user cannot delete a song data.
+     *   - Auth: null
+     * @principle Public read, owner-only write access pattern.
+     */
+    match /songs_v3/{songId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      // CRITICAL: Cannot implement owner-only writes. The 'Song' entity is missing an 'ownerId' or 'authorId' field.
+    }
+
+  }
+
+  // --- Helper functions ---
+
+  /**
+   * @description Checks if the current user is signed in.
+   * @return {boolean} True if the user is signed in, false otherwise.
+   */
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  /**
+   * @description Checks if the current user is the owner of the resource.
+   * @param {string} userId The user ID to compare against the request's auth UID.
+   * @return {boolean} True if the user is the owner, false otherwise.
+   */
+  function isOwner(userId) {
+    return isSignedIn() && request.auth.uid == userId;
+  }
+
+    /**
+   * @description Checks if the current user is the owner of the resource and if the resource exists.
+   * @param {string} userId The user ID to compare against the request's auth UID.
+   * @return {boolean} True if the user is the owner and the resource exists, false otherwise.
+   */
+  function isExistingOwner(userId) {
+    return isOwner(userId) && resource != null;
+  }
+}
