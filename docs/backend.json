@@ -43,16 +43,16 @@
           "description": "Title of the song."
         },
         "url": {
-            "type": "string"
+          "type": "string"
         },
         "type": {
-            "type": "string"
+          "type": "string"
         },
         "videoId": {
-            "type": "string"
+          "type": "string"
         },
         "timestamp": {
-            "type": "object"
+          "type": "object"
         }
       },
       "required": [
@@ -80,6 +80,16 @@
             "$ref": "#/backend/entities/User"
           },
           "description": "Stores user profile information. Each user has a document identified by their unique user ID."
+        }
+      },
+      {
+        "path": "/users/{userId}/playlist/{songId}",
+        "definition": {
+            "entityName": "Song",
+            "schema": {
+                "$ref": "#/backend/entities/Song"
+            },
+            "description": "Sub-collection storing the songs in a specific user's personal playlist."
         }
       },
       {

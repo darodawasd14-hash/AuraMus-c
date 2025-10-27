@@ -2,9 +2,8 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { useUser, useFirestore } from '@/firebase';
-import initialSongs from '@/app/lib/catalog.json';
+import { addDoc, collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs } from 'firebase/firestore';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 
 
 export interface Song {
@@ -38,12 +37,12 @@ const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
 
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // Start loading until initial playlist is fetched
   const youtubePlayerRef = useRef<any>(null);
   const soundcloudPlayerRef = useRef<any>(null);
   const urlPlayerRef = useRef<HTMLAudioElement>(null);
@@ -67,14 +66,46 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
+  // Fetch user's playlist from Firestore on login
   useEffect(() => {
-    if (playlist.length === 0) {
+    if (user && firestore) {
+      setIsLoading(true);
+      const playlistRef = collection(firestore, 'users', user.uid, 'playlist');
+      const q = query(playlistRef, orderBy('timestamp', 'asc'));
+      
+      getDocs(q).then(snapshot => {
+        const userPlaylist = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Song));
+        setPlaylist(userPlaylist);
+        if (userPlaylist.length > 0) {
+          setCurrentIndex(0);
+          setIsPlaying(false); // Don't autoplay on load
+        } else {
+          setCurrentIndex(-1);
+        }
+        setIsLoading(false);
+      }).catch(error => {
+        console.error("Error fetching user playlist:", error);
+        toast({ title: 'Çalma listesi yüklenemedi.', variant: 'destructive'});
+        setIsLoading(false);
+      });
+    } else if (!isUserLoading) {
+      // User is logged out or still loading, clear playlist
+      setPlaylist([]);
+      setCurrentIndex(-1);
+      setIsLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, firestore, isUserLoading]);
+
+
+  useEffect(() => {
+    if (!isLoading && playlist.length === 0) {
       setCurrentIndex(-1);
       setIsPlaying(false);
       resetPlayer();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playlist]);
+  }, [playlist, isLoading]);
 
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -156,24 +187,32 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addSong = async (url: string, userId: string) => {
+    if (!firestore || !user) {
+        toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive'});
+        return;
+    }
+
     try {
       const songDetails = await getSongDetails(url, userId);
       
       // Save to global songs collection
-      if (firestore) {
-        const songsCol = collection(firestore, 'songs');
-        // We only save the core details to Firestore, not the temporary local ID.
-        await addDoc(songsCol, songDetails);
-      }
+      const songsCol = collection(firestore, 'songs');
+      addDoc(songsCol, songDetails); // Non-blocking
+
+      // Save to user's personal playlist
+      const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
+      const docRef = await addDoc(userPlaylistRef, songDetails);
 
       const newSong = {
         ...songDetails,
-        id: new Date().toISOString(), // Use a temporary ID for local state
-      };
+        id: docRef.id, // Use the real ID from Firestore
+        timestamp: new Date() // Use local date for immediate UI update
+      } as Song;
       
       setPlaylist(prevPlaylist => {
         const updatedPlaylist = [...prevPlaylist, newSong];
-        if (currentIndex === -1 && updatedPlaylist.length > 0) {
+        // If this is the first song added, start playing it.
+        if (currentIndex === -1 && updatedPlaylist.length === 1) {
             setCurrentIndex(0);
             setIsPlaying(true);
         }
@@ -188,6 +227,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteSong = async (songId: string) => {
+    if (!firestore || !user) return;
+
+    // Delete from Firestore
+    const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
+    deleteDoc(songDocRef); // Non-blocking
+
     setPlaylist(prevPlaylist => {
         const songIndex = prevPlaylist.findIndex(s => s.id === songId);
         if (songIndex === -1) return prevPlaylist;
@@ -202,11 +247,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
             setCurrentIndex(-1);
             setIsPlaying(false);
           } else {
-            const nextIndex = (songIndex) % newPlaylist.length;
+            // Play the next song, wrapping around if it was the last one
+            const nextIndex = songIndex % newPlaylist.length;
             setCurrentIndex(nextIndex);
             setIsPlaying(true);
           }
         } else if (songIndex < currentIndex) {
+            // If a song before the current one is deleted, adjust the index
             setCurrentIndex(prevIndex => prevIndex - 1);
         }
         
