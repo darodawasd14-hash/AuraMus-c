@@ -44,7 +44,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
       if (isPlaying) {
         widgetRef.current.play();
       } else {
-        widgetrif.current.pause();
+        widgetRef.current.pause();
       }
     }
   }, [isPlaying]);
