@@ -197,9 +197,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const youtubePlayer = youtubePlayerRef.current;
     const song = playlist[currentIndex];
     
-    if (!youtubePlayer || typeof youtubePlayer.playVideo !== 'function') return;
-
-    if (!song || song.type !== 'youtube') {
+    if (!song || song.type !== 'youtube' || !youtubePlayer || typeof youtubePlayer.playVideo !== 'function') {
       return;
     }
     
