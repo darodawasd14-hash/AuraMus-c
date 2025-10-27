@@ -41,12 +41,22 @@ export default function AuthPage() {
       // onAuthStateChanged yönlendirmeyi halledecek
     } catch (err: any) {
       let friendlyMessage = "Bir hata oluştu.";
-      if (err.code === 'auth/invalid-email') friendlyMessage = 'Geçersiz e-posta formatı.';
-      else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') friendlyMessage = 'Yanlış e-posta veya şifre.';
-      else if (err.code === 'auth/email-already-in-use') friendlyMessage = 'Bu e-posta zaten kullanılıyor.';
-      else if (err.code === 'auth/weak-password') friendlyMessage = 'Şifre en az 6 karakter olmalıdır.';
+      if (err.code === 'auth/invalid-email') {
+        friendlyMessage = 'Geçersiz e-posta formatı.';
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        friendlyMessage = 'Yanlış e-posta veya şifre.';
+      } else if (err.code === 'auth/email-already-in-use') {
+        friendlyMessage = 'Bu e-posta zaten kullanılıyor.';
+      } else if (err.code === 'auth/weak-password') {
+        friendlyMessage = 'Şifre en az 6 karakter olmalıdır.';
+      }
+      
       setError(friendlyMessage);
-      console.error(err);
+      
+      // Sadece beklenen kullanıcı hataları dışında konsola yazdır
+      if (err.code !== 'auth/invalid-credential' && err.code !== 'auth/user-not-found' && err.code !== 'auth/wrong-password') {
+        console.error(err);
+      }
     } finally {
       setIsLoading(false);
     }
