@@ -26,7 +26,6 @@ const SoundCloudPlayer = ({ song, isPlaying, volume, onEnded }: { song: Song; is
             if (isPlaying) {
               widgetRef.current.play();
             }
-            // Clear previous event listeners before binding new ones
             widgetRef.current.unbind((window as any).SC.Widget.Events.FINISH);
             widgetRef.current.bind((window as any).SC.Widget.Events.FINISH, () => {
               onEnded();
@@ -36,14 +35,15 @@ const SoundCloudPlayer = ({ song, isPlaying, volume, onEnded }: { song: Song; is
 
       widget.bind((window as any).SC.Widget.Events.READY, onReady);
 
+      const currentWidget = widgetRef.current;
       return () => {
-        if (widgetRef.current) {
-          widgetRef.current.unbind((window as any).SC.Widget.Events.READY);
-          widgetRef.current.unbind((window as any).SC.Widget.Events.FINISH);
+        if (currentWidget && typeof currentWidget.unbind === 'function') {
+          currentWidget.unbind((window as any).SC.Widget.Events.READY);
+          currentWidget.unbind((window as any).SC.Widget.Events.FINISH);
         }
       }
     }
-  }, [song.id, volume, isPlaying, onEnded]);
+  }, [song.id]);
 
   useEffect(() => {
     if (widgetRef.current && isReadyRef.current && typeof widgetRef.current.setVolume === 'function') {
@@ -78,21 +78,9 @@ const SoundCloudPlayer = ({ song, isPlaying, volume, onEnded }: { song: Song; is
 export function Player({ song }: PlayerProps) {
   const { isPlaying, playNext, setYoutubePlayer, volume } = usePlayer();
 
-  const youtubePlayerRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (youtubePlayerRef.current && typeof youtubePlayerRef.current.setVolume === 'function') {
-      youtubePlayerRef.current.setVolume(volume);
-    }
-  }, [volume]);
-
   const onReady = (event: any) => {
-    youtubePlayerRef.current = event.target;
     setYoutubePlayer(event.target);
     event.target.setVolume(volume);
-    if(isPlaying) {
-      event.target.playVideo();
-    }
   };
 
   const onEnd = () => {
