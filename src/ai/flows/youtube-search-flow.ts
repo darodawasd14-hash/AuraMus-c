@@ -35,24 +35,31 @@ const youtubeSearchTool = ai.defineTool(
     }),
   },
   async ({ query }) => {
-    const response = await youtube.search.list({
-      part: ['snippet'],
-      q: query,
-      type: ['video'],
-      videoCategoryId: '10', // 10, "Music" kategorisidir
-      maxResults: 16,
-    });
+    try {
+      const response = await youtube.search.list({
+        part: ['snippet'],
+        q: query,
+        type: ['video'],
+        videoCategoryId: '10', // 10, "Music" kategorisidir
+        maxResults: 16,
+      });
 
-    const videos =
-      response.data.items?.map(item => ({
-        videoId: item.id?.videoId || '',
-        title: item.snippet?.title || 'Başlık Yok',
-        thumbnailUrl:
-          item.snippet?.thumbnails?.high?.url ||
-          `https://i.ytimg.com/vi/${item.id?.videoId}/hqdefault.jpg`,
-      })) || [];
+      const videos =
+        response.data.items?.map(item => ({
+          videoId: item.id?.videoId || '',
+          title: item.snippet?.title || 'Başlık Yok',
+          thumbnailUrl:
+            item.snippet?.thumbnails?.high?.url ||
+            `https://i.ytimg.com/vi/${item.id?.videoId}/hqdefault.jpg`,
+        })) || [];
 
-    return { videos };
+      return { videos };
+    } catch (error: any) {
+      console.error("YouTube API Hatası:", error.message);
+      // API'den bir hata geldiğinde, aracın bunu bir istisna olarak fırlatması gerekir.
+      // Bu, akışın hatayı yakalamasına ve uygun şekilde işlemesine olanak tanır.
+      throw new Error(`YouTube API hatası: ${error.message}. Lütfen API anahtarınızı veya YouTube Data API kotanızı kontrol edin.`);
+    }
   }
 );
 
@@ -105,6 +112,13 @@ const youtubeSearchFlow = ai.defineFlow(
   },
   async input => {
     const response = await prompt(input);
+
+    // Eğer LLM bir araç kullanmaya karar vermediyse, boş bir sonuç döndür.
+    if (!response.toolRequests || response.toolRequests.length === 0) {
+      console.log("LLM, arama aracı kullanmaya gerek duymadı.");
+      return { songs: [] };
+    }
+
     const toolResponse = response.toolRequests[0];
     const toolOutput = (await toolResponse.run()) as z.infer<typeof youtubeSearchTool.outputSchema>;
     

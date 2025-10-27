@@ -318,11 +318,17 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
     try {
       const results = await searchYoutube({ query: searchQuery });
       setSearchResults(results);
-    } catch (error) {
+      if (results.songs.length === 0) {
+        toast({
+          title: 'Sonuç bulunamadı',
+          description: 'Farklı bir arama terimi deneyin.',
+        });
+      }
+    } catch (error: any) {
       console.error('YouTube arama hatası:', error);
       toast({
         title: 'Arama Başarısız',
-        description: 'Arama sonuçları getirilemedi. Lütfen tekrar deneyin.',
+        description: error.message || 'Arama sonuçları getirilemedi. Lütfen API anahtarınızı kontrol edin veya daha sonra tekrar deneyin.',
         variant: 'destructive',
       });
     } finally {
