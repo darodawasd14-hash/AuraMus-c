@@ -171,7 +171,8 @@ const musicCatalog = [
           ],
           "SoundCloud Examples": [
               { title: "NASA Voyager Golden Record", url: "https://soundcloud.com/nasa/golden-record-sounds-of" },
-              { title: "Tame Impala - Let It Happen", url: "https://soundcloud.com/tame-impala/let-it-happen" }
+              { title: "Tame Impala - Let It Happen", url: "https://soundcloud.com/tame-impala/let-it-happen" },
+              { title: "Tarkan - Kuzu Kuzu", url: "https://soundcloud.com/user9709537/kuzu-kuzu" }
           ]
       }
   }
