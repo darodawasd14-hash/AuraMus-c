@@ -33,10 +33,10 @@ const youtubeSearchTool = ai.defineTool(
     }),
   },
   async ({ query }) => {
-    // GÜVENLİK KİLİDİ: API anahtarı boşsa, istek gönderme ve boş dön.
-    if (!YOUTUBE_API_KEY) {
-      console.warn("YOUTUBE_API_KEY sabiti ayarlanmamış. Arama aracı atlanıyor.");
-      throw new Error("YouTube API anahtarı yapılandırılmamış. Lütfen sistem yöneticisiyle iletişime geçin.");
+    // GÜVENLİK KİLİDİ: API anahtarı boşsa veya geçersizse, istek gönderme ve hata fırlat.
+    if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY === 'AIzaSyAXua69v9V1KgttqLR27d7HjPTs6O7-HyA_REPLACE_ME') {
+      console.warn("YOUTUBE_API_KEY sabiti ayarlanmamış veya varsayılan değerde. Arama aracı atlanıyor.");
+      throw new Error("YouTube API anahtarı yapılandırılmamış. Lütfen geçerli bir anahtar sağlayın.");
     }
     
     // YouTube API'sini başlatma
@@ -51,7 +51,7 @@ const youtubeSearchTool = ai.defineTool(
         q: query,
         type: ['video'],
         videoCategoryId: '10', // 10, "Music" kategorisidir
-        maxResults: 5,
+        maxResults: 16,
       });
 
       const videos =
@@ -66,8 +66,10 @@ const youtubeSearchTool = ai.defineTool(
       return { videos };
     } catch (error: any) {
       console.error("YouTube API Hatası:", error.message);
-      // API'den bir hata geldiğinde, aracın bunu bir istisna olarak fırlatması gerekir.
-      // Bu, akışın hatayı yakalamasına ve uygun şekilde işlemesine olanak tanır.
+      // API'den bir hata geldiğinde (örneğin kota aşımı), bunu kullanıcıya net bir şekilde bildir.
+      if (error.message.includes('quota')) {
+          throw new Error('YouTube arama kotası aşıldı. Lütfen daha sonra tekrar deneyin.');
+      }
       throw new Error(`YouTube API hatası: ${error.message}. Lütfen API anahtarınızı veya YouTube Data API kotanızı kontrol edin.`);
     }
   }
@@ -93,7 +95,7 @@ const YouTubeSearchOutputSchema = z.object({
     .array(SongSuggestionSchema)
     .describe('YouTube\'dan gelen şarkı önerilerinin bir listesi.'),
 });
-export type YouTubeSearchOutput = zinfer<typeof YouTubeSearchOutputSchema>;
+export type YouTubeSearchOutput = z.infer<typeof YouTubeSearchOutputSchema>;
 
 export async function searchYoutube(
   input: YouTubeSearchInput

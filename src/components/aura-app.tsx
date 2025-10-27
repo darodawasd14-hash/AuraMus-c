@@ -371,7 +371,7 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
 
         {isSearching && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {Array.from({ length: 5 }).map((_, index) => (
+            {Array.from({ length: 16 }).map((_, index) => (
               <div key={index} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3 animate-pulse">
                 <div className="aspect-video bg-muted rounded-md"></div>
                 <div className="h-4 bg-muted rounded w-3/4"></div>

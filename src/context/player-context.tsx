@@ -234,7 +234,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       throw new Error("Desteklenmeyen link türü. Lütfen YouTube, SoundCloud veya doğrudan ses linki kullanın.");
     }
   };
-
+  
   const addSong = async (songDetailsInput: SongDetails, userId: string) => {
     if (!firestore || !user) {
       toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive'});
@@ -242,27 +242,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   
     try {
-      // Use pre-fetched details if available, otherwise fetch them.
       const fullSongDetails = await getSongDetails(songDetailsInput, userId);
   
       // Add the song directly to the user's personal playlist.
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
       await addDoc(userPlaylistRef, fullSongDetails);
-  
-      // Non-blocking: Add to global catalog if it doesn't exist.
-      const songsColRef = collection(firestore, 'songs');
-      const uniqueField = fullSongDetails.videoId ? 'videoId' : 'url';
-      const q = query(songsColRef, where(uniqueField, '==', fullSongDetails[uniqueField as keyof typeof fullSongDetails]), limit(1));
-      
-      getDocs(q).then(querySnapshot => {
-        if (querySnapshot.empty) {
-          addDoc(songsColRef, fullSongDetails).catch(error => {
-            console.error("Global kataloğa şarkı eklenirken hata:", error);
-          });
-        }
-      }).catch(error => {
-         console.error("Global katalog kontrol edilirken hata:", error);
-      });
   
     } catch (error: any) {
       console.error("Şarkı eklenirken hata:", error);
@@ -329,7 +313,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const youtubePlayer = youtubePlayerRef.current;
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
-
+  
+    // Pause all players if not playing or no song
     if (!isPlaying || !song) {
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
@@ -342,7 +327,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       }
       return;
     }
-    
+  
+    // Play the correct player based on song type
     switch (song.type) {
       case 'youtube':
         if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
