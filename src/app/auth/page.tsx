@@ -7,30 +7,37 @@ import { Input } from '@/components/ui/input';
 import { AuraLogo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function AuthPage() {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
   const auth = useAuth();
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    await handleAuth(signInWithEmailAndPassword, email, password, "Logged in successfully!");
+  }
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleAuth(createUserWithEmailAndPassword, registerEmail, registerPassword, "Registered successfully!");
+  }
+
+  const handleAuth = async (authFn: Function, emailParam: string, passwordParam: string, successMessage: string) => {
     setError(null);
     setIsLoading(true);
 
     try {
-      if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
-        toast({ title: "Logged in successfully!"});
-      } else {
-        await createUserWithEmailAndPassword(auth, email, password);
-        toast({ title: "Registered successfully!"});
-      }
+      await authFn(auth, emailParam, passwordParam);
+      toast({ title: successMessage});
       // onAuthStateChanged will handle redirect
     } catch (err: any) {
       let friendlyMessage = "An error occurred.";
@@ -46,38 +53,56 @@ export default function AuthPage() {
   };
 
   return (
-    <div id="auth-container" className="flex items-center justify-center min-h-screen">
-      <div className="w-full max-w-md p-8 space-y-6 bg-gray-800 bg-opacity-80 backdrop-blur-lg rounded-lg shadow-xl">
-        <div className="flex items-center justify-center mb-6">
-          <AuraLogo className="w-10 h-10 mr-3"/>
-          <h2 className="text-3xl font-bold text-center text-white">Aura Music</h2>
-        </div>
-
-        <div className="flex border-b border-gray-700">
-          <button onClick={() => setIsLogin(true)} className={`w-1/2 py-3 font-medium ${isLogin ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400'}`}>
-            Login
-          </button>
-          <button onClick={() => setIsLogin(false)} className={`w-1/2 py-3 font-medium ${!isLogin ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400'}`}>
-            Register
-          </button>
-        </div>
-
-        {error && <div className="p-3 text-sm text-center text-red-200 bg-red-800 rounded-md">{error}</div>}
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-300">Email</label>
-            <Input type="email" id="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-3 py-2 mt-1 text-white bg-gray-700 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-300">Password</label>
-            <Input type="password" id="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-3 py-2 mt-1 text-white bg-gray-700 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : (isLogin ? 'Login' : 'Register')}
-          </Button>
-        </form>
-      </div>
+    <div className="flex items-center justify-center min-h-screen p-4">
+      <Tabs defaultValue="login" className="w-full max-w-md">
+        <Card className="bg-secondary/50 backdrop-blur-lg border-border/50 shadow-2xl">
+          <CardHeader className="text-center">
+            <div className="flex items-center justify-center mb-4">
+              <AuraLogo className="w-12 h-12 mr-3"/>
+              <h1 className="text-4xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Aura</h1>
+            </div>
+            <TabsList className="grid w-full grid-cols-2 bg-muted/50">
+              <TabsTrigger value="login">Login</TabsTrigger>
+              <TabsTrigger value="register">Register</TabsTrigger>
+            </TabsList>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && <div className="p-3 text-sm text-center text-red-200 bg-red-800/50 rounded-md border border-red-500/50">{error}</div>}
+            
+            <TabsContent value="login">
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-muted-foreground mb-1">Email</label>
+                  <Input type="email" id="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                </div>
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-muted-foreground mb-1">Password</label>
+                  <Input type="password" id="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Login'}
+                </Button>
+              </form>
+            </TabsContent>
+            
+            <TabsContent value="register">
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div>
+                  <label htmlFor="register-email" className="block text-sm font-medium text-muted-foreground mb-1">Email</label>
+                  <Input type="email" id="register-email" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} />
+                </div>
+                <div>
+                  <label htmlFor="register-password" className="block text-sm font-medium text-muted-foreground mb-1">Password</label>
+                  <Input type="password" id="register-password" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} />
+                </div>
+                <Button type="submit" variant="secondary" className="w-full" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Register'}
+                </Button>
+              </form>
+            </TabsContent>
+          </CardContent>
+        </Card>
+      </Tabs>
     </div>
   );
 }

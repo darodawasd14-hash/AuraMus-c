@@ -1,4 +1,7 @@
 import { cn } from "@/lib/utils";
+import { Music, ListMusic, User } from 'lucide-react';
+
+export { Music, ListMusic, User };
 
 export function AuraLogo({ className, ...props }: React.SVGProps<SVGSVGElement>) {
   return (
@@ -11,8 +14,8 @@ export function AuraLogo({ className, ...props }: React.SVGProps<SVGSVGElement>)
     >
       <defs>
           <linearGradient id="gradient-logo-app" x1="4" y1="12" x2="20" y2="12" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#80A0FF"/>
-              <stop offset="1" stopColor="#B080FF"/>
+              <stop stopColor="hsl(var(--primary))"/>
+              <stop offset="1" stopColor="hsl(var(--accent))"/>
           </linearGradient>
       </defs>
       <path d="M4 12C4 16.4183 7.58172 20 12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12ZM12 6.5C14.7614 6.5 17 8.73858 17 11.5C17 14.2614 14.7614 16.5 12 16.5C9.23858 16.5 7 14.2614 7 11.5C7 8.73858 9.23858 6.5 12 6.5ZM12 9C13.6569 9 15 10.3431 15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9Z" fill="url(#gradient-logo-app)"/>
@@ -28,7 +31,7 @@ export function PlayIcon(props: React.SVGProps<SVGSVGElement>) {
 
 export function PauseIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} fill="currentColor" viewBox="0 0 20 20"><path d="M5.75 3a.75.75 0 0 0-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 0 0 .75-.75V3.75A.75.75 0 0 0 7.25 3h-1.5ZM12.75 3a.75.75 0 0 0-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 0 0 .75-.75V3.75a.75.75 0 0 0-.75-.75h-1.5Z"/></svg>
+    <svg {...props} fill="currentColor" viewBox="0 0 20 20"><path d="M5.75 3a.75.75 0 0 0-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 0 0 .75-.75V3.75A.75.75 0 0 0 7.25 3h-1.5ZM12.75 3a.75.75 0 0 0-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 0 0 .75-.T75V3.75a.75.75 0 0 0-.75-.75h-1.5Z"/></svg>
   );
 }
 

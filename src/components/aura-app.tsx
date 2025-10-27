@@ -4,7 +4,7 @@ import { usePlayer, type Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2 } from '@/components/icons';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon } from '@/components/icons';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
@@ -34,84 +34,91 @@ export function AuraApp() {
   const currentSong = currentIndex !== -1 ? playlist[currentIndex] : null;
 
   return (
-    <div id="app-container" className="h-screen bg-gray-900 bg-opacity-50">
-      <div className="flex flex-col h-full">
-        <Header setView={setView} />
-        <main className="flex-grow overflow-y-auto">
-          {view === 'player' ? (
-            <div id="player-view" className="flex flex-col md:flex-row flex-grow min-h-0 h-full">
-              <div className="w-full md:w-3/5 p-4 flex flex-col">
+    <div id="app-container" className="h-screen flex flex-col text-foreground">
+      <Header setView={setView} currentView={view} />
+      <main className="flex-grow overflow-hidden">
+        {view === 'player' ? (
+          <div id="player-view" className="flex flex-col md:flex-row h-full">
+            <div className="w-full md:w-3/5 p-4 md:p-6 flex flex-col justify-center">
+              <div className="w-full max-w-3xl mx-auto">
                 <Player song={currentSong} />
-                <div className="mt-4">
-                  <h3 id="current-song-title" className="text-xl font-semibold truncate">
-                    {currentSong?.title || '...'}
+                <div className="mt-6 text-center">
+                  <h3 id="current-song-title" className="text-2xl font-bold truncate">
+                    {currentSong?.title || 'No Song Selected'}
                   </h3>
+                  <p className="text-muted-foreground mt-1">{currentSong?.type === 'youtube' ? 'YouTube' : currentSong?.type === 'soundcloud' ? 'SoundCloud' : '...'}</p>
                 </div>
-                <div className="flex items-center justify-center space-x-6 mt-4">
-                  <Button id="prev-button" variant="ghost" size="icon" className="p-3 bg-gray-700 rounded-full hover:bg-gray-600" onClick={playPrev}>
+                <div className="flex items-center justify-center space-x-4 mt-6">
+                  <Button id="prev-button" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={playPrev}>
                     <SkipBack className="w-6 h-6" />
                   </Button>
-                  <Button id="play-pause-button" variant="ghost" size="icon" className="p-4 bg-blue-600 rounded-full hover:bg-blue-700 h-auto w-auto" onClick={togglePlayPause}>
+                  <Button id="play-pause-button" variant="ghost" size="icon" className="bg-primary/20 text-primary-foreground rounded-full w-16 h-16 hover:bg-primary/30" onClick={togglePlayPause}>
                     {isPlaying ? <PauseIcon className="w-8 h-8" /> : <PlayIcon className="w-8 h-8" />}
                   </Button>
-                  <Button id="next-button" variant="ghost" size="icon" className="p-3 bg-gray-700 rounded-full hover:bg-gray-600" onClick={playNext}>
+                  <Button id="next-button" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={playNext}>
                     <SkipForward className="w-6 h-6" />
                   </Button>
                 </div>
               </div>
-              <div className="w-full md:w-2/5 p-4 flex flex-col bg-gray-800 bg-opacity-75 md:border-l border-gray-700 min-h-0 backdrop-filter backdrop-blur-sm">
-                <h2 className="text-xl font-semibold mb-3">My Playlist</h2>
-                <form id="add-song-form" className="flex mb-3" onSubmit={handleAddSong}>
-                  <Input
-                    type="url"
-                    id="song-url-input"
-                    placeholder="YouTube or SoundCloud link..."
-                    required
-                    value={songUrl}
-                    onChange={(e) => setSongUrl(e.target.value)}
-                    className="flex-grow px-3 py-2 text-white bg-gray-700 border border-gray-600 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <Button type="submit" id="add-song-button" className="px-4 py-2 font-semibold text-white bg-blue-600 rounded-r-md hover:bg-blue-700 transition" disabled={isAdding}>
-                    {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
-                  </Button>
-                </form>
-                <div id="playlist-container" className="flex-grow overflow-y-auto space-y-2 pr-2">
-                  {isLoading ? (
-                     <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-blue-400"/></div>
-                  ) : playlist.length === 0 ? (
-                    <p className="text-gray-500 text-center">Your playlist is empty.</p>
-                  ) : (
-                    playlist.map((song, index) => (
-                      <PlaylistItem key={song.id} song={song} index={index} isActive={index === currentIndex} onPlay={playSong} onDelete={deleteSong} />
-                    ))
-                  )}
-                </div>
-                {/* <button id="analyze-playlist-button" className="w-full mt-4 py-2 font-semibold bg-indigo-600 rounded-md hover:bg-indigo-700 transition">Analyze Playlist (Gemini)</button> */}
-              </div>
             </div>
-          ) : (
-            <CatalogView setView={setView} />
-          )}
-        </main>
-      </div>
+            <aside className="w-full md:w-2/5 p-4 md:p-6 flex flex-col bg-secondary/30 border-l border-border backdrop-blur-sm">
+              <h2 className="text-2xl font-semibold mb-4">My Playlist</h2>
+              <form id="add-song-form" className="flex mb-4 gap-2" onSubmit={handleAddSong}>
+                <Input
+                  type="url"
+                  id="song-url-input"
+                  placeholder="YouTube or SoundCloud link..."
+                  required
+                  value={songUrl}
+                  onChange={(e) => setSongUrl(e.target.value)}
+                  className="flex-grow"
+                />
+                <Button type="submit" id="add-song-button" disabled={isAdding}>
+                  {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
+                </Button>
+              </form>
+              <div id="playlist-container" className="flex-grow overflow-y-auto space-y-2 pr-2 -mr-2">
+                {isLoading ? (
+                   <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
+                ) : playlist.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
+                    <Music className="w-16 h-16 mb-4"/>
+                    <p className="font-semibold">Your playlist is empty</p>
+                    <p className="text-sm">Add songs using the field above.</p>
+                  </div>
+                ) : (
+                  playlist.map((song, index) => (
+                    <PlaylistItem key={song.id} song={song} index={index} isActive={index === currentIndex} onPlay={playSong} onDelete={deleteSong} />
+                  ))
+                )}
+              </div>
+            </aside>
+          </div>
+        ) : (
+          <CatalogView setView={setView} />
+        )}
+      </main>
     </div>
   );
 }
 
-const Header = ({ setView }: { setView: (view: 'player' | 'catalog') => void }) => {
+const Header = ({ setView, currentView }: { setView: (view: 'player' | 'catalog') => void; currentView: 'player' | 'catalog' }) => {
   const [isModalOpen, setModalOpen] = useState(false);
   
   return (
     <>
-      <header className="flex items-center justify-between p-4 bg-gray-800 bg-opacity-75 shadow-md flex-shrink-0 backdrop-filter backdrop-blur-sm">
-        <div className="aura-logo cursor-pointer" onClick={() => setView('catalog')}>
-          <AuraLogo className="w-8 h-8 mr-2" />
-          <span>Aura Music</span>
+      <header className="flex items-center justify-between p-4 bg-secondary/30 border-b border-border shadow-md backdrop-blur-sm z-10">
+        <div className="flex items-center gap-2">
+          <AuraLogo className="w-8 h-8" />
+          <span className="text-xl font-bold tracking-tight">Aura</span>
         </div>
-        <div className="flex items-center space-x-4">
-          <Button onClick={() => setView('player')} className="nav-button">My List</Button>
-          <Button onClick={() => setModalOpen(true)} className="px-4 py-2 font-semibold bg-gray-700 rounded-lg hover:bg-gray-600 transition">Profile</Button>
+        <div className="flex items-center p-1 bg-muted/50 rounded-lg border-border">
+           <Button onClick={() => setView('player')} variant={currentView === 'player' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <ListMusic/> My List</Button>
+           <Button onClick={() => setView('catalog')} variant={currentView === 'catalog' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Music/> Catalog</Button>
         </div>
+        <Button onClick={() => setModalOpen(true)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+          <UserIcon/>
+        </Button>
       </header>
       <ProfileModal isOpen={isModalOpen} setIsOpen={setModalOpen} />
     </>
@@ -121,16 +128,21 @@ const Header = ({ setView }: { setView: (view: 'player' | 'catalog') => void }) 
 const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song; index: number; isActive: boolean; onPlay: (index: number) => void; onDelete: (id: string) => void; }) => {
   return (
     <div className={`playlist-item flex items-center justify-between p-3 rounded-lg cursor-pointer ${isActive ? 'playing' : ''}`} onClick={() => onPlay(index)}>
-      <div className="flex items-center flex-grow min-w-0">
-        <span className="mr-3 text-lg">{song.type === 'youtube' ? '📺' : '☁️'}</span>
-        <span className="truncate flex-grow">{song.title || 'Untitled Song'}</span>
+      <div className="flex items-center flex-grow min-w-0 gap-4">
+        <span className={`text-xl ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>{song.type === 'youtube' ? '📺' : '☁️'}</span>
+        <div className="truncate">
+          <p className={`font-semibold ${isActive ? 'text-primary-foreground' : ''}`}>{song.title || 'Untitled Song'}</p>
+          <p className="text-sm text-muted-foreground">{song.type === 'youtube' ? 'YouTube' : 'SoundCloud'}</p>
+        </div>
       </div>
-      <button
-        className="ml-3 px-2 py-1 text-xs text-red-300 hover:text-white hover:bg-red-600 rounded transition"
+      <Button
+        variant="ghost"
+        size="icon"
+        className="text-muted-foreground hover:text-red-500 hover:bg-red-500/10 shrink-0"
         onClick={(e) => { e.stopPropagation(); onDelete(song.id); }}
       >
         <Trash2 className="w-4 h-4"/>
-      </button>
+      </Button>
     </div>
   );
 };
@@ -156,34 +168,39 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog') => voi
   const { addSong } = usePlayer();
   const { toast } = useToast();
   const { user } = useUser();
+  const [isAdding, setIsAdding] = useState<string | null>(null);
 
-  const handleAddFromCatalog = async (url: string) => {
+  const handleAddFromCatalog = async (url: string, title: string) => {
     if (!user) {
       toast({ title: "You must be logged in to add songs.", variant: 'destructive' });
       return;
     }
-    toast({ title: "Adding song..." });
+    setIsAdding(url);
+    toast({ title: `Adding "${title}"...` });
     await addSong(url);
+    setIsAdding(null);
     setView('player');
   };
 
   return (
-    <div id="catalog-view" className="p-4 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-8" id="catalog-content">
+    <div id="catalog-view" className="p-4 md:p-8 h-full overflow-y-auto">
+      <div className="max-w-6xl mx-auto space-y-12" id="catalog-content">
         {musicCatalog.map(artistData => (
           <section key={artistData.artist}>
-            <h2 className="text-3xl font-bold border-b-2 border-blue-500 pb-2 mb-4">{artistData.artist}</h2>
+            <h2 className="text-3xl font-bold tracking-tight border-b-2 border-primary/30 pb-3 mb-6">{artistData.artist}</h2>
             {Object.entries(artistData.songs).map(([mood, songs]) => (
-              <div key={mood} className="mb-6">
-                <h3 className="text-xl font-semibold text-blue-300 mb-3">{mood}</h3>
-                <ul className="space-y-2">
+              <div key={mood} className="mb-8">
+                <h3 className="text-2xl font-semibold text-primary/80 mb-4">{mood}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {songs.map(song => (
-                    <li key={song.url} className="flex items-center justify-between p-3 bg-gray-800 bg-opacity-75 rounded-lg shadow">
-                      <span>{song.title}</span>
-                      <Button className="add-button" onClick={() => handleAddFromCatalog(song.url)}>Add to Aura</Button>
-                    </li>
+                    <div key={song.url} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-4">
+                      <p className="font-semibold truncate flex-grow">{song.title}</p>
+                      <Button className="w-full" size="sm" onClick={() => handleAddFromCatalog(song.url, song.title)} disabled={isAdding === song.url}>
+                        {isAdding === song.url ? <Loader2 className="animate-spin" /> : "Add to Aura"}
+                      </Button>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             ))}
           </section>
@@ -268,30 +285,32 @@ const ProfileModal = ({ isOpen, setIsOpen }: { isOpen?: boolean; setIsOpen?: (op
   if (!isOpen) return null;
 
   return (
-    <div className="modal fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 backdrop-filter backdrop-blur-sm">
-      <div className="modal-content bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 transform">
-        <div className="flex items-center justify-between mb-4">
+    <div className="modal-overlay fixed inset-0 flex items-center justify-center z-50 p-4">
+      <div className="modal-content w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-semibold">Profile</h2>
-          <button onClick={() => setIsOpen && setIsOpen(false)} className="text-gray-400 hover:text-white">&times;</button>
+          <Button variant="ghost" size="icon" onClick={() => setIsOpen && setIsOpen(false)} className="text-muted-foreground hover:text-foreground">
+            &times;
+          </Button>
         </div>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300">Email</label>
-            <p className="mt-1 text-lg text-white">{user?.email}</p>
+            <label className="block text-sm font-medium text-muted-foreground">Email</label>
+            <p className="mt-1 text-lg">{user?.email}</p>
           </div>
           <div>
-            <label htmlFor="display-name-input" className="block text-sm font-medium text-gray-300">Display Name</label>
+            <label htmlFor="display-name-input" className="block text-sm font-medium text-muted-foreground">Display Name</label>
             <Input
               type="text"
               id="display-name-input"
               placeholder="Enter your name..."
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full px-3 py-2 mt-1 text-white bg-gray-700 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1"
             />
           </div>
           <Button onClick={handleSave} disabled={isSaving} className="w-full">
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Save'}
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Save Changes'}
           </Button>
           <Button onClick={handleLogout} variant="destructive" className="w-full mt-2">
             Logout

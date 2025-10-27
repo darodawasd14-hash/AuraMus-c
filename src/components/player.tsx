@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import YouTube from 'react-youtube';
 import { usePlayer, type Song } from '@/context/player-context';
+import { AuraLogo } from './icons';
 
 type PlayerProps = {
   song: Song | null;
@@ -41,14 +42,17 @@ export function Player({ song }: PlayerProps) {
 
   if (!song) {
     return (
-      <div id="player-wrapper" className="aspect-video bg-black rounded-lg shadow-lg flex items-center justify-center">
-        <div id="player-placeholder" className="text-gray-500">Select a song to play...</div>
+      <div id="player-wrapper" className="aspect-video bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
+        <div id="player-placeholder" className="text-muted-foreground flex flex-col items-center gap-4">
+          <AuraLogo className="w-20 h-20 animate-pulse" />
+          <p>Select a song to begin</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div id="player-wrapper" className="aspect-video bg-black rounded-lg shadow-lg">
+    <div id="player-wrapper" className="aspect-video bg-black rounded-lg shadow-lg overflow-hidden">
       {song.type === 'youtube' && song.videoId ? (
         <YouTube
           videoId={song.videoId}
@@ -73,11 +77,11 @@ export function Player({ song }: PlayerProps) {
             scrolling="no"
             frameBorder="no"
             allow="autoplay"
-            src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=${isPlaying}&visual=true`}
+            src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=${isPlaying}&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false`}
         ></iframe>
       ) : (
-        <div className="aspect-video bg-black rounded-lg shadow-lg flex items-center justify-center">
-          <div className="text-gray-500">Unsupported song type.</div>
+        <div className="aspect-video bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
+          <div className="text-muted-foreground">Unsupported song type.</div>
         </div>
       )}
     </div>
