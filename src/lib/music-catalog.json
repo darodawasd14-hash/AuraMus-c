@@ -10,8 +10,9 @@
                 "Popüler SoundCloud Müzikleri": [
                     { "title": "Tame Impala - Let It Happen", "url": "https://soundcloud.com/tame-impala/let-it-happen" }
                 ],
-                 "Sitedeki MP3'ler": [
-                    { "title": "Klasik Müzik Örneği", "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" }
+                "Sitedeki MP3'ler": [
+                    { "title": "Klasik Müzik Örneği", "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+                    { "title": "Firebase'den Örnek Şarkı", "url": "gs://ornek-kovaniz/ornek-sarki.mp3" }
                 ]
             }
         }

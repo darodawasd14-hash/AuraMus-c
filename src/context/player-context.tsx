@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -36,7 +37,7 @@ const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 const appId = 'Aura';
 
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
-  const { user } = useUser();
+  const { user, firebaseApp } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
 
@@ -107,7 +108,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getSongDetails = async (url: string): Promise<Omit<Song, 'id' | 'timestamp'>> => {
-    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    if (url.startsWith('gs://')) {
+      if (!firebaseApp) throw new Error("Firebase is not initialized for Storage operations.");
+      const storage = getStorage(firebaseApp);
+      const storageRef = ref(storage, url);
+      const downloadUrl = await getDownloadURL(storageRef);
+      return {
+        title: storageRef.name.replace(/\.[^/.]+$/, "") || 'Firebase Storage Song',
+        url: downloadUrl,
+        type: 'url'
+      };
+    } else if (url.includes('youtube.com') || url.includes('youtu.be')) {
       const videoId = extractYouTubeID(url);
       if (!videoId) throw new Error("Invalid YouTube link.");
       const canonicalYouTubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
@@ -135,15 +146,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         url: cleanUrl,
         type: 'soundcloud'
       };
-    } else if (url.match(/\.(mp3|wav|ogg|m4a)$/)) {
-        const fileName = url.split('/').pop() || 'URL Song';
+    } else if (url.match(/\.(mp3|wav|ogg|m4a)$/) || url.startsWith('http')) {
+        const fileName = new URL(url).pathname.split('/').pop() || 'URL Song';
         return {
-          title: fileName,
+          title: fileName.replace(/\.[^/.]+$/, ""),
           url: url,
           type: 'url'
         };
     } else {
-      throw new Error("Only YouTube, SoundCloud, or direct audio links are supported.");
+      throw new Error("Unsupported link type. Please use YouTube, SoundCloud, a direct audio link, or a Firebase Storage link (gs://...).");
     }
   };
 
@@ -240,9 +251,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const youtubePlayer = youtubePlayerRef.current;
     const song = playlist[currentIndex];
+    
+    if (!youtubePlayer || typeof youtubePlayer.playVideo !== 'function') return;
 
-    // Ensure the player is valid and ready for commands.
-    if (!song || song.type !== 'youtube' || !youtubePlayer || typeof youtubePlayer.playVideo !== 'function') {
+    if (!song || song.type !== 'youtube') {
       return;
     }
     
