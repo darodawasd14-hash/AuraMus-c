@@ -92,7 +92,6 @@ export function AuraApp() {
           )}
         </main>
       </div>
-      <ProfileModal />
     </div>
   );
 }
@@ -215,51 +214,66 @@ const ProfileModal = ({ isOpen, setIsOpen }: { isOpen?: boolean; setIsOpen?: (op
     if (!user || !firestore) return;
     const newName = displayName.trim();
     if (!newName) {
-      toast({ title: "Please enter a valid name.", variant: 'destructive' });
+      toast({ title: 'Please enter a valid name.', variant: 'destructive' });
       return;
     }
+
     setIsSaving(true);
     const profileRef = doc(firestore, 'artifacts', appId, 'users', user.uid);
     try {
       await setDoc(profileRef, { displayName: newName }, { merge: true });
-      toast({ title: "Profile saved!" });
-      setIsOpen?.(false);
+      toast({ title: 'Profile saved!' });
+      if (setIsOpen) setIsOpen(false);
     } catch (error) {
-      console.error("Profile save error:", error);
-      toast({ title: "Error: Could not save profile.", variant: 'destructive' });
+      console.error("Error saving profile:", error);
+      toast({ title: 'Failed to save profile.', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
-    setIsOpen?.(false);
-    toast({ title: "Logged out." });
+    try {
+      await signOut(auth);
+      if (setIsOpen) setIsOpen(false);
+      toast({ title: 'Logged out.' });
+    } catch (error) {
+      console.error("Error logging out:", error);
+      toast({ title: 'Failed to log out.', variant: 'destructive' });
+    }
   };
   
   if (!isOpen) return null;
 
   return (
-    <div id="profile-modal" className="modal fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 backdrop-filter backdrop-blur-sm">
+    <div className="modal fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 backdrop-filter backdrop-blur-sm">
       <div className="modal-content bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 transform">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-semibold">Profile</h2>
-          <button onClick={() => setIsOpen?.(false)} className="text-gray-400 hover:text-white">&times;</button>
+          <button onClick={() => setIsOpen && setIsOpen(false)} className="text-gray-400 hover:text-white">&times;</button>
         </div>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-300">Email</label>
-            <p id="profile-email" className="mt-1 text-lg text-white">{user?.email}</p>
+            <p className="mt-1 text-lg text-white">{user?.email}</p>
           </div>
           <div>
             <label htmlFor="display-name-input" className="block text-sm font-medium text-gray-300">Display Name</label>
-            <Input type="text" id="display-name-input" placeholder="Enter your name..." value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full px-3 py-2 mt-1 text-white bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <Input
+              type="text"
+              id="display-name-input"
+              placeholder="Enter your name..."
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="w-full px-3 py-2 mt-1 text-white bg-gray-700 border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
-          <Button onClick={handleSave} className="w-full" disabled={isSaving}>
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+          <Button onClick={handleSave} disabled={isSaving} className="w-full">
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Save'}
           </Button>
-          <Button onClick={handleLogout} variant="destructive" className="w-full mt-2">Logout</Button>
+          <Button onClick={handleLogout} variant="destructive" className="w-full mt-2">
+            Logout
+          </Button>
         </div>
       </div>
     </div>
