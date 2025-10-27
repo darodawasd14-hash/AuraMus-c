@@ -48,16 +48,19 @@ export default function AdminPage() {
     }
 
     setIsCheckingAdmin(true);
+    // Force a refresh of the ID token to get the latest custom claims.
     user.getIdTokenResult(true).then(idTokenResult => {
       const userIsAdmin = !!idTokenResult.claims.isAdmin;
       setIsAdmin(userIsAdmin);
       setIsCheckingAdmin(false);
-
-      // If the user is not an admin and tries to access the page,
-      // we show them the "Claim Admin Role" card. We don't redirect.
+      
       if (!userIsAdmin) {
-        console.log("User is not an admin.");
+        console.log("User is not an admin. Custom claims:", idTokenResult.claims);
       }
+    }).catch(error => {
+        console.error("Error fetching ID token result:", error);
+        setIsAdmin(false);
+        setIsCheckingAdmin(false);
     });
   }, [user, isUserLoading, router]);
 
