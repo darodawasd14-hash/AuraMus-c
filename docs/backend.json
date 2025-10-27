@@ -61,6 +61,66 @@
         "type",
         "timestamp"
       ]
+    },
+    "Message": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Message",
+      "type": "object",
+      "description": "Represents a single chat message for a specific song.",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The content of the chat message."
+        },
+        "sender": {
+          "type": "object",
+          "properties": {
+            "uid": {
+              "type": "string"
+            },
+            "displayName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "uid",
+            "displayName"
+          ]
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the message was sent."
+        }
+      },
+      "required": [
+        "text",
+        "sender",
+        "timestamp"
+      ]
+    },
+    "LiveListener": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LiveListener",
+      "type": "object",
+      "description": "Represents a user currently listening to a specific song.",
+      "properties": {
+        "uid": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "timestamp"
+      ]
     }
   },
   "auth": {
@@ -81,6 +141,18 @@
         "$ref": "#/entities/Song"
       },
       "description": "Stores songs specific to each user."
+    },
+    "/artifacts/Aura/songs/{songId}/messages/{messageId}": {
+      "schema": {
+        "$ref": "#/entities/Message"
+      },
+      "description": "Stores chat messages for a specific song."
+    },
+    "/artifacts/Aura/songs/{songId}/live_listeners/{userId}": {
+      "schema": {
+        "$ref": "#/entities/LiveListener"
+      },
+      "description": "Tracks users currently listening to a specific song."
     }
   }
 }

@@ -13,6 +13,7 @@ import { useAuth } from '@/firebase/provider';
 import { Loader2 } from 'lucide-react';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
+import { ChatPane } from '@/components/chat-pane';
 
 const appId = 'Aura';
 
@@ -36,67 +37,70 @@ export function AuraApp() {
   return (
     <div id="app-container" className="h-screen flex flex-col text-foreground">
       <Header setView={setView} currentView={view} />
-      <main className="flex-grow overflow-hidden">
-        {view === 'player' ? (
-          <div id="player-view" className="flex flex-col md:flex-row h-full">
-            <div className="w-full md:w-3/5 p-4 md:p-6 flex flex-col justify-center">
-              <div className="w-full max-w-3xl mx-auto">
-                <Player song={currentSong} />
-                <div className="mt-6 text-center">
-                  <h3 id="current-song-title" className="text-2xl font-bold truncate">
-                    {currentSong?.title || 'No Song Selected'}
-                  </h3>
-                  <p className="text-muted-foreground mt-1">{currentSong?.type === 'youtube' ? 'YouTube' : currentSong?.type === 'soundcloud' ? 'SoundCloud' : '...'}</p>
-                </div>
-                <div className="flex items-center justify-center space-x-4 mt-6">
-                  <Button id="prev-button" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={playPrev}>
-                    <SkipBack className="w-6 h-6" />
-                  </Button>
-                  <Button id="play-pause-button" variant="ghost" size="icon" className="bg-primary/20 text-primary-foreground rounded-full w-16 h-16 hover:bg-primary/30" onClick={togglePlayPause}>
-                    {isPlaying ? <PauseIcon className="w-8 h-8" /> : <PlayIcon className="w-8 h-8" />}
-                  </Button>
-                  <Button id="next-button" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={playNext}>
-                    <SkipForward className="w-6 h-6" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <aside className="w-full md:w-2/5 p-4 md:p-6 flex flex-col bg-secondary/30 border-l border-border backdrop-blur-sm">
-              <h2 className="text-2xl font-semibold mb-4">My Playlist</h2>
-              <form id="add-song-form" className="flex mb-4 gap-2" onSubmit={handleAddSong}>
-                <Input
-                  type="url"
-                  id="song-url-input"
-                  placeholder="YouTube or SoundCloud link..."
-                  required
-                  value={songUrl}
-                  onChange={(e) => setSongUrl(e.target.value)}
-                  className="flex-grow"
-                />
-                <Button type="submit" id="add-song-button" disabled={isAdding}>
-                  {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
-                </Button>
-              </form>
-              <div id="playlist-container" className="flex-grow overflow-y-auto space-y-2 pr-2 -mr-2">
-                {isLoading ? (
-                   <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
-                ) : playlist.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
-                    <Music className="w-16 h-16 mb-4"/>
-                    <p className="font-semibold">Your playlist is empty</p>
-                    <p className="text-sm">Add songs using the field above.</p>
+      <main className="flex-grow overflow-hidden flex flex-row">
+        <div id="main-content" className="flex-grow flex flex-col">
+          {view === 'player' ? (
+            <div id="player-view" className="flex flex-col md:flex-row h-full">
+              <div className="w-full md:w-3/5 p-4 md:p-6 flex flex-col justify-center">
+                <div className="w-full max-w-3xl mx-auto">
+                  <Player song={currentSong} />
+                  <div className="mt-6 text-center">
+                    <h3 id="current-song-title" className="text-2xl font-bold truncate">
+                      {currentSong?.title || 'No Song Selected'}
+                    </h3>
+                    <p className="text-muted-foreground mt-1">{currentSong?.type === 'youtube' ? 'YouTube' : currentSong?.type === 'soundcloud' ? 'SoundCloud' : '...'}</p>
                   </div>
-                ) : (
-                  playlist.map((song, index) => (
-                    <PlaylistItem key={song.id} song={song} index={index} isActive={index === currentIndex} onPlay={playSong} onDelete={deleteSong} />
-                  ))
-                )}
+                  <div className="flex items-center justify-center space-x-4 mt-6">
+                    <Button id="prev-button" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={playPrev}>
+                      <SkipBack className="w-6 h-6" />
+                    </Button>
+                    <Button id="play-pause-button" variant="ghost" size="icon" className="bg-primary/20 text-primary-foreground rounded-full w-16 h-16 hover:bg-primary/30" onClick={togglePlayPause}>
+                      {isPlaying ? <PauseIcon className="w-8 h-8" /> : <PlayIcon className="w-8 h-8" />}
+                    </Button>
+                    <Button id="next-button" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={playNext}>
+                      <SkipForward className="w-6 h-6" />
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </aside>
-          </div>
-        ) : (
-          <CatalogView setView={setView} />
-        )}
+              <aside className="w-full md:w-2/5 p-4 md:p-6 flex flex-col bg-secondary/30 border-l border-border backdrop-blur-sm">
+                <h2 className="text-2xl font-semibold mb-4">My Playlist</h2>
+                <form id="add-song-form" className="flex mb-4 gap-2" onSubmit={handleAddSong}>
+                  <Input
+                    type="url"
+                    id="song-url-input"
+                    placeholder="YouTube or SoundCloud link..."
+                    required
+                    value={songUrl}
+                    onChange={(e) => setSongUrl(e.target.value)}
+                    className="flex-grow"
+                  />
+                  <Button type="submit" id="add-song-button" disabled={isAdding}>
+                    {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
+                  </Button>
+                </form>
+                <div id="playlist-container" className="flex-grow overflow-y-auto space-y-2 pr-2 -mr-2">
+                  {isLoading ? (
+                     <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
+                  ) : playlist.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
+                      <Music className="w-16 h-16 mb-4"/>
+                      <p className="font-semibold">Your playlist is empty</p>
+                      <p className="text-sm">Add songs using the field above.</p>
+                    </div>
+                  ) : (
+                    playlist.map((song, index) => (
+                      <PlaylistItem key={song.id} song={song} index={index} isActive={index === currentIndex} onPlay={playSong} onDelete={deleteSong} />
+                    ))
+                  )}
+                </div>
+              </aside>
+            </div>
+          ) : (
+            <CatalogView setView={setView} />
+          )}
+        </div>
+        <ChatPane song={currentSong} />
       </main>
     </div>
   );
@@ -172,7 +176,7 @@ const musicCatalog = [
           "SoundCloud Examples": [
               { title: "NASA Voyager Golden Record", url: "https://soundcloud.com/nasa/golden-record-sounds-of" },
               { title: "Tame Impala - Let It Happen", url: "https://soundcloud.com/tame-impala/let-it-happen" },
-              { title: "Tarkan - Kuzu Kuzu", url: "https://soundcloud.com/user9709537/kuzu-kuzu" }
+              { title: "Kuzu Kuzu", url: "https://soundcloud.com/user9709537/kuzu-kuzu?si=c7b0627bda414242b5adf429cba93849&utm_source=clipboard&utm_medium=text&utm_campaign=social_sharing" }
           ]
       }
   }
