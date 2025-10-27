@@ -30,6 +30,10 @@ type PlayerContextType = {
   playPrev: () => void;
   isPlayerReady: boolean;
   setPlayerReady: (isReady: boolean) => void;
+  volume: number;
+  setVolume: (volume: number) => void;
+  youtubePlayer: any;
+  setYoutubePlayer: (player: any) => void;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -44,6 +48,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isPlayerReady, setPlayerReady] = useState(false);
+  const [volume, setVolume] = useState<number>(80);
+  const [youtubePlayer, setYoutubePlayer] = useState<any>(null);
+
 
   const songsCollectionRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -68,19 +75,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           serverPlaylist.push({ id: doc.id, ...doc.data() } as Song);
         });
 
-        setPlaylist((prevPlaylist) => {
-          const currentSongId = prevPlaylist[currentIndex]?.id;
-          const newCurrentIndex = serverPlaylist.findIndex(song => song.id === currentSongId);
-
-          if (currentIndex !== -1 && newCurrentIndex === -1) {
-            // The currently playing song was deleted
-            resetPlayer();
-          } else {
-            setCurrentIndex(newCurrentIndex);
-          }
-          return serverPlaylist;
-        });
-
+        setPlaylist(serverPlaylist);
         setIsLoading(false);
       },
       (error) => {
@@ -95,6 +90,18 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
     return () => unsubscribe();
   }, [songsCollectionRef]);
+  
+  useEffect(() => {
+    const currentSongId = playlist[currentIndex]?.id;
+    const newCurrentIndex = playlist.findIndex(song => song.id === currentSongId);
+
+    if (currentIndex !== -1 && newCurrentIndex === -1) {
+      // The currently playing song was deleted
+      resetPlayer();
+    } else {
+      setCurrentIndex(newCurrentIndex);
+    }
+  }, [playlist, currentIndex]);
 
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -156,6 +163,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
                 requestResourceData: fullSongData,
             });
             errorEmitter.emit('permission-error', permissionError);
+            toast({ title: "Error adding song.", variant: 'destructive' });
         });
 
     } catch (error: any) {
@@ -178,6 +186,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
               operation: 'delete',
           });
           errorEmitter.emit('permission-error', permissionError);
+          toast({ title: 'Error deleting song.', variant: 'destructive' });
       });
   };
   
@@ -191,12 +200,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       // Only change the song, don't auto-play
       if (index !== currentIndex) {
         setCurrentIndex(index);
-        setIsPlaying(false); // Ensure it's paused until user action
+        setIsPlaying(false);
+      } else {
+        // If it's the same song, toggle play/pause
+        togglePlayPause();
       }
     } else {
       resetPlayer();
     }
   }, [playlist.length, currentIndex]);
+
 
   const togglePlayPause = () => {
     // If no song is selected, play the first one. Otherwise, toggle play/pause for the current song.
@@ -238,6 +251,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playPrev,
     isPlayerReady,
     setPlayerReady,
+    volume,
+    setVolume,
+    youtubePlayer,
+    setYoutubePlayer,
   };
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

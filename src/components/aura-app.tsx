@@ -4,7 +4,7 @@ import { usePlayer, type Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon } from '@/components/icons';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Volume2 } from '@/components/icons';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
@@ -13,6 +13,9 @@ import { useAuth } from '@/firebase/provider';
 import { Loader2 } from 'lucide-react';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
+import { Slider } from './ui/slider';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+
 
 const appId = 'Aura';
 
@@ -116,12 +119,39 @@ const Header = ({ setView, currentView }: { setView: (view: 'player' | 'catalog'
            <Button onClick={() => setView('player')} variant={currentView === 'player' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <ListMusic/> My List</Button>
            <Button onClick={() => setView('catalog')} variant={currentView === 'catalog' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Music/> Catalog</Button>
         </div>
-        <Button onClick={() => setModalOpen(true)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-          <UserIcon/>
-        </Button>
+        <div className="flex items-center gap-2">
+          <VolumeControl />
+          <Button onClick={() => setModalOpen(true)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+            <UserIcon/>
+          </Button>
+        </div>
       </header>
       <ProfileModal isOpen={isModalOpen} setIsOpen={setModalOpen} />
     </>
+  );
+};
+
+const VolumeControl = () => {
+  const { volume, setVolume } = usePlayer();
+  
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+          <Volume2 />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-2">
+        <Slider
+          defaultValue={[volume]}
+          onValueChange={(value) => setVolume(value[0])}
+          max={100}
+          step={1}
+          orientation="vertical"
+          className="h-32"
+        />
+      </PopoverContent>
+    </Popover>
   );
 };
 
