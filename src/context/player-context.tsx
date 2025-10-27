@@ -102,7 +102,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     } else {
       setCurrentIndex(newCurrentIndex);
     }
-  }, [playlist]);
+  }, [playlist, currentIndex]);
 
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -195,6 +195,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlaying(false);
     setCurrentIndex(-1);
   }
+  
+  const togglePlayPause = () => {
+    if(currentIndex === -1 && playlist.length > 0) {
+      setCurrentIndex(0);
+      setIsPlaying(true);
+    } else if (currentIndex !== -1) {
+      setIsPlaying(prev => !prev);
+    }
+  };
 
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
@@ -209,15 +218,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [playlist, currentIndex]);
 
-
-  const togglePlayPause = () => {
-    if(currentIndex === -1 && playlist.length > 0) {
-      setCurrentIndex(0);
-      setIsPlaying(true);
-    } else if (currentIndex !== -1) {
-      setIsPlaying(prev => !prev);
-    }
-  };
 
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
