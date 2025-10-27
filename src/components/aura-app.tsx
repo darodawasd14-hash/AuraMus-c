@@ -274,23 +274,28 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
 
   const handleSearch = async (e: FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim()) return;
+    toast({
+      title: 'Feature Disabled',
+      description: 'The AI-powered search is currently disabled to prevent accidental costs.',
+      variant: 'destructive',
+    });
+    // if (!searchQuery.trim()) return;
 
-    setIsSearching(true);
-    setSearchResults(null);
-    try {
-      const results = await searchYoutube({ query: searchQuery });
-      setSearchResults(results);
-    } catch (error) {
-      console.error('YouTube search failed:', error);
-      toast({
-        title: 'Search Failed',
-        description: 'Could not fetch search results. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSearching(false);
-    }
+    // setIsSearching(true);
+    // setSearchResults(null);
+    // try {
+    //   const results = await searchYoutube({ query: searchQuery });
+    //   setSearchResults(results);
+    // } catch (error) {
+    //   console.error('YouTube search failed:', error);
+    //   toast({
+    //     title: 'Search Failed',
+    //     description: 'Could not fetch search results. Please try again.',
+    //     variant: 'destructive',
+    //   });
+    // } finally {
+    //   setIsSearching(false);
+    // }
   };
 
   const handleAddFromSearch = async (videoId: string, title: string) => {
@@ -318,8 +323,8 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-grow"
           />
-          <Button type="submit" disabled={isSearching}>
-            {isSearching ? <Loader2 className="animate-spin" /> : <Search />}
+          <Button type="submit" disabled={true}>
+            <Search />
           </Button>
         </form>
 
