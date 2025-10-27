@@ -1,119 +1,95 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a strict user-ownership model for user profiles and playlists,
- * with public read access to the global songs collection but owner-only access to manage songs.
- * Chat messages are secured to allow only authenticated users to read and write messages
- * related to specific songs.
+ * @fileoverview Firestore Security Rules for Aura application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for playlists.
+ * Users can only read and write their own playlist data. Public read access is granted to the global song catalog.
  *
  * Data Structure:
- * - /users/{userId}: User profile information.
- * - /users/{userId}/playlist/{songId}: Songs in a user's playlist.
- * - /songs/{songId}: Global catalog of songs.
- * - /songs/{songId}/messages/{messageId}: Chat messages for a specific song.
+ * - /users/{userId}: Stores user profile information.
+ * - /users/{userId}/playlist/{songId}: Stores a user's playlist songs.
+ * - /songs/{songId}: Stores a global catalog of songs added by all users.
+ * - /songs/{songId}/messages/{messageId}: Stores chat messages for a specific song.
  *
  * Key Security Decisions:
- * - Users can only read and write their own profile data and playlist.
- * - The global /songs collection is publicly readable, but only the owner can modify a song.
- * - Listing all users is disallowed.
- *
- * Denormalization for Authorization:
- * - The `Song` entity requires a `userId` field to determine ownership for modification.
+ * - Users can only list their own playlists.
+ * - The global songs collection is publicly readable.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile information.
+     * @description Allows read and write access to user profile information, restricted to the user themselves.
      * @path /users/{userId}
-     * @allow (create) - Authenticated user can create their own profile.
-     * @allow (get, update, delete) - Authenticated user can access their own profile.
-     * @deny (create) - User cannot create a profile with an ID that doesn't match their own.
-     * @deny (get, update, delete) - User cannot access another user's profile.
-     * @principle Enforces document ownership for user profiles.
+     * @allow (create) User with ID 'user123' can create their profile.
+     * @allow (get) User with ID 'user123' can read their profile.
+     * @allow (update) User with ID 'user123' can update their profile.
+     * @allow (delete) User with ID 'user123' can delete their profile.
+     * @deny (create) User with ID 'user456' cannot create a profile for user 'user123'.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
-
-      allow get: if isSignedIn() && isOwner(userId);
+      allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId);
-      allow delete: if isSignedIn() && isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to a user's personal playlist.
+     * @description Allows read and write access to a user's playlist, restricted to the user themselves.
      * @path /users/{userId}/playlist/{songId}
-     * @allow (create, get, update, delete) - Authenticated user can manage their own playlist.
-     * @deny (get, update, delete) - User cannot access another user's playlist.
-     * @principle Enforces document ownership for playlists.
+     * @allow (create) User with ID 'user123' can create a song in their playlist.
+     * @allow (get) User with ID 'user123' can read a song in their playlist.
+     * @allow (update) User with ID 'user123' can update a song in their playlist.
+     * @allow (delete) User with ID 'user123' can delete a song in their playlist.
+     * @allow (list) User with ID 'user123' can list songs in their playlist.
+     * @deny (create) User with ID 'user456' cannot create a song in user 'user123's playlist.
+     * @principle Enforces document ownership for writes and limits listing to the owner.
      */
     match /users/{userId}/playlist/{songId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
-
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId);
-      allow delete: if isSignedIn() && isOwner(userId);
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Controls access to the global songs catalog.
+     * @description Allows public read access to the global song catalog. Only the owner can write.
      * @path /songs/{songId}
-     * @allow (get, list) - Any user can read the songs.
-     * @allow (create) - Authenticated user can add songs. Must have request.resource.data.userId == request.auth.uid
-     * @allow (update, delete) - Only the owner can modify/delete a song.
-     * @deny (create) - Unauthorized user can not create song.
-     * @principle Public read access with owner-only writes for the songs catalog.
+     * @allow (get) Any user can read a song from the catalog.
+     * @allow (list) Any user can list songs from the catalog.
+     * @allow (create) User with ID 'user123' can create a song with authorId 'user123'.
+     * @allow (update) User with ID 'user123' can update a song if they are the owner.
+     * @allow (delete) User with ID 'user123' can delete a song if they are the owner.
+     * @deny (create) User with ID 'user456' cannot create a song with authorId 'user123'.
+     * @principle Allows public reads, enforces document ownership for writes, and validates authorId on create.
      */
     match /songs/{songId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       function isOwner(ownerId) {
-          return request.auth.uid == ownerId;
+        return request.auth != null && request.auth.uid == ownerId;
       }
-
       allow get: if true;
       allow list: if true;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && isOwner(resource.data.userId);
-      allow delete: if isSignedIn() && isOwner(resource.data.userId);
+      allow create: if request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(resource.data.userId) && resource != null;
+      allow delete: if isOwner(resource.data.userId) && resource != null;
     }
 
     /**
-     * @description Controls access to chat messages for a specific song.
+     * @description Allows read and write access to messages for a specific song.
      * @path /songs/{songId}/messages/{messageId}
-     * @allow (create, get, list) - Authenticated users can read messages and create new messages.
-     * @allow (update, delete) - No updates or deletes of messages.
-     * @deny (create) - Unauthenticated user can not create a message.
-     * @principle Authenticated users can create and read messages.
      */
     match /songs/{songId}/messages/{messageId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
+       allow get, list, create, update, delete: if true;
     }
   }
 }
