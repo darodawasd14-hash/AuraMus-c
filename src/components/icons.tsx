@@ -43,7 +43,7 @@ export function SkipBack(props: React.SVGProps<SVGSVGElement>) {
 
 export function SkipForward(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} fill="currentColor" viewBox="0 0 20 20"><path d="M4.293 15.707a1 1 0 0 0 1.414 0L12 9.414l6.293 6.293a1 1 0 0 0 1.414-1.414l-7-7a1 1 0 0 0-1.414 0l-7 7a1 1 0 0 0 0 1.414Z" transform="rotate(-90 10 10) translate(0 4)"/></svg>
+    <svg {...props} fill="currentColor" viewBox="0 0 20 20"><path d="M4.293 4.293a1 1 0 0 1 1.414 0L12 10.586l6.293-6.293a1 1 0 1 1 1.414 1.414l-7 7a1 1 0 0 1-1.414 0l-7-7a1 1 0 0 1 0-1.414Z" transform="rotate(-90 10 10) translate(0 4)"/></svg>
   )
 }
 
