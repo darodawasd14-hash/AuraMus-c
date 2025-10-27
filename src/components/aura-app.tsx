@@ -14,7 +14,6 @@ import { Loader2 } from 'lucide-react';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { ChatPane } from '@/components/chat-pane';
-import { Slider } from '@/components/ui/slider';
 
 const appId = 'Aura';
 
@@ -156,21 +155,13 @@ const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 
 };
 
 const VolumeControl = () => {
-  const { volume, setVolume, isMuted, toggleMute } = usePlayer();
+  const { isMuted, toggleMute } = usePlayer();
 
   return (
-    <div className="flex items-center gap-2 w-32">
+    <div className="flex items-center gap-2">
       <Button onClick={toggleMute} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-        {isMuted || volume === 0 ? <VolumeX /> : <Volume1 />}
+        {isMuted ? <VolumeX /> : <Volume1 />}
       </Button>
-      <Slider
-        min={0}
-        max={100}
-        step={1}
-        value={[volume]}
-        onValueChange={(value) => setVolume(value[0])}
-        className="flex-grow"
-      />
     </div>
   );
 };

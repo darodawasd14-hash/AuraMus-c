@@ -28,8 +28,6 @@ type PlayerContextType = {
   togglePlayPause: () => void;
   playNext: () => void;
   playPrev: () => void;
-  volume: number;
-  setVolume: (volume: number) => void;
   isMuted: boolean;
   toggleMute: () => void;
   setYoutubePlayer: (player: any) => void;
@@ -48,9 +46,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [volume, setVolume] = useState<number>(80);
   const [isMuted, setIsMuted] = useState(false);
-  const [previousVolume, setPreviousVolume] = useState(80);
   const youtubePlayerRef = useRef<any>(null);
   
   const songsCollectionRef = useMemoFirebase(() => {
@@ -97,9 +93,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const youtubePlayer = youtubePlayerRef.current;
     if (youtubePlayer && typeof youtubePlayer.setVolume === 'function') {
-      youtubePlayer.setVolume(volume);
+      youtubePlayer.setVolume(isMuted ? 0 : 80);
     }
-  }, [volume]);
+  }, [isMuted]);
 
   useEffect(() => {
     const currentSongId = playlist[currentIndex]?.id;
@@ -239,32 +235,26 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
     playSong(prevIndex);
   };
-  
-  const handleSetVolume = (newVolume: number) => {
-    if (newVolume > 0 && isMuted) {
-      setIsMuted(false);
-    } else if (newVolume === 0 && !isMuted) {
-      setIsMuted(true);
-    }
-    setVolume(newVolume);
-  };
 
   const toggleMute = () => {
-    setIsMuted(currentIsMuted => {
-      const newMuteState = !currentIsMuted;
-      if (newMuteState) {
-        setPreviousVolume(volume);
-        setVolume(0);
-      } else {
-        setVolume(previousVolume > 0 ? previousVolume : 80);
-      }
-      return newMuteState;
-    });
+    setIsMuted(currentIsMuted => !currentIsMuted);
   };
 
   const setYoutubePlayer = (player: any) => {
     youtubePlayerRef.current = player;
   };
+
+  useEffect(() => {
+    const youtubePlayer = youtubePlayerRef.current;
+    if (youtubePlayer && typeof youtubePlayer.playVideo === 'function' && currentSong?.type === 'youtube') {
+      if (isPlaying) {
+        youtubePlayer.playVideo();
+      } else {
+        youtubePlayer.pauseVideo();
+      }
+    }
+  }, [isPlaying, currentSong, currentIndex]);
+
 
   const value: PlayerContextType = {
     playlist,
@@ -278,8 +268,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     togglePlayPause,
     playNext,
     playPrev,
-    volume,
-    setVolume: handleSetVolume,
     isMuted,
     toggleMute,
     setYoutubePlayer,
