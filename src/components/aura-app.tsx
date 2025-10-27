@@ -4,8 +4,8 @@ import { usePlayer, type Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, ShieldCheck } from '@/components/icons';
-import { useUser, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search } from '@/components/icons';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, setDoc, collection, query, orderBy, addDoc } from 'firebase/firestore';
 import { signOut, updateProfile } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -29,9 +29,6 @@ interface CatalogSong {
   title: string;
   url: string;
 }
-interface AdminDoc {
-    isAdmin?: boolean;
-}
 
 export function AuraApp() {
   const { playlist, currentIndex, isPlaying, playSong, addSong, deleteSong, togglePlayPause, playNext, playPrev, isLoading } = usePlayer();
@@ -41,14 +38,6 @@ export function AuraApp() {
   const { user } = useUser();
   const firestore = useFirestore();
   const [userProfile, setUserProfile] = useState<UserProfile>({});
-
-  const adminDocRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'admins', user.uid);
-  }, [user, firestore]);
-  const { data: adminData } = useDoc<AdminDoc>(adminDocRef);
-  const isAdmin = !!adminData;
-
 
   const profileRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -84,7 +73,7 @@ export function AuraApp() {
 
   return (
     <div id="app-container" className="h-screen flex flex-col text-foreground">
-      <Header setView={setView} currentView={view} profile={userProfile} isAdmin={isAdmin} />
+      <Header setView={setView} currentView={view} profile={userProfile} />
       <main className="flex-grow overflow-hidden flex flex-row">
         <div id="main-content" className="flex-grow flex flex-col">
           {view === 'player' ? (
@@ -156,7 +145,7 @@ export function AuraApp() {
   );
 }
 
-const Header = ({ setView, currentView, profile, isAdmin }: { setView: (view: 'player' | 'catalog' | 'search') => void; currentView: 'player' | 'catalog' | 'search', profile: UserProfile, isAdmin: boolean }) => {
+const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 'catalog' | 'search') => void; currentView: 'player' | 'catalog' | 'search', profile: UserProfile }) => {
   const [isModalOpen, setModalOpen] = useState(false);
   
   return (
@@ -172,13 +161,6 @@ const Header = ({ setView, currentView, profile, isAdmin }: { setView: (view: 'p
            <Button onClick={() => setView('search')} variant={currentView === 'search' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Search/> Search</Button>
         </div>
         <div className="flex items-center gap-4">
-          {isAdmin && (
-             <Link href="/admin" legacyBehavior>
-                <Button variant="ghost" size="sm" className="gap-2 text-accent hover:text-accent-foreground">
-                    <ShieldCheck /> Admin
-                </Button>
-            </Link>
-          )}
           <Button onClick={() => setModalOpen(true)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
             <UserIcon/>
           </Button>
@@ -519,5 +501,3 @@ const ProfileModal = ({ isOpen, setIsOpen, profile }: { isOpen?: boolean; setIsO
     </div>
   );
 };
-
-    
