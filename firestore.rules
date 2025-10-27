@@ -1,67 +1,85 @@
+/**
+ * @fileoverview Firestore Security Rules for the Aura music application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model. Users can only read and write their own data.
+ *
+ * Data Structure:
+ * - /artifacts/Aura/users/{userId}: Stores user profiles.
+ * - /artifacts/Aura/users/{userId}/songs/{songId}: Stores songs owned by a specific user.
+ *
+ * Key Security Decisions:
+ * - Users can only access their own user profile.
+ * - Users can only access songs they have added to their library.
+ * - No public listing of users is allowed.
+ * - Data validation is relaxed to facilitate prototyping and rapid iteration, focusing on authorization.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is authenticated.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the request is made by the owner of the user ID.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the request is made by the existing owner of the user ID.
-     */
-    function isExistingOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId && exists(resource.path);
-    }
-
-    /**
-     * @description Rules for user profiles.
+     * @description Secure user profiles. Only the authenticated user can read or write their own profile.
      * @path /artifacts/Aura/users/{userId}
-     * @allow (create) User with ID 'user123' can create their profile.
-     * @allow (get) User with ID 'user123' can get their profile.
-     * @allow (update) User with ID 'user123' can update their profile.
-     * @allow (delete) User with ID 'user123' can delete their profile.
-     * @deny (create) User with ID 'user123' cannot create a profile with a different ID.
-     * @deny (get) User with ID 'user456' cannot get the profile of 'user123'.
-     * @deny (update) User with ID 'user456' cannot update the profile of 'user123'.
-     * @deny (delete) User with ID 'user456' cannot delete the profile of 'user123'.
-     * @principle Enforces document ownership for writes.
+     * @allow (get, create, update, delete) User with matching ID can perform the operation.
+     * @deny (get, create, update, delete) User with non-matching ID attempts to perform the operation.
+     * @principle Enforces user-ownership for accessing user profiles.
      */
     match /artifacts/Aura/users/{userId} {
+      // Helper function to check if the authenticated user is the owner of the document.
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+        
+      // Allow a user to create their own profile if the userId matches their auth.uid.
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+
+      // Allow a user to read their profile if they are the owner.
       allow get: if isOwner(userId);
+
+      // Allow a user to update their profile if they are the owner and the userId is immutable.
+      allow update: if isOwner(userId) && resource.data.id == request.resource.data.id;
+
+      // Allow a user to delete their profile if they are the owner.
+      allow delete: if isOwner(userId) && resource != null;
+
+      // Do not allow listing of user profiles.
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for songs within a user's profile.
+     * @description Secure user-specific songs. Only the owner can create, read, update, or delete songs in their library.
      * @path /artifacts/Aura/users/{userId}/songs/{songId}
-     * @allow (create) User with ID 'user123' can create a song in their profile.
-     * @allow (get) User with ID 'user123' can get a song in their profile.
-     * @allow (update) User with ID 'user123' can update a song in their profile.
-     * @allow (delete) User with ID 'user123' can delete a song in their profile.
-     * @deny (create) User with ID 'user456' cannot create a song in 'user123' profile.
-     * @deny (get) User with ID 'user456' cannot get a song in 'user123' profile.
-     * @deny (update) User with ID 'user456' cannot update a song in 'user123' profile.
-     * @deny (delete) User with ID 'user456' cannot delete a song in 'user123' profile.
-     * @principle Enforces document ownership for writes.
+     * @allow (create) User with matching userId can create a song in their own library.
+     * @allow (get, list) User with matching userId can read a song from their library.
+     * @allow (update, delete) User with matching userId can update/delete a song in their own library.
+     * @deny (create, get, list, update, delete) User with non-matching userId attempts to access the song.
+     * @principle Enforces user-ownership for accessing user songs.
      */
     match /artifacts/Aura/users/{userId}/songs/{songId} {
+      // Helper function to check if the authenticated user is the owner of the song.
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      // Allow a user to create a song in their own library.
+      allow create: if isOwner(userId);
+
+      // Allow a user to get a song from their own library.
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
+
+      // Allow a user to list songs from their own library.
+      allow list: if isOwner(userId);
+
+      // Helper function to check if the authenticated user is the owner of the existing document
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      // Allow a user to update a song in their own library.
       allow update: if isExistingOwner(userId);
+
+      // Allow a user to delete a song from their own library.
       allow delete: if isExistingOwner(userId);
     }
   }
