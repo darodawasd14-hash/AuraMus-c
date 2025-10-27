@@ -1,97 +1,99 @@
 /**
- * @fileoverview Firestore Security Rules for the Aura music application.
+ * @fileoverview Firestore Security Rules for Aura Music App
  *
  * Core Philosophy:
- * This ruleset enforces a user-ownership model for user profiles and songs,
- * and allows public read access to live listener data.
+ * This ruleset enforces a user-centric security model with some shared access components.
+ * Users have full control over their own data (profile, songs). Chat messages associated with songs
+ * are accessible to anyone, enabling public discussion around music.
  *
  * Data Structure:
- * - /artifacts/Aura/users/{userId}: User profiles, owned by the user.
- * - /artifacts/Aura/users/{userId}/songs/{songId}: Songs specific to each user.
- * - /artifacts/Aura/songs/{songId}/messages/{messageId}: Chat messages for a specific song; publicly accessible.
- * - /artifacts/Aura/songs/{songId}/live_listeners/{userId}: Tracks users currently listening to a specific song; publicly readable.
+ * - /artifacts/Aura/users/{userId}: User profile information.
+ * - /artifacts/Aura/users/{userId}/songs/{songId}: Songs owned by a specific user.
+ * - /artifacts/Aura/songs/{songId}/messages/{messageId}: Chat messages for a song. These messages are "public".
  *
  * Key Security Decisions:
- * - Users can only read and write their own profile data and songs.
- * - Listing of users is disallowed.
- * - Live listener and message data is publicly readable.
- * - The 'id' field inside User documents must match the document id {userId}.
+ * - User profiles and songs are strictly owned and controlled by individual users.
+ * - Chat messages are publicly readable and writable, facilitating open discussions around songs.
+ * - No user listing is allowed to prevent unauthorized data scraping.
+ *
+ * Denormalization for Authorization:
+ * - No denormalization is explicitly needed in this ruleset as ownership is derived directly from the path.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows users to manage their own profile data.
+     * @description Manages user profile access.
      * @path /artifacts/Aura/users/{userId}
-     * @allow (create) - User with UID 'user123' can create their profile if their UID matches {userId}.
-     * @allow (get, update, delete) - User with UID 'user123' can read, update, or delete their profile if their UID matches {userId}.
-     * @deny (create) - User with UID 'user456' cannot create a profile with {userId} as 'user123'.
-     * @deny (get, update, delete) - User with UID 'user456' cannot read, update, or delete the profile of user with {userId} as 'user123'.
-     * @principle Enforces document ownership for writes and reads.
+     * @allow (create) Authenticated user can create their own profile if the userId matches their auth.uid.
+     * @allow (get, update, delete) Authenticated user can only access their own profile.
+     * @deny (create) User cannot create a profile with an ID that does not match their own ID.
+     * @deny (get, update, delete) User cannot access other user's profiles.
+     * @principle Enforces document ownership, allowing users to manage their own profiles.
      */
     match /artifacts/Aura/users/{userId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-      }
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Allows users to manage their own songs.
-     * @path /artifacts/Aura/users/{userId}/songs/{songId}
-     * @allow (create) - User with UID 'user123' can create a song under their profile.
-     * @allow (get, list, update, delete) - User with UID 'user123' can read, list, update, or delete their own songs.
-     * @deny (create) - User with UID 'user456' cannot create a song under user 'user123's profile.
-     * @deny (get, list, update, delete) - User with UID 'user456' cannot read, list, update, or delete songs under user 'user123's profile.
-     * @principle Enforces document ownership for writes and reads.
-     */
-    match /artifacts/Aura/users/{userId}/songs/{songId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-       function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
       allow create: if isOwner(userId);
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Allows anyone to read chat messages for a specific song, but restricts modifications.
+     * @description Manages user-specific song access.
+     * @path /artifacts/Aura/users/{userId}/songs/{songId}
+     * @allow (create, get, update, delete, list) Authenticated user can manage their own songs.
+     * @deny (create, get, update, delete, list) User cannot access other user's songs.
+     * @principle Enforces document ownership, allowing users to manage their own songs.
+     */
+    match /artifacts/Aura/users/{userId}/songs/{songId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+   /**
+     * @description Manages public chat messages for songs.
      * @path /artifacts/Aura/songs/{songId}/messages/{messageId}
-     * @allow (get, list) - Any user can read messages.
-     * @deny (create, update, delete) - No user can create, update, or delete messages through the rules.
-     * @principle Provides public read access to chat messages.
+     * @allow (get, list) Everyone can read the chat messages.
+     * @allow (create) Any authenticated user can post a message.
+     * @deny (update, delete) Messages cannot be updated or deleted.
+     * @principle Allows public read access for chat messages, but restricts modification.
      */
     match /artifacts/Aura/songs/{songId}/messages/{messageId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // ---- Helper Functions ----
+
+    /**
+     * @description Checks if the user is signed in.
+     * @return {boolean} True if the user is authenticated, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
     }
 
     /**
-     * @description Allows anyone to read the list of live listeners for a song, but restricts modifications.
-     * @path /artifacts/Aura/songs/{songId}/live_listeners/{userId}
-     * @allow (get, list) - Any user can read the list of live listeners.
-     * @deny (create, update, delete) - No user can create, update, or delete entries in the live_listeners collection through the rules.
-     * @principle Provides public read access to live listener data.
+     * @description Checks if the user ID matches the authenticated user's ID.
+     * @param {string} userId The user ID to compare against.
+     * @return {boolean} True if the user is the owner, false otherwise.
      */
-    match /artifacts/Aura/songs/{songId}/live_listeners/{userId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Combines the owner check with an existence check.
+     * @param {string} userId The user ID to compare against.
+     * @return {boolean} True if the user is the owner and the document exists.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
     }
   }
 }

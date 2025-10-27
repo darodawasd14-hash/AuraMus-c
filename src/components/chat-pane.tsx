@@ -51,7 +51,7 @@ export function ChatPane({ song }: { song: Song | null }) {
         if (!message.trim() || !user || !messagesCollectionRef) return;
         
         const senderName = user.displayName || user.email;
-        if (!senderName) {
+        if (!senderName || !user.displayName) {
             toast({ title: 'You must set a display name in your profile to chat.', variant: 'destructive'});
             return;
         }
