@@ -225,7 +225,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
     playSong(nextIndex);
-  }, [currentIndex, playlist.length]);
+  }, [currentIndex, playlist.length, playSong]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
