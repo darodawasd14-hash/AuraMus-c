@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { useToast } from '@/hooks/use-toast';
 import { addDoc, collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-
+import catalog from '@/app/lib/catalog.json';
 
 export interface Song {
   id: string;
@@ -23,7 +23,6 @@ type PlayerContextType = {
   isPlaying: boolean;
   isLoading: boolean;
   addSong: (url: string, userId: string) => Promise<void>;
-  addSongToUserPlaylist: (song: Omit<Song, 'id'>) => Promise<void>;
   deleteSong: (songId: string) => Promise<void>;
   playSong: (index: number) => void;
   togglePlayPause: () => void;
@@ -39,11 +38,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
+  const dataLoadedRef = useRef(false);
 
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Start loading until initial playlist is fetched
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const youtubePlayerRef = useRef<any>(null);
   const soundcloudPlayerRef = useRef<any>(null);
   const urlPlayerRef = useRef<HTMLAudioElement>(null);
@@ -67,7 +67,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-  // Fetch user's playlist from Firestore on login
   const userPlaylistQuery = useMemoFirebase(() => {
     if (user && firestore) {
       return query(collection(firestore, 'users', user.uid, 'playlist'), orderBy('timestamp', 'asc'));
@@ -88,7 +87,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         } else if (userPlaylist.length === 0) {
           setCurrentIndex(-1);
         }
-      } else if (!user) { // User logged out
+      } else if (!user) { 
         setPlaylist([]);
         setCurrentIndex(-1);
         setIsPlaying(false);
@@ -97,6 +96,30 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userPlaylist, isPlaylistLoading, user]);
+
+  useEffect(() => {
+    if (firestore && user && !isPlaylistLoading && dataLoadedRef.current === false && userPlaylist?.length === 0) {
+        dataLoadedRef.current = true; // Sadece bir kere çalışsın
+        const initialSongs = catalog.songs;
+        
+        const addInitialSongs = async () => {
+            for (const song of initialSongs) {
+                const songDetails: Omit<Song, 'id' | 'timestamp'> = {
+                    title: song.title,
+                    url: song.url,
+                    type: 'youtube',
+                    videoId: song.url.split('v=')[1],
+                    userId: user.uid,
+                };
+                
+                await addSong(song.url, user.uid);
+            }
+        };
+
+        addInitialSongs();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firestore, user, isPlaylistLoading, userPlaylist]);
 
 
   useEffect(() => {
@@ -187,25 +210,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addSongToUserPlaylist = async (song: Omit<Song, 'id'>) => {
-    if (!firestore || !user) {
-      toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive'});
-      return;
-    }
-
-    // Create a clean copy to avoid modifying the original object
-    const songToAdd = { ...song };
-
-    // Remove undefined videoId before sending to Firestore
-    if (songToAdd.videoId === undefined) {
-      delete songToAdd.videoId;
-    }
-
-    const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-    await addDoc(userPlaylistRef, songToAdd);
-    toast({ title: `"${song.title}" listenize eklendi!` });
-  }
-
   const addSong = async (url: string, userId: string) => {
     if (!firestore || !user) {
       toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive'});
@@ -215,15 +219,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     try {
       const songDetails = await getSongDetails(url, userId);
   
-      // Create a clean copy for Firestore
       const songData: Omit<Song, 'id'> = {
-        ...songDetails
+        title: songDetails.title,
+        url: songDetails.url,
+        type: songDetails.type,
+        userId: songDetails.userId,
+        timestamp: songDetails.timestamp,
+        ...(songDetails.videoId && { videoId: songDetails.videoId }),
       };
-
-      // Ensure videoId is not undefined
-      if (songData.videoId === undefined) {
-        delete (songData as Partial<typeof songData>).videoId;
-      }
       
       const songsColRef = collection(firestore, 'songs');
       const q = query(
@@ -252,15 +255,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const deleteSong = async (songId: string) => {
     if (!firestore || !user) return;
 
-    // Delete from Firestore
     const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
     await deleteDoc(songDocRef);
-
-    // After deletion, the useCollection hook will update the playlist
-    // We just need to handle the currently playing index
     
     const songIndex = playlist.findIndex(s => s.id === songId);
-    if (songIndex === -1) return; // Should not happen
+    if (songIndex === -1) return;
 
     const isCurrentlyPlaying = songIndex === currentIndex;
     const newPlaylist = playlist.filter(s => s.id !== songId);
@@ -271,13 +270,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         setCurrentIndex(-1);
         setIsPlaying(false);
       } else {
-        // Play the next song, wrapping around if it was the last one
         const nextIndex = songIndex % newPlaylist.length;
         setCurrentIndex(nextIndex);
         setIsPlaying(true);
       }
     } else if (songIndex < currentIndex) {
-        // If a song before the current one is deleted, adjust the index
         setCurrentIndex(prevIndex => prevIndex - 1);
     }
     
@@ -330,7 +327,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     soundcloudPlayerRef.current = player;
   }
 
-  // YouTube Oynatıcı Kontrolü
   useEffect(() => {
     const song = playlist[currentIndex];
     const youtubePlayer = youtubePlayerRef.current;
@@ -347,7 +343,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isPlaying, currentIndex, playlist]);
 
-  // SoundCloud Oynatıcı Kontrolü
   useEffect(() => {
       const song = playlist[currentIndex];
       const soundcloudPlayer = soundcloudPlayerRef.current;
@@ -365,7 +360,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       }
   }, [isPlaying, currentIndex, playlist]);
 
-  // URL Oynatıcı Kontrolü
   useEffect(() => {
     const urlPlayer = urlPlayerRef.current;
     const song = playlist[currentIndex];
@@ -394,7 +388,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     isPlaying,
     isLoading,
     addSong,
-    addSongToUserPlaylist,
     deleteSong,
     playSong,
     togglePlayPause,
@@ -419,5 +412,3 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
-
-    
