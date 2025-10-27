@@ -1,11 +1,11 @@
 'use server';
 
 /**
- * @fileOverview A flow for searching YouTube for songs.
+ * @fileOverview YouTube'da şarkı aramak için bir akış.
  *
- * - searchYoutube - A function that searches YouTube for songs.
- * - YouTubeSearchInput - The input type for the searchYoutube function.
- * - YouTubeSearchOutput - The return type for the searchYoutube function.
+ * - searchYoutube - YouTube'da şarkı arayan bir fonksiyon.
+ * - YouTubeSearchInput - searchYoutube fonksiyonunun giriş tipi.
+ * - YouTubeSearchOutput - searchYoutube fonksiyonunun dönüş tipi.
  */
 
 import { ai } from '@/ai/genkit';
@@ -22,7 +22,7 @@ const youtube = google.youtube({
 const youtubeSearchTool = ai.defineTool(
   {
     name: 'youtubeSearchTool',
-    description: 'Searches YouTube for music videos based on a query.',
+    description: 'Bir sorguya göre YouTube\'da müzik videoları arar.',
     inputSchema: z.object({ query: z.string() }),
     outputSchema: z.object({
       videos: z.array(
@@ -64,7 +64,7 @@ const youtubeSearchTool = ai.defineTool(
 );
 
 const YouTubeSearchInputSchema = z.object({
-  query: z.string().describe('The search query for YouTube.'),
+  query: z.string().describe('YouTube için arama sorgusu.'),
 });
 export type YouTubeSearchInput = z.infer<typeof YouTubeSearchInputSchema>;
 
@@ -72,16 +72,16 @@ const SongSuggestionSchema = z.object({
   videoId: z
     .string()
     .describe(
-      'The YouTube video ID. This should be a valid YouTube video ID.'
+      'YouTube video ID\'si. Bu geçerli bir YouTube video ID\'si olmalıdır.'
     ),
-  title: z.string().describe('The title of the song.'),
-  thumbnailUrl: z.string().url().describe('The URL of the video thumbnail.'),
+  title: z.string().describe('Şarkının başlığı.'),
+  thumbnailUrl: z.string().url().describe('Video küçük resminin URL\'si.'),
 });
 
 const YouTubeSearchOutputSchema = z.object({
   songs: z
     .array(SongSuggestionSchema)
-    .describe('A list of song suggestions from YouTube.'),
+    .describe('YouTube\'dan gelen şarkı önerilerinin bir listesi.'),
 });
 export type YouTubeSearchOutput = z.infer<typeof YouTubeSearchOutputSchema>;
 
@@ -96,12 +96,12 @@ const prompt = ai.definePrompt({
   input: { schema: YouTubeSearchInputSchema },
   output: { schema: YouTubeSearchOutputSchema },
   tools: [youtubeSearchTool], // Oluşturduğumuz gerçek aracı kullanıyoruz
-  prompt: `You are an expert YouTube music search engine. 
-  Use the youtubeSearchTool to find songs relevant to the user's query.
+  prompt: `Sen uzman bir YouTube müzik arama motorusun. 
+  Kullanıcının sorgusuyla ilgili şarkıları bulmak için youtubeSearchTool'u kullan.
 
-  Search Query: {{{query}}}
+  Arama Sorgusu: {{{query}}}
   
-  After getting the results from the tool, format them into the required "songs" array output.`,
+  Araçtan sonuçları aldıktan sonra, bunları gerekli "songs" dizi çıktısına formatla.`,
 });
 
 const youtubeSearchFlow = ai.defineFlow(
