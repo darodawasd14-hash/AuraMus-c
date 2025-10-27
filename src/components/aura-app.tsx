@@ -212,10 +212,8 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
       title: song.title,
       url: song.url,
       type: song.type,
+      videoId: song.videoId
     };
-    if (song.videoId) {
-      songData.videoId = song.videoId;
-    }
 
     await addSong(songData, user.uid);
     
@@ -338,17 +336,17 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
       return;
     }
     setIsAdding(videoId);
-    const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
     
-    // Pass all known details directly to addSong
+    // Doğrudan ve basit yaklaşım: Tüm bilinen detayları yolla.
     const songDetails: SongDetails = {
-      url: youtubeUrl,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
       title: title,
       videoId: videoId,
       type: 'youtube'
     };
 
     await addSong(songDetails, user.uid);
+    
     setIsAdding(null);
     toast({ title: `"${title}" listenize eklendi!` });
     setView('player');
@@ -502,5 +500,3 @@ const ProfileModal = ({ isOpen, setIsOpen, profile, setProfile }: { isOpen?: boo
     </div>
   );
 };
-
-    

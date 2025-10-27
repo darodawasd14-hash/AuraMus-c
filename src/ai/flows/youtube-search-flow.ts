@@ -36,12 +36,9 @@ const youtubeSearchTool = ai.defineTool(
     // GÜVENLİK KİLİDİ: API anahtarı boşsa, istek gönderme ve boş dön.
     if (!YOUTUBE_API_KEY) {
       console.warn("YOUTUBE_API_KEY sabiti ayarlanmamış. Arama aracı atlanıyor.");
-      return { videos: [] };
+      throw new Error("YouTube API anahtarı yapılandırılmamış. Lütfen sistem yöneticisiyle iletişime geçin.");
     }
     
-    // TEŞHİS ADIMI: Kullanılan API anahtarını konsola yazdır
-    console.log("Kullanılan API Anahtarı (ilk 5 karakter):", YOUTUBE_API_KEY.substring(0, 5));
-
     // YouTube API'sini başlatma
     const youtube = google.youtube({
       version: 'v3',
@@ -64,7 +61,7 @@ const youtubeSearchTool = ai.defineTool(
           thumbnailUrl:
             item.snippet?.thumbnails?.high?.url ||
             `https://i.ytimg.com/vi/${item.id?.videoId}/hqdefault.jpg`,
-        })) || [];
+        })).filter(video => video.videoId) || []; // videoId'si olmayanları filtrele
 
       return { videos };
     } catch (error: any) {
@@ -104,20 +101,6 @@ export async function searchYoutube(
   return youtubeSearchFlow(input);
 }
 
-// BU PROMPT ARTIK KULLANILMIYOR AMA İLERİDE BAŞVURMAK İÇİN BIRAKILABİLİR.
-const prompt = ai.definePrompt({
-  name: 'youtubeSearchPrompt',
-  input: { schema: YouTubeSearchInputSchema },
-  output: { schema: YouTubeSearchOutputSchema },
-  tools: [youtubeSearchTool],
-  prompt: `Sen uzman bir YouTube müzik arama motorusun. 
-  Kullanıcının sorgusuyla ilgili şarkıları bulmak için youtubeSearchTool'u kullan.
-
-  Arama Sorgusu: {{{query}}}
-  
-  Araçtan sonuçları aldıktan sonra, bunları gerekli "songs" dizi çıktısına formatla.`,
-});
-
 const youtubeSearchFlow = ai.defineFlow(
   {
     name: 'youtubeSearchFlow',
@@ -125,7 +108,7 @@ const youtubeSearchFlow = ai.defineFlow(
     outputSchema: YouTubeSearchOutputSchema,
   },
   async input => {
-    // ** DEĞİŞİKLİK: LLM'i atlayıp doğrudan arama aracını çağırıyoruz. **
+    // LLM'i atlayıp doğrudan arama aracını çağırıyoruz.
     try {
       const toolOutput = await youtubeSearchTool(input);
 
