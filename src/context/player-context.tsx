@@ -328,10 +328,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
     
     if (isPlaying) {
-      if (typeof youtubePlayer.setVolume === 'function') {
+      if (typeof youtubePlayer.setVolume === 'function' && typeof youtubePlayer.playVideo === 'function') {
         youtubePlayer.setVolume(100);
-      }
-      if (typeof youtubePlayer.playVideo === 'function') {
         youtubePlayer.playVideo();
       }
     } else {
