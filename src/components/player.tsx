@@ -64,7 +64,17 @@ const UrlPlayerPlaceholder = () => {
 export function Player({ song }: PlayerProps) {
   const { playNext, setYoutubePlayer } = usePlayer();
 
+  useEffect(() => {
+    // Cleanup function: Bu bileşen DOM'dan kaldırıldığında veya şarkı değiştiğinde çalışır.
+    return () => {
+      // Context'teki oynatıcı referansını temizle.
+      // Bu, bir sonraki render'da eski, yok edilmiş bir oynatıcıya erişmeye çalışmamızı engeller.
+      setYoutubePlayer(null);
+    };
+  }, [song?.id, setYoutubePlayer]); // Şarkı ID'si değiştiğinde bu efekti yeniden çalıştırarak temizliği tetikle
+
   const onReady = (event: any) => {
+    // Oynatıcı hazır olduğunda, referansını context'e kaydet.
     setYoutubePlayer(event.target);
   };
 

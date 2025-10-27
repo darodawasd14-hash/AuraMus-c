@@ -90,7 +90,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
-  }, [userPlaylist, isPlaylistLoading, isUserLoading, user]);
+  }, [userPlaylist, isPlaylistLoading, isUserLoading, user, playlist, currentIndex]);
 
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -283,5 +283,3 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
-
-    
