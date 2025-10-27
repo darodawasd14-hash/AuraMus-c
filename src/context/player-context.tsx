@@ -64,9 +64,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
       try { soundcloudPlayer.pause(); } catch (e) { /* Widget zaten yok edilmiş olabilir. */ }
     }
-    if (urlPlayerRef.current) {
-      if (!urlPlayerRef.current.paused) urlPlayerRef.current.pause();
-      if (urlPlayerRef.current.src) urlPlayerRef.current.src = '';
+    const urlPlayer = urlPlayerRef.current;
+    if (urlPlayer) {
+      if (!urlPlayer.paused) urlPlayer.pause();
+      if (urlPlayer.src) urlPlayer.src = '';
     }
   }, []);
   
@@ -150,7 +151,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const getSongDetails = async (details: SongDetails, userId: string): Promise<Omit<Song, 'id'>> => {
     const { url } = details;
 
-    // If we already have the details, don't fetch them again.
     if (details.title && details.type) {
       return {
         title: details.title,
@@ -254,7 +254,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       
       const songsColRef = collection(firestore, 'songs');
       
-      // Determine the correct field to query for existence
       const uniqueField = songData.videoId ? 'videoId' : 'url';
       const uniqueValue = songData.videoId || songData.url;
       
@@ -293,16 +292,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
-      if(currentIndex !== index) {
-        // Don't reset player here, useEffect will handle it
-      }
       setCurrentIndex(index);
       setIsPlaying(true);
     } else {
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
-  }, [playlist, currentIndex]);
+  }, [playlist.length]);
   
   const togglePlayPause = () => {
     if (currentIndex === -1 && playlist.length > 0) {
@@ -341,8 +337,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
 
-    // Pause all players if not playing or no song
-    if (!isPlaying || !song) {
+    // Pause all players if no song or not playing
+    if (!song || !isPlaying) {
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
       }
