@@ -55,24 +55,24 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const soundcloudPlayerRef = useRef<any>(null);
   const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
   
-  const resetPlayer = () => {
+  const resetPlayer = useCallback(() => {
     const youtubePlayer = youtubePlayerRef.current;
     if (youtubePlayer && typeof youtubePlayer.stopVideo === 'function') {
-      youtubePlayer.stopVideo();
+      try {
+        youtubePlayer.stopVideo();
+      } catch (e) { /* Hata bastırma */ }
     }
     const soundcloudPlayer = soundcloudPlayerRef.current;
     if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
       try {
         soundcloudPlayer.pause();
-      } catch (e) {
-        // Widget already destroyed, do nothing.
-      }
+      } catch (e) { /* Widget zaten yok edilmiş olabilir. */ }
     }
     if (urlPlayerRef.current) {
       urlPlayerRef.current.pause();
       urlPlayerRef.current.src = '';
     }
-  };
+  }, []);
   
   const userPlaylistQuery = useMemoFirebase(() => {
     if (user && firestore) {
@@ -93,6 +93,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           setIsPlaying(false);
         } else if (userPlaylist.length === 0) {
           setCurrentIndex(-1);
+          setIsPlaying(false);
+          resetPlayer();
         }
       } else if (!user) { 
         setPlaylist([]);
@@ -101,8 +103,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         resetPlayer();
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userPlaylist, isPlaylistLoading, user]);
+  }, [userPlaylist, isPlaylistLoading, user, currentIndex, resetPlayer]);
 
   useEffect(() => {
     if (firestore && user && !isPlaylistLoading && dataLoadedRef.current === false && userPlaylist?.length === 0) {
@@ -115,7 +116,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
         addInitialSongs();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firestore, user, isPlaylistLoading, userPlaylist]);
 
 
@@ -125,8 +125,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setIsPlaying(false);
       resetPlayer();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playlist, isLoading]);
+  }, [playlist, isLoading, resetPlayer]);
 
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -320,7 +319,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
     playSong(nextIndex);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, playlist.length]);
 
   const playPrev = () => {
