@@ -4,7 +4,7 @@ import { usePlayer, type Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon } from '@/components/icons';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search } from '@/components/icons';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut, updateProfile } from 'firebase/auth';
@@ -14,6 +14,8 @@ import { Loader2 } from 'lucide-react';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { ChatPane } from '@/components/chat-pane';
+import { searchYoutube, type YouTubeSearchOutput } from '@/ai/flows/youtube-search-flow';
+import Image from 'next/image';
 
 const appId = 'Aura';
 
@@ -25,7 +27,7 @@ export function AuraApp() {
   const { playlist, currentIndex, isPlaying, playSong, addSong, deleteSong, togglePlayPause, playNext, playPrev, isLoading } = usePlayer();
   const [songUrl, setSongUrl] = useState('');
   const [isAdding, setIsAdding] = useState(false);
-  const [view, setView] = useState<'player' | 'catalog'>('player');
+  const [view, setView] = useState<'player' | 'catalog' | 'search'>('player');
   const { user } = useUser();
   const firestore = useFirestore();
   const [userProfile, setUserProfile] = useState<UserProfile>({});
@@ -118,8 +120,10 @@ export function AuraApp() {
                 </div>
               </aside>
             </div>
-          ) : (
+          ) : view === 'catalog' ? (
             <CatalogView setView={setView} />
+          ) : (
+            <SearchView setView={setView} />
           )}
         </div>
         <ChatPane song={currentSong} displayName={userProfile.displayName} />
@@ -128,7 +132,7 @@ export function AuraApp() {
   );
 }
 
-const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 'catalog') => void; currentView: 'player' | 'catalog', profile: UserProfile }) => {
+const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 'catalog' | 'search') => void; currentView: 'player' | 'catalog' | 'search', profile: UserProfile }) => {
   const [isModalOpen, setModalOpen] = useState(false);
   
   return (
@@ -141,6 +145,7 @@ const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 
         <div className="flex items-center p-1 bg-muted/50 rounded-lg border-border">
            <Button onClick={() => setView('player')} variant={currentView === 'player' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <ListMusic/> My List</Button>
            <Button onClick={() => setView('catalog')} variant={currentView === 'catalog' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Music/> Catalog</Button>
+           <Button onClick={() => setView('search')} variant={currentView === 'search' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Search/> Search</Button>
         </div>
         <div className="flex items-center gap-4">
           <Button onClick={() => setModalOpen(true)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
@@ -212,7 +217,7 @@ const musicCatalog = [
     }
 ];
 
-const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog') => void }) => {
+const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'search') => void }) => {
   const { addSong } = usePlayer();
   const { toast } = useToast();
   const { user } = useUser();
@@ -257,6 +262,112 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog') => voi
     </div>
   );
 };
+
+const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'search') => void }) => {
+  const { addSong } = usePlayer();
+  const { toast } = useToast();
+  const { user } = useUser();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<YouTubeSearchOutput | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isAdding, setIsAdding] = useState<string | null>(null);
+
+  const handleSearch = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setIsSearching(true);
+    setSearchResults(null);
+    try {
+      const results = await searchYoutube({ query: searchQuery });
+      setSearchResults(results);
+    } catch (error) {
+      console.error('YouTube search failed:', error);
+      toast({
+        title: 'Search Failed',
+        description: 'Could not fetch search results. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleAddFromSearch = async (videoId: string, title: string) => {
+    if (!user) {
+      toast({ title: 'You must be logged in to add songs.', variant: 'destructive' });
+      return;
+    }
+    setIsAdding(videoId);
+    const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    toast({ title: `Adding "${title}"...` });
+    await addSong(youtubeUrl);
+    setIsAdding(null);
+    setView('player');
+  };
+
+  return (
+    <div id="search-view" className="p-4 md:p-8 h-full overflow-y-auto">
+      <div className="max-w-6xl mx-auto space-y-8" id="search-content">
+        <h2 className="text-3xl font-bold tracking-tight">Search YouTube</h2>
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <Input
+            type="search"
+            placeholder="Search for songs, artists, albums..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-grow"
+          />
+          <Button type="submit" disabled={isSearching}>
+            {isSearching ? <Loader2 className="animate-spin" /> : <Search />}
+          </Button>
+        </form>
+
+        {isSearching && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 12 }).map((_, index) => (
+              <div key={index} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3 animate-pulse">
+                <div className="aspect-video bg-muted rounded-md"></div>
+                <div className="h-4 bg-muted rounded w-3/4"></div>
+                <div className="h-3 bg-muted rounded w-1/2"></div>
+                <div className="h-8 bg-muted rounded mt-2"></div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {searchResults && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {searchResults.songs.map((song) => (
+              <div key={song.videoId} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3">
+                <Image
+                  src={song.thumbnailUrl}
+                  alt={song.title}
+                  width={168}
+                  height={94}
+                  className="rounded-md aspect-video object-cover w-full"
+                />
+                <div className="flex-grow">
+                   <p className="font-semibold truncate leading-tight" title={song.title}>{song.title}</p>
+                   <p className="text-sm text-muted-foreground truncate" title={song.artist}>{song.artist}</p>
+                </div>
+                <Button
+                  className="w-full mt-2"
+                  size="sm"
+                  onClick={() => handleAddFromSearch(song.videoId, song.title)}
+                  disabled={isAdding === song.videoId}
+                >
+                  {isAdding === song.videoId ? <Loader2 className="animate-spin" /> : 'Add to Aura'}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 
 const ProfileModal = ({ isOpen, setIsOpen, profile }: { isOpen?: boolean; setIsOpen?: (open: boolean) => void; profile: UserProfile }) => {
   const { user } = useUser();
