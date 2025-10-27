@@ -105,7 +105,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userPlaylist, isPlaylistLoading, user, resetPlayer]);
+  }, [userPlaylist, isPlaylistLoading, user]);
 
   useEffect(() => {
     if (firestore && user && !isPlaylistLoading && dataLoadedRef.current === false && userPlaylist?.length === 0) {
@@ -144,6 +144,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const getSongDetails = async (details: SongDetails, userId: string): Promise<Omit<Song, 'id'>> => {
     const { url } = details;
 
+    // If we already have the details, don't fetch them again.
     if (details.title && details.type) {
       return {
         title: details.title,
@@ -246,9 +247,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       };
       
       const songsColRef = collection(firestore, 'songs');
+      
+      // Determine the correct field to query for existence
+      const uniqueField = songData.videoId ? 'videoId' : 'url';
+      const uniqueValue = songData.videoId || songData.url;
+      
       const q = query(
         songsColRef, 
-        where(songData.videoId ? 'videoId' : 'url', '==', songData.videoId || songData.url), 
+        where(uniqueField, '==', uniqueValue), 
         limit(1)
       );
       
@@ -330,7 +336,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
 
-    // First, pause everything if we are not supposed to be playing.
+    // Pause all players if not playing
     if (!isPlaying || !song) {
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
         youtubePlayer.pauseVideo();
@@ -344,7 +350,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     
-    // If we are playing, play the correct one and pause the others.
+    // If playing, manage players based on song type
     if (isPlaying && song) {
       switch (song.type) {
         case 'youtube':
