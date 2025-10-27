@@ -67,16 +67,16 @@ export function Player({ song }: PlayerProps) {
   const { isPlaying, playNext, youtubePlayer, setYoutubePlayer, volume } = usePlayer();
 
   useEffect(() => {
-    if (youtubePlayer && typeof youtubePlayer.setVolume === 'function') {
+    if (youtubePlayer && song?.type === 'youtube' && typeof youtubePlayer.setVolume === 'function') {
       youtubePlayer.setVolume(volume);
     }
-  }, [volume, youtubePlayer]);
+  }, [volume, youtubePlayer, song]);
 
 
   useEffect(() => {
-    if (youtubePlayer && typeof youtubePlayer.playVideo === 'function' && typeof youtubePlayer.pauseVideo === 'function') {
+    if (youtubePlayer && song?.type === 'youtube' && typeof youtubePlayer.playVideo === 'function' && typeof youtubePlayer.pauseVideo === 'function') {
       // Ensure we don't act on a stale player instance for a different song
-      if (song?.type === 'youtube' && youtubePlayer.getVideoData()?.video_id === song.videoId) {
+      if (youtubePlayer.getVideoData()?.video_id === song.videoId) {
         if (isPlaying) {
           youtubePlayer.playVideo();
         } else {

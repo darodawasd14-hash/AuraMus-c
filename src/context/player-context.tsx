@@ -98,11 +98,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const clearListener = async () => {
     if (currentSongRef.current && user && firestore) {
         const listenerRef = doc(firestore, 'artifacts', appId, 'songs', currentSongRef.current.id, 'live_listeners', user.uid);
-        try {
-            await deleteDoc(listenerRef);
-        } catch (e) {
-            // Ignore errors on cleanup
-        }
+        deleteDoc(listenerRef).catch((e) => {
+            const permissionError = new FirestorePermissionError({
+                path: listenerRef.path,
+                operation: 'delete',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
     }
   };
   
@@ -122,10 +124,18 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
               getDoc(profileRef).then(profileSnap => {
                 const displayName = profileSnap.data()?.displayName || user.email;
-                setDoc(listenerRef, {
+                const listenerData = {
                     uid: user.uid,
                     displayName,
                     timestamp: serverTimestamp(),
+                };
+                setDoc(listenerRef, listenerData).catch(e => {
+                  const permissionError = new FirestorePermissionError({
+                      path: listenerRef.path,
+                      operation: 'create',
+                      requestResourceData: listenerData,
+                  });
+                  errorEmitter.emit('permission-error', permissionError);
                 });
               });
               
