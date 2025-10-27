@@ -19,7 +19,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
       widgetRef.current = widget;
       widget.bind((window as any).SC.Widget.Events.READY, () => {
         if (widgetRef.current) {
-          widgetRef.current.setVolume(volume / 100);
+          widgetRef.current.setVolume(volume);
           if (isPlaying) {
             widgetRef.current.play();
           } else {
@@ -35,7 +35,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
 
   useEffect(() => {
     if (widgetRef.current) {
-      widgetRef.current.setVolume(volume / 100);
+        widgetRef.current.setVolume(volume);
     }
   }, [volume]);
 
@@ -44,7 +44,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
       if (isPlaying) {
         widgetRef.current.play();
       } else {
-        widgetRef.current.pause();
+        widgetrif.current.pause();
       }
     }
   }, [isPlaying]);
@@ -66,14 +66,12 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
 export function Player({ song }: PlayerProps) {
   const { isPlaying, playNext, youtubePlayer, setYoutubePlayer, volume } = usePlayer();
 
-  // This is the core logic fix. This useEffect hook will ALWAYS run when
-  // volume or the youtubePlayer instance changes, ensuring the volume is
-  // always in sync.
   useEffect(() => {
     if (youtubePlayer && typeof youtubePlayer.setVolume === 'function') {
       youtubePlayer.setVolume(volume);
     }
   }, [volume, youtubePlayer]);
+
 
   useEffect(() => {
     if (youtubePlayer && typeof youtubePlayer.playVideo === 'function' && typeof youtubePlayer.pauseVideo === 'function') {
@@ -87,7 +85,6 @@ export function Player({ song }: PlayerProps) {
 
 
   const onReady = (event: any) => {
-    // When the player is ready, store its instance and set the initial volume.
     setYoutubePlayer(event.target);
     event.target.setVolume(volume);
   };

@@ -4,7 +4,7 @@ import { usePlayer, type Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Volume2 } from '@/components/icons';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, VolumeX, Volume1 } from '@/components/icons';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
@@ -13,9 +13,6 @@ import { useAuth } from '@/firebase/provider';
 import { Loader2 } from 'lucide-react';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { Slider } from './ui/slider';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-
 
 const appId = 'Aura';
 
@@ -132,25 +129,12 @@ const Header = ({ setView, currentView }: { setView: (view: 'player' | 'catalog'
 };
 
 const VolumeControl = () => {
-  const { volume, setVolume } = usePlayer();
+  const { isMuted, toggleMute } = usePlayer();
   
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-          <Volume2 />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-48 p-2">
-        <Slider
-          defaultValue={[volume]}
-          onValueChange={(value) => setVolume(value[0])}
-          max={100}
-          step={1}
-          className="w-full"
-        />
-      </PopoverContent>
-    </Popover>
+    <Button onClick={toggleMute} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+      {isMuted ? <VolumeX /> : <Volume1 />}
+    </Button>
   );
 };
 
