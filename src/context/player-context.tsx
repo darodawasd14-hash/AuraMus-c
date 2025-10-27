@@ -96,54 +96,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
   useEffect(() => {
-    if (youtubePlayer && currentSong) {
-      if (currentSong.type === 'youtube') {
+    if (youtubePlayer && currentSong && currentSong.type === 'youtube') {
         if (isPlaying) {
           youtubePlayer.playVideo();
         } else {
           youtubePlayer.pauseVideo();
         }
-      }
     }
   }, [isPlaying, currentSong, youtubePlayer]);
 
-
-  useEffect(() => {
-    if (!firestore || !user || !user.displayName) return;
-
-    let listenerRef: any;
-
-    if (currentSong && isPlaying) {
-      // User started playing a song, add them to listeners
-      listenerRef = doc(firestore, 'artifacts', appId, 'songs', currentSong.id, 'live_listeners', user.uid);
-      const listenerData = {
-        uid: user.uid,
-        displayName: user.displayName,
-        timestamp: serverTimestamp(),
-      };
-      setDoc(listenerRef, listenerData).catch(e => {
-        const permissionError = new FirestorePermissionError({
-            path: listenerRef.path,
-            operation: 'create',
-            requestResourceData: listenerData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      });
-    }
-
-    return () => {
-      // Cleanup: remove user from listeners when they stop playing or change song
-      if (listenerRef) {
-        deleteDoc(listenerRef).catch(e => {
-            const permissionError = new FirestorePermissionError({
-                path: listenerRef.path,
-                operation: 'delete',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
-      }
-    };
-  }, [currentSong, isPlaying, firestore, user]);
 
   useEffect(() => {
     const currentSongId = playlist[currentIndex]?.id;
