@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -91,23 +91,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubscribe();
   }, [songsCollectionRef]);
   
-  useEffect(() => {
-    const currentSongId = playlist[currentIndex]?.id;
-    const newCurrentIndex = playlist.findIndex(song => song.id === currentSongId);
-
-    if (currentIndex !== -1 && newCurrentIndex === -1) {
-      // Current song was deleted from the playlist
-      resetPlayer();
-    } else {
-      setCurrentIndex(newCurrentIndex);
-    }
-  }, [playlist, currentIndex]);
-
-  const currentSong = currentIndex !== -1 ? playlist[currentIndex] : null;
+  const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
   useEffect(() => {
-    if (youtubePlayer && typeof youtubePlayer.playVideo === 'function' && typeof youtubePlayer.pauseVideo === 'function') {
-      if (currentSong?.type === 'youtube') {
+    // CRITICAL FIX: Ensure both player and song exist before calling player functions.
+    if (youtubePlayer && currentSong && typeof youtubePlayer.playVideo === 'function' && typeof youtubePlayer.pauseVideo === 'function') {
+      if (currentSong.type === 'youtube') {
         if (isPlaying) {
           youtubePlayer.playVideo();
         } else {
@@ -123,6 +112,18 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [volume, youtubePlayer]);
 
+  useEffect(() => {
+    const currentSongId = playlist[currentIndex]?.id;
+    const newCurrentIndex = playlist.findIndex(song => song.id === currentSongId);
+  
+    if (currentIndex !== -1 && newCurrentIndex === -1) {
+      // Current song was deleted from the playlist
+      resetPlayer();
+    } else {
+      setCurrentIndex(newCurrentIndex);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playlist]);
 
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
