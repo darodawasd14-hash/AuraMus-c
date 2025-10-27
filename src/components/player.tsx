@@ -14,7 +14,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume, onEnded }: { song: Song; is
   const widgetRef = useRef<any>(null);
   const isReadyRef = useRef(false);
 
-  // Effect to handle song changes and widget creation
+  // Effect to handle song changes and widget creation/cleanup
   useEffect(() => {
     // Only run when the song ID changes
     if (!iframeRef.current) return;
