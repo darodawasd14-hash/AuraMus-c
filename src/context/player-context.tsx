@@ -37,7 +37,7 @@ const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 const appId = 'Aura';
 
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
-  const { user, firebaseApp } = useUser();
+  const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
 
@@ -49,7 +49,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const songsCollectionRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    return collection(firestore, 'artifacts', appId, 'users', user.uid, 'songs');
+    // NOTE: The path was updated to match the backend.json structure.
+    return collection(firestore, 'users', user.uid, 'songs');
   }, [user, firestore]);
 
   useEffect(() => {
@@ -117,17 +118,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getSongDetails = async (url: string): Promise<Omit<Song, 'id' | 'timestamp'>> => {
-    if (url.startsWith('gs://')) {
-      if (!firebaseApp) throw new Error("Firebase is not initialized for Storage operations.");
-      const storage = getStorage(firebaseApp);
-      const storageRef = ref(storage, url);
-      const downloadUrl = await getDownloadURL(storageRef);
-      return {
-        title: storageRef.name.replace(/\.[^/.]+$/, "") || 'Firebase Storage Song',
-        url: downloadUrl,
-        type: 'url'
-      };
-    } else if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    // Firebase Storage URLs are not handled in this version.
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
       const videoId = extractYouTubeID(url);
       if (!videoId) throw new Error("Invalid YouTube link.");
       const canonicalYouTubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
@@ -163,7 +155,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           type: 'url'
         };
     } else {
-      throw new Error("Unsupported link type. Please use YouTube, SoundCloud, a direct audio link, or a Firebase Storage link (gs://...).");
+      throw new Error("Unsupported link type. Please use YouTube, SoundCloud, or a direct audio link.");
     }
   };
 
@@ -198,7 +190,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteSong = async (songId: string) => {
     if (!user || !firestore) return;
-    const songRef = doc(firestore, 'artifacts', 'Aura', 'users', user.uid, 'songs', songId);
+    const songRef = doc(firestore, 'users', user.uid, 'songs', songId);
 
     deleteDoc(songRef)
       .then(() => {
@@ -292,3 +284,5 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
+
+    
