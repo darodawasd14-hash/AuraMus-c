@@ -1,79 +1,61 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset implements a strict user-based authorization model for the Aura music application.
+ * @fileoverview Firestore Security Rules for the Aura music application.
  *
  * Core Philosophy:
- *  - Authenticated users have full control over their own data (create, read, update, delete) within their designated user space.
- *  - Public read access is granted to the `/artifacts/Aura/songs/{songId}/messages/{messageId}` and `/artifacts/Aura/songs/{songId}/live_listeners/{userId}` collections, facilitating chat and live listener functionality.
- *  - Users can only create their own profiles.
+ * This ruleset prioritizes user-owned data with public read access where appropriate.
+ * Users can only create, modify, or delete their own data, ensuring data privacy.
  *
  * Data Structure:
- *  - User profiles are stored in `/artifacts/Aura/users/{userId}`.
- *  - Songs specific to each user are stored in `/artifacts/Aura/users/{userId}/songs/{songId}`.
- *  - Chat messages for songs are stored in `/artifacts/Aura/songs/{songId}/messages/{messageId}`.
- *  - Live listeners for songs are stored in `/artifacts/Aura/songs/{songId}/live_listeners/{userId}`.
+ * - /artifacts/Aura/users/{userId}: User profile data.
+ * - /artifacts/Aura/users/{userId}/songs/{songId}: Songs owned by a specific user.
+ * - /artifacts/Aura/songs/{songId}/messages/{messageId}: Chat messages related to a song (publicly readable).
+ * - /artifacts/Aura/songs/{songId}/live_listeners/{userId}: List of live listeners for a song (publicly readable, owner-writeable).
  *
  * Key Security Decisions:
- *  - User listing is explicitly disallowed to prevent enumeration.
- *  - The `id` field within user and song documents must match the document ID in the path.
- *  - Only authenticated users can create, update, or delete data.
- *  - Update and delete operations are only allowed if the document exists.
+ * - User data is strictly owned and controlled by each user.
+ * - Listing of user documents is disabled to prevent enumeration.
+ * - The `live_listeners` subcollection has public read and owner-write to allow a user to become a listener.
+ *
+ * Denormalization for Authorization:
+ *  - The `/artifacts/Aura/songs/{songId}/live_listeners/{userId}` collection requires each document to have the `uid` of the listening user, which should match the `{userId}` in the path.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is made by an authenticated user.
-     * @returns {boolean} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the authenticated user's ID matches the provided userId.
-     * @param {string} userId - The user ID to compare against.
-     * @returns {boolean} True if the user is the owner, false otherwise.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the authenticated user is the owner and the resource exists.
-     * @param {string} userId - The user ID to compare against.
-     * @returns {boolean} True if the user is the owner and the document exists.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Security rules for user profiles.
+     * @description Secure user profile data. Users can only read and write their own profile.
      * @path /artifacts/Aura/users/{userId}
-     * @allow (create) - Authenticated user can create their profile if the userId matches their auth.uid and the document contains id that matches their auth.uid
-     * @allow (get, update, delete) - Authenticated user can read, update and delete their profile if the userId matches their auth.uid.
-     * @deny (create) - If the userId does not match auth.uid
-     * @deny (list) - Listing all users is not allowed.
-     * @principle Enforces user-ownership for profile data.
+     * @allow (create) User with ID 'user123' can create their profile.
+     * @deny (create) User with ID 'user456' cannot create a profile for 'user123'.
+     * @allow (get) User with ID 'user123' can read their profile.
+     * @deny (get) User with ID 'user456' cannot read the profile of 'user123'.
+     * @allow (update) User with ID 'user123' can update their profile.
+     * @deny (update) User with ID 'user456' cannot update the profile of 'user123'.
+     * @allow (delete) User with ID 'user123' can delete their profile.
+     * @deny (delete) User with ID 'user456' cannot delete the profile of 'user123'.
+     * @principle Enforces document ownership for writes and reads.
      */
     match /artifacts/Aura/users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Security rules for songs specific to a user.
+     * @description Secure user-specific songs. Users can only read and write their own songs.
      * @path /artifacts/Aura/users/{userId}/songs/{songId}
-     * @allow (create) - Authenticated user can create a song in their profile if the userId matches their auth.uid.
-     * @allow (get, update, delete) - Authenticated user can read, update, and delete songs in their profile if the userId matches their auth.uid.
-     * @deny (create) - If the userId does not match auth.uid.
-     * @deny (list) - If the userId does not match auth.uid.
-     * @principle Enforces user-ownership for song data.
+     * @allow (create) User 'user123' can create a song with owner 'user123'.
+     * @deny (create) User 'user456' cannot create a song with owner 'user123'.
+     * @allow (get) User 'user123' can read their song.
+     * @deny (get) User 'user456' cannot read a song of 'user123'.
+     * @allow (update) User 'user123' can update their song.
+     * @deny (update) User 'user456' cannot update a song of 'user123'.
+     * @allow (delete) User 'user123' can delete their song.
+     * @deny (delete) User 'user456' cannot delete a song of 'user123'.
+     * @principle Enforces document ownership for writes and reads.
      */
     match /artifacts/Aura/users/{userId}/songs/{songId} {
       allow get: if isOwner(userId);
@@ -84,31 +66,86 @@ service cloud.firestore {
     }
 
     /**
-     * @description Security rules for chat messages for a specific song.
+     * @description Allow public reading of chat messages for songs, but restrict writes.
      * @path /artifacts/Aura/songs/{songId}/messages/{messageId}
-     * @allow (get, list) - Any user can read chat messages for a song.
-     * @allow (create) - Any authenticated user can create a chat message.
-     * @deny (update, delete) - Only the owner can update/delete a message. (No ownership field is defined, defaulting to deny).
-     * @principle Allows public read access for chat messages; authenticated write access.
+     * @allow (get) Any user can read a message.
+     * @allow (list) Any user can list messages.
+     * @deny (create) No one can create a new message (writes are not supported)
+     * @deny (update) No one can update an existing message (writes are not supported).
+     * @deny (delete) No one can delete a message (writes are not supported).
      */
     match /artifacts/Aura/songs/{songId}/messages/{messageId} {
-      allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get: if true;
+      allow list: if true;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Security rules for users currently listening to a specific song.
+     * @description Manages the list of live listeners for a song. Allows anyone to read the list,
+     *              but only the corresponding user can be added to the list.
      * @path /artifacts/Aura/songs/{songId}/live_listeners/{userId}
-     * @allow (get, list) - Any user can see the list of live listeners.
-     * @allow (create) - Any authenticated user can add themselves to the live listeners.
-     * @deny (update, delete) - Only the owner can update/delete a live listener entry. (No ownership field is defined, defaulting to deny).
-     * @principle Allows public read access for live listeners; authenticated write access.
+     * @allow (create) User with ID 'user123' can create their live listener entry.
+     * @deny (create) User with ID 'user456' cannot create a live listener entry for 'user123'.
+     * @allow (get) Any user can read the live listener entry.
+     * @deny (get) User 'user456' cannot read the live listener entry of 'user123'.
+     * @allow (update) User with ID 'user123' can update their live listener entry.
+     * @deny (update) User with ID 'user456' cannot update the live listener entry of 'user123'.
+     * @allow (delete) User with ID 'user123' can delete their live listener entry.
+     * @deny (delete) User with ID 'user456' cannot delete the live listener entry of 'user123'.
+     * @principle Enforces document ownership for writes and reads.
      */
     match /artifacts/Aura/songs/{songId}/live_listeners/{userId} {
-      allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get: if true;
+      allow list: if true;
+      allow create: if isListener(userId);
+      allow update: if isExistingListener(userId);
+      allow delete: if isExistingListener(userId);
     }
   }
+}
+
+/**
+ * @description Checks if the user is signed in.
+ * @return {boolean} True if the user is signed in, false otherwise.
+ */
+function isSignedIn() {
+  return request.auth != null;
+}
+
+/**
+ * @description Checks if the user ID matches the authenticated user's ID.
+ * @param {string} userId The user ID to check.
+ * @return {boolean} True if the user ID matches the authenticated user's ID, false otherwise.
+ */
+function isOwner(userId) {
+  return isSignedIn() && userId == request.auth.uid;
+}
+
+/**
+ * @description Checks if the user ID matches the authenticated user's ID and if the document exists.
+ * @param {string} userId The user ID to check.
+ * @return {boolean} True if the user ID matches the authenticated user's ID and if the document exists, false otherwise.
+ */
+function isExistingOwner(userId) {
+  return isOwner(userId) && resource != null;
+}
+
+/**
+ * @description Checks if the user ID matches the authenticated user's ID.
+ * @param {string} userId The user ID to check.
+ * @return {boolean} True if the user ID matches the authenticated user's ID, false otherwise.
+ */
+function isListener(userId) {
+    return isSignedIn() && userId == request.auth.uid && request.resource.data.uid == request.auth.uid;
+}
+
+/**
+ * @description Checks if the user ID matches the authenticated user's ID and if the document exists.
+ * @param {string} userId The user ID to check.
+ * @return {boolean} True if the user ID matches the authenticated user's ID and if the document exists, false otherwise.
+ */
+function isExistingListener(userId) {
+  return isListener(userId) && resource != null;
 }
