@@ -1,8 +1,8 @@
 'use client';
-import React, { useState, useEffect, FormEvent } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { collection, addDoc, deleteDoc, doc, query, orderBy, Query } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Music, ShieldCheck, Trash2 } from 'lucide-react';
@@ -65,7 +65,7 @@ export default function AdminPage() {
   }, [user, isUserLoading, router]);
 
 
-  const handleAddSong = async (e: FormEvent) => {
+  const handleAddSong = async (e: React.FormEvent) => {
     e.preventDefault();
     const catalogCollectionRef = collection(firestore, 'artifacts', appId, 'catalog');
     if (!title.trim() || !url.trim() || !catalogCollectionRef) return;
@@ -125,8 +125,8 @@ export default function AdminPage() {
                     <CardTitle>Admin Access Required</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <p className="text-muted-foreground">You do not have permission to view this page. To become an admin, you need to be granted privileges by a project owner via the gcloud CLI.</p>
-                    <p className="text-xs text-muted-foreground pt-4">After getting admin privileges, you must log out and log back in for the changes to take effect.</p>
+                    <p className="text-muted-foreground">You do not have permission to view this page. To become an admin, please ask a project owner to grant you privileges using the gcloud CLI.</p>
+                     <p className="text-xs text-muted-foreground pt-4">After getting admin privileges, you must log out and log back in for the changes to take effect.</p>
                 </CardContent>
             </Card>
         </div>
