@@ -31,10 +31,6 @@
       "type": "object",
       "description": "Represents a song in the user's music library or a general catalog.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Song entity."
-        },
         "title": {
           "type": "string",
           "description": "Title of the song."
@@ -46,53 +42,24 @@
         },
         "type": {
           "type": "string",
-          "description": "The service that hosts the music. This will tell us the type of song source.",
-          "format": "uri"
+          "enum": ["youtube", "soundcloud"],
+          "description": "The service that hosts the music. This will tell us the type of song source."
         },
-        "userId": {
+        "videoId": {
           "type": "string",
-          "description": "Reference to User. (Relationship: User 1:N Song)"
+          "description": "The video ID for YouTube songs."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the song was added."
         }
       },
       "required": [
-        "id",
         "title",
         "url",
         "type",
-        "userId"
-      ]
-    },
-    "Playlist": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Playlist",
-      "type": "object",
-      "description": "Represents a playlist created by a user, containing a list of song IDs.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Playlist entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "Name of the playlist."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to User. (Relationship: User 1:N Playlist)"
-        },
-        "songIds": {
-          "type": "array",
-          "description": "References to Songs. (Relationship: Playlist N:N Song)",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "userId",
-        "songIds"
+        "timestamp"
       ]
     }
   },
@@ -103,68 +70,17 @@
     ]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/artifacts/{appId}/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores user profiles, including email and display name.",
-          "params": [
-            {
-              "name": "appId",
-              "description": "The application ID (e.g., 'Aura')."
-            },
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user (from Firebase Auth)."
-            }
-          ]
-        }
+    "/artifacts/Aura/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
       },
-      {
-        "path": "/artifacts/{appId}/users/{userId}/songs/{songId}",
-        "definition": {
-          "entityName": "Song",
-          "schema": {
-            "$ref": "#/backend/entities/Song"
-          },
-          "description": "Stores songs specific to each user. Includes denormalized 'userId' for authorization independence.",
-          "params": [
-            {
-              "name": "appId",
-              "description": "The application ID (e.g., 'Aura')."
-            },
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user (from Firebase Auth). Denormalized into each Song document for authorization independence."
-            },
-            {
-              "name": "songId",
-              "description": "The unique identifier for the song."
-            }
-          ]
-        }
+      "description": "Stores user profiles, including email and display name."
+    },
+    "/artifacts/Aura/users/{userId}/songs/{songId}": {
+      "schema": {
+        "$ref": "#/entities/Song"
       },
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Collection used to manage admin roles. Document existence grants admin privileges.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user (from Firebase Auth)."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The Firestore structure is designed to provide a secure and scalable solution for the Aura music application, adhering to the principles of Authorization Independence, Clarity of Intent, DBAC (Database-Based Access Control), and QAPs (Rules are not Filters). Authorization Independence is achieved by denormalizing user IDs into song documents, eliminating the need for `get()` calls in security rules and allowing for atomic operations. Structural Segregation is implemented by storing user-specific playlists in dedicated subcollections, ensuring a homogeneous security posture. Access modeling follows path-based ownership for user data, simplifying security rules and improving efficiency. Radically consistent naming conventions are used throughout the structure to improve clarity and predictability.\n\nThe structure facilitates QAPs by using path-based rules for user-owned data, securing `list` operations by ensuring that users can only access songs within their designated paths. Specifically, songs are stored in a subcollection of the user document, `/users/{userId}/songs/{songId}`, thus enabling rules that grant access only to the user identified by `{userId}`.\n\n**Root-Level Collections (artifacts):** Contains subcollections and segregates data by `appId`. While technically violating structural segregation if different `appId`s have different requirements, it avoids the need to duplicate top-level collection names. \n\n**Root-Level Collections (roles_admin):** Stores admin roles based on document existence. \n\n**Denormalization Strategy:** Each song document within a user's `songs` subcollection includes the `userId` field, which is equal to the document ID of the parent `user` document. This denormalization enables security rules to validate that the `request.auth.uid` matches the `userId` field in the song document, ensuring that only the owner can access the data. This strategy avoids the need to perform `get()` operations to verify ownership.\n\n**Global Roles (DBAC):** The existence of a document in the `/roles_admin/{uid}` collection grants admin privileges.  Rules check for document existence rather than inspecting the content of a custom claim."
+      "description": "Stores songs specific to each user."
+    }
   }
 }

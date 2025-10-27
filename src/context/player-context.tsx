@@ -1,165 +1,202 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useMemo } from 'react';
-import type { Song } from '@/lib/data';
-import { songs as allSongs } from '@/lib/data';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
-type Playlist = {
-  name: string;
-  songs: Song[];
-};
+export interface Song {
+  id: string;
+  title: string;
+  url: string;
+  type: 'youtube' | 'soundcloud';
+  videoId?: string;
+  timestamp?: any;
+}
 
 type PlayerContextType = {
-  songs: Song[];
-  currentPlaylist: Song[];
+  playlist: Song[];
   currentSong: Song | null;
-  currentSongIndex: number;
+  currentIndex: number;
   isPlaying: boolean;
-  playlists: Playlist[];
-  volume: number;
-  isMuted: boolean;
-  playSong: (song: Song, playlist?: Song[]) => void;
+  isLoading: boolean;
+  addSong: (url: string) => Promise<void>;
+  deleteSong: (songId: string) => Promise<void>;
+  playSong: (index: number) => void;
   togglePlayPause: () => void;
   playNext: () => void;
   playPrev: () => void;
-  createPlaylist: (name: string, songs?: Song[]) => boolean;
-  addSongToPlaylist: (playlistName: string, song: Song) => void;
-  addPlaylist: (playlist: Playlist) => void;
-  setCurrentPlaylist: (playlistName: string) => void;
-  setVolume: (volume: number) => void;
-  toggleMute: () => void;
+  isPlayerReady: boolean;
+  setPlayerReady: (isReady: boolean) => void;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
-  const [currentPlaylist, setCurrentPlaylistState] = useState<Song[]>(allSongs);
-  const [currentSongIndex, setCurrentSongIndex] = useState<number>(-1);
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const { toast } = useToast();
+
+  const [playlist, setPlaylist] = useState<Song[]>([]);
+  const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [volume, setVolumeState] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
-  const previousVolumeRef = React.useRef(volume);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isPlayerReady, setPlayerReady] = useState(false);
 
+  const songsCollectionRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return collection(firestore, 'artifacts', 'Aura', 'users', user.uid, 'songs');
+  }, [user, firestore]);
 
-  const currentSong = useMemo(() => {
-    return currentSongIndex >= 0 && currentSongIndex < currentPlaylist.length
-      ? currentPlaylist[currentSongIndex]
-      : null;
-  }, [currentSongIndex, currentPlaylist]);
-  
-  const setVolume = (newVolume: number) => {
-    if (newVolume > 0) {
-        setIsMuted(false);
+  useEffect(() => {
+    if (!songsCollectionRef) {
+      setPlaylist([]);
+      setIsLoading(false);
+      return;
     }
-    setVolumeState(newVolume);
-  }
 
-  const toggleMute = () => {
-      setIsMuted(prev => {
-          const newMuted = !prev;
-          if (newMuted) {
-              previousVolumeRef.current = volume;
-              setVolumeState(0);
-          } else {
-              setVolumeState(previousVolumeRef.current > 0 ? previousVolumeRef.current : 0.5);
-          }
-          return newMuted;
-      });
+    const q = query(songsCollectionRef, orderBy('timestamp', 'asc'));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const serverPlaylist: Song[] = [];
+        snapshot.forEach((doc) => {
+          serverPlaylist.push({ id: doc.id, ...doc.data() } as Song);
+        });
+        setPlaylist(serverPlaylist);
+        setIsLoading(false);
+        
+        if (currentIndex >= 0 && !serverPlaylist.find(song => song.id === playlist[currentIndex]?.id)) {
+            resetPlayer();
+        }
+      },
+      (error) => {
+        console.error("Playlist subscription error:", error);
+        toast({ title: "Error loading playlist.", variant: 'destructive' });
+        setIsLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [songsCollectionRef]);
+
+  const extractYouTubeID = (url: string): string | null => {
+    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
   };
 
-  const playSong = (song: Song, playlist: Song[] = currentPlaylist) => {
-    const songIndex = playlist.findIndex(s => s.id === song.id);
-    if (songIndex !== -1) {
-      setCurrentPlaylistState(playlist);
-      setCurrentSongIndex(songIndex);
+  const getSongDetails = async (url: string): Promise<Omit<Song, 'id' | 'timestamp'>> => {
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      const videoId = extractYouTubeID(url);
+      if (!videoId) throw new Error("Invalid YouTube link.");
+      const canonicalYouTubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(canonicalYouTubeUrl)}`;
+      const response = await fetch(oembedUrl);
+      if (!response.ok) return { title: `YouTube: ${videoId}`, url: canonicalYouTubeUrl, type: 'youtube', videoId: videoId };
+      const data = await response.json();
+      if (data.error) return { title: `YouTube: ${videoId}`, url: canonicalYouTubeUrl, type: 'youtube', videoId: videoId };
+      return {
+        title: data.title || `YouTube: ${videoId}`,
+        url: canonicalYouTubeUrl,
+        type: 'youtube',
+        videoId: videoId
+      };
+    } else if (url.includes('soundcloud.com')) {
+      const urlParts = url.split('?');
+      const cleanUrl = urlParts[0];
+      const oembedUrl = `https://soundcloud.com/oembed?url=${encodeURIComponent(cleanUrl)}&format=json`;
+      const response = await fetch(oembedUrl);
+      if (!response.ok) throw new Error("Invalid or private SoundCloud link.");
+      const data = await response.json();
+      if (!data.title) throw new Error("Could not retrieve SoundCloud song title.");
+      return {
+        title: data.title,
+        url: cleanUrl,
+        type: 'soundcloud'
+      };
+    } else {
+      throw new Error("Only YouTube and SoundCloud links are supported.");
+    }
+  };
+
+  const addSong = async (url: string) => {
+    if (!songsCollectionRef) {
+      toast({ title: "You must be logged in to add songs.", variant: 'destructive' });
+      return;
+    }
+    try {
+      const songData = await getSongDetails(url);
+      await addDoc(songsCollectionRef, { ...songData, timestamp: serverTimestamp() });
+      toast({ title: "Song added!" });
+    } catch (error: any) {
+      console.error("Error adding song:", error);
+      toast({ title: error.message || "Failed to add song.", variant: 'destructive' });
+    }
+  };
+
+  const deleteSong = async (songId: string) => {
+    if (!user || !firestore) return;
+    try {
+      await deleteDoc(doc(firestore, 'artifacts', 'Aura', 'users', user.uid, 'songs', songId));
+      toast({ title: "Song deleted." });
+    } catch (error) {
+      console.error("Error deleting song:", error);
+      toast({ title: "Failed to delete song.", variant: 'destructive' });
+    }
+  };
+  
+  const resetPlayer = () => {
+    setIsPlaying(false);
+    setCurrentIndex(-1);
+  }
+
+  const playSong = (index: number) => {
+    if (index >= 0 && index < playlist.length) {
+      setCurrentIndex(index);
       setIsPlaying(true);
     } else {
-        // If song is not in the current playlist, play it as a single-song playlist
-        setCurrentPlaylistState([song]);
-        setCurrentSongIndex(0);
-        setIsPlaying(true);
+      resetPlayer();
     }
   };
 
   const togglePlayPause = () => {
-    if (currentSong) {
+    if(currentIndex === -1 && playlist.length > 0) {
+      playSong(0);
+    } else {
       setIsPlaying(prev => !prev);
     }
   };
 
-  const playNext = () => {
-    if (currentPlaylist.length > 0) {
-      const nextIndex = (currentSongIndex + 1) % currentPlaylist.length;
-      setCurrentSongIndex(nextIndex);
-      setIsPlaying(true);
-    }
-  };
+  const playNext = useCallback(() => {
+    if (playlist.length === 0) return;
+    const nextIndex = (currentIndex + 1) % playlist.length;
+    playSong(nextIndex);
+  }, [currentIndex, playlist.length]);
 
   const playPrev = () => {
-    if (currentPlaylist.length > 0) {
-      const prevIndex = (currentSongIndex - 1 + currentPlaylist.length) % currentPlaylist.length;
-      setCurrentSongIndex(prevIndex);
-      setIsPlaying(true);
-    }
-  };
-
-  const createPlaylist = (name: string, songs: Song[] = []) => {
-    if (playlists.some(p => p.name === name)) {
-      return false;
-    }
-    setPlaylists(prev => [...prev, { name, songs }]);
-    return true;
-  };
-
-  const addSongToPlaylist = (playlistName: string, song: Song) => {
-    setPlaylists(prev =>
-      prev.map(p =>
-        p.name === playlistName ? { ...p, songs: [...p.songs, song] } : p
-      )
-    );
+    if (playlist.length === 0) return;
+    const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
+    playSong(prevIndex);
   };
   
-  const addPlaylist = (playlist: Playlist) => {
-    if (playlists.some(p => p.name === playlist.name)) {
-        // To avoid duplicates, maybe append a number
-        const newName = `${playlist.name} (${playlists.filter(p => p.name.startsWith(playlist.name)).length + 1})`;
-        setPlaylists(prev => [...prev, {...playlist, name: newName}]);
-        return;
-    }
-    setPlaylists(prev => [...prev, playlist]);
-  }
-
-  const setCurrentPlaylist = (playlistName: string) => {
-    if (playlistName === 'Library') {
-        setCurrentPlaylistState(allSongs);
-        return;
-    }
-    const playlist = playlists.find(p => p.name === playlistName);
-    if (playlist) {
-      setCurrentPlaylistState(playlist.songs);
-    }
-  };
+  const currentSong = currentIndex !== -1 ? playlist[currentIndex] : null;
 
   const value: PlayerContextType = {
-    songs: allSongs,
-    currentPlaylist,
+    playlist,
     currentSong,
-    currentSongIndex,
+    currentIndex,
     isPlaying,
-    playlists,
-    volume,
-    isMuted,
+    isLoading,
+    addSong,
+    deleteSong,
     playSong,
     togglePlayPause,
     playNext,
     playPrev,
-    createPlaylist,
-    addSongToPlaylist,
-    addPlaylist,
-    setCurrentPlaylist,
-    setVolume,
-    toggleMute,
+    isPlayerReady,
+    setPlayerReady,
   };
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

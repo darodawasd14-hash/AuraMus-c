@@ -4,49 +4,35 @@
 
 @layer base {
   :root {
-    --background: 220 40% 95%;
-    --foreground: 224 71% 4%;
+    --background: 224 71% 4%;
+    --foreground: 210 40% 98%;
 
-    --card: 210 40% 98%;
-    --card-foreground: 224 71% 4%;
+    --card: 224 71% 4%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 210 40% 98%;
-    --popover-foreground: 224 71% 4%;
+    --popover: 224 71% 4%;
+    --popover-foreground: 210 40% 98%;
 
     --primary: 217.2 91.2% 59.8%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 210 40% 91%;
-    --secondary-foreground: 224 71% 4%;
+    --secondary: 224 71% 10%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 210 40% 88%;
-    --muted-foreground: 224 71% 15%;
+    --muted: 224 71% 10%;
+    --muted-foreground: 210 40% 60%;
 
     --accent: 197.5 83.6% 51.2%;
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 214.3 31.8% 12%;
+    --input: 214.3 31.8% 12%;
     --ring: 217.2 91.2% 59.8%;
 
     --radius: 0.5rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    
-    --sidebar-background: 220 40% 95%;
-    --sidebar-foreground: 224 71% 4%;
-    --sidebar-primary: 217.2 91.2% 59.8%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 210 40% 91%;
-    --sidebar-accent-foreground: 224 71% 4%;
-    --sidebar-border: 214.3 31.8% 88%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
   }
  
   .dark {
@@ -77,21 +63,6 @@
     --border: 214.3 31.8% 12%;
     --input: 214.3 31.8% 12%;
     --ring: 217.2 91.2% 59.8%;
-
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-
-    --sidebar-background: 224 71% 4%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217.2 91.2% 59.8%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 224 71% 10%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 214.3 31.8% 12%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
  
@@ -99,7 +70,33 @@
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground;
+  html {
+    font-family: 'Inter', sans-serif;
   }
+  body {
+    @apply text-gray-100;
+    background: linear-gradient(-45deg, #1f2937, #3730a3, #111827, #4f46e5);
+    background-size: 400% 400%;
+    animation: gradientBG 20s ease infinite;
+  }
+  @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+  }
+  ::-webkit-scrollbar { @apply w-2; }
+  ::-webkit-scrollbar-track { @apply bg-gray-800; }
+  ::-webkit-scrollbar-thumb { @apply bg-gray-600 rounded; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-gray-500; }
+}
+
+@layer components {
+  .modal { @apply transition-opacity duration-300 ease-in-out; }
+  .modal-content { @apply transition-transform duration-300 ease-in-out; }
+  .modal.hidden { @apply opacity-0 scale-95 pointer-events-none; }
+  .modal-content.hidden { @apply translate-y-5; }
+
+  .playlist-item { @apply transition-colors duration-200 ease-in-out transform; }
+  .playlist-item:hover { @apply bg-gray-700 scale-[1.02]; }
+  .playlist-item.playing { @apply bg-blue-800 text-white; }
 }
