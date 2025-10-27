@@ -22,7 +22,7 @@ interface Message {
     timestamp: Timestamp;
 }
 
-export function ChatPane({ song }: { song: Song | null }) {
+export function ChatPane({ song, displayName }: { song: Song | null, displayName?: string }) {
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const { user } = useUser();
@@ -50,9 +50,8 @@ export function ChatPane({ song }: { song: Song | null }) {
         e.preventDefault();
         if (!message.trim() || !user || !messagesCollectionRef) return;
         
-        const senderName = user.displayName || user.email;
-        if (!senderName || !user.displayName) {
-            toast({ title: 'You must set a display name in your profile to chat.', variant: 'destructive'});
+        if (!displayName) {
+            toast({ title: 'Sohbet edebilmek için profilinizde bir görünen ad belirlemelisiniz.', variant: 'destructive'});
             return;
         }
 
@@ -61,7 +60,7 @@ export function ChatPane({ song }: { song: Song | null }) {
             text: message,
             sender: {
                 uid: user.uid,
-                displayName: senderName,
+                displayName: displayName,
             },
             timestamp: serverTimestamp(),
         };
@@ -77,7 +76,7 @@ export function ChatPane({ song }: { song: Song | null }) {
                     requestResourceData: newMessage,
                 });
                 errorEmitter.emit('permission-error', permissionError);
-                toast({ title: 'Error sending message.', variant: 'destructive' });
+                toast({ title: 'Mesaj gönderilirken bir hata oluştu.', variant: 'destructive' });
             })
             .finally(() => {
                 setIsSending(false);
@@ -87,7 +86,7 @@ export function ChatPane({ song }: { song: Song | null }) {
     if (!song) {
         return (
             <aside className="w-80 bg-background/50 border-l border-border flex flex-col p-4 justify-center items-center text-center">
-                <p className="text-muted-foreground">Select a song to see the chat.</p>
+                <p className="text-muted-foreground">Sohbeti görmek için bir şarkı seçin.</p>
             </aside>
         );
     }
@@ -96,7 +95,7 @@ export function ChatPane({ song }: { song: Song | null }) {
         <aside className="w-80 bg-background/50 border-l border-border flex flex-col">
             <div className="p-4 border-b border-border">
                 <h3 className="font-semibold truncate">{song.title}</h3>
-                <p className="text-sm text-muted-foreground">Chat</p>
+                <p className="text-sm text-muted-foreground">Sohbet</p>
             </div>
 
             <div className="flex-grow p-4 overflow-y-auto space-y-4">
@@ -108,7 +107,7 @@ export function ChatPane({ song }: { song: Song | null }) {
                     messages?.map(msg => (
                         <div key={msg.id} className={`flex flex-col ${msg.sender.uid === user?.uid ? 'items-end' : 'items-start'}`}>
                             <div className={`p-2 rounded-lg max-w-xs ${msg.sender.uid === user?.uid ? 'bg-primary/90 text-primary-foreground' : 'bg-secondary'}`}>
-                                <p className="text-xs font-bold text-muted-foreground mb-1">{msg.sender.uid === user?.uid ? 'You' : msg.sender.displayName}</p>
+                                <p className="text-xs font-bold text-muted-foreground mb-1">{msg.sender.uid === user?.uid ? 'Siz' : msg.sender.displayName}</p>
                                 <p className="text-sm">{msg.text}</p>
                             </div>
                         </div>
@@ -121,7 +120,7 @@ export function ChatPane({ song }: { song: Song | null }) {
                 <form onSubmit={handleSendMessage} className="flex gap-2">
                     <Input
                         type="text"
-                        placeholder="Say something..."
+                        placeholder="Bir şeyler söyle..."
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         disabled={!user || isSending}

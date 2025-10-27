@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, VolumeX, Volume1 } from '@/components/icons';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
+import { signOut, updateProfile } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase/provider';
 import { Loader2 } from 'lucide-react';
@@ -17,11 +17,33 @@ import { ChatPane } from '@/components/chat-pane';
 
 const appId = 'Aura';
 
+interface UserProfile {
+  displayName?: string;
+}
+
 export function AuraApp() {
   const { playlist, currentIndex, isPlaying, playSong, addSong, deleteSong, togglePlayPause, playNext, playPrev, isLoading } = usePlayer();
   const [songUrl, setSongUrl] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [view, setView] = useState<'player' | 'catalog'>('player');
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const [userProfile, setUserProfile] = useState<UserProfile>({});
+
+  const profileRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'artifacts', appId, 'users', user.uid);
+  }, [user, firestore]);
+
+  useEffect(() => {
+    if (!profileRef) return;
+    const unsubscribe = onSnapshot(profileRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setUserProfile(docSnap.data() as UserProfile);
+      }
+    });
+    return unsubscribe;
+  }, [profileRef]);
 
   const handleAddSong = async (e: FormEvent) => {
     e.preventDefault();
@@ -36,7 +58,7 @@ export function AuraApp() {
 
   return (
     <div id="app-container" className="h-screen flex flex-col text-foreground">
-      <Header setView={setView} currentView={view} />
+      <Header setView={setView} currentView={view} profile={userProfile} />
       <main className="flex-grow overflow-hidden flex flex-row">
         <div id="main-content" className="flex-grow flex flex-col">
           {view === 'player' ? (
@@ -100,13 +122,13 @@ export function AuraApp() {
             <CatalogView setView={setView} />
           )}
         </div>
-        <ChatPane song={currentSong} />
+        <ChatPane song={currentSong} displayName={userProfile.displayName} />
       </main>
     </div>
   );
 }
 
-const Header = ({ setView, currentView }: { setView: (view: 'player' | 'catalog') => void; currentView: 'player' | 'catalog' }) => {
+const Header = ({ setView, currentView, profile }: { setView: (view: 'player' | 'catalog') => void; currentView: 'player' | 'catalog', profile: UserProfile }) => {
   const [isModalOpen, setModalOpen] = useState(false);
   
   return (
@@ -127,7 +149,7 @@ const Header = ({ setView, currentView }: { setView: (view: 'player' | 'catalog'
           </Button>
         </div>
       </header>
-      <ProfileModal isOpen={isModalOpen} setIsOpen={setModalOpen} />
+      <ProfileModal isOpen={isModalOpen} setIsOpen={setModalOpen} profile={profile} />
     </>
   );
 };
@@ -228,7 +250,7 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog') => voi
   );
 };
 
-const ProfileModal = ({ isOpen, setIsOpen }: { isOpen?: boolean; setIsOpen?: (open: boolean) => void; }) => {
+const ProfileModal = ({ isOpen, setIsOpen, profile }: { isOpen?: boolean; setIsOpen?: (open: boolean) => void; profile: UserProfile }) => {
   const { user } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
@@ -236,31 +258,16 @@ const ProfileModal = ({ isOpen, setIsOpen }: { isOpen?: boolean; setIsOpen?: (op
   const [displayName, setDisplayName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  const profileRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'artifacts', appId, 'users', user.uid);
-  }, [user, firestore]);
-
   useEffect(() => {
-    if (!profileRef) return;
-    
-    const unsubscribe = onSnapshot(profileRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setDisplayName(docSnap.data().displayName || '');
-      }
-    },
-    (error) => {
-      const contextualError = new FirestorePermissionError({
-        path: profileRef.path,
-        operation: 'get',
-      });
-      errorEmitter.emit('permission-error', contextualError);
-    });
-    return unsubscribe;
-  }, [profileRef]);
+    if (isOpen && profile.displayName) {
+      setDisplayName(profile.displayName);
+    } else if (isOpen && user?.displayName) {
+      setDisplayName(user.displayName);
+    }
+  }, [isOpen, profile, user]);
 
   const handleSave = async () => {
-    if (!user || !firestore || !profileRef) return;
+    if (!user || !firestore) return;
     const newName = displayName.trim();
     if (!newName) {
       toast({ title: 'Please enter a valid name.', variant: 'destructive' });
@@ -268,25 +275,32 @@ const ProfileModal = ({ isOpen, setIsOpen }: { isOpen?: boolean; setIsOpen?: (op
     }
   
     setIsSaving(true);
+    const profileRef = doc(firestore, 'artifacts', appId, 'users', user.uid);
     const profileData = { displayName: newName };
   
-    setDoc(profileRef, profileData, { merge: true })
-      .then(() => {
-        toast({ title: 'Profile saved!' });
-        if (setIsOpen) setIsOpen(false);
-      })
-      .catch((serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: profileRef.path,
-          operation: 'update',
-          requestResourceData: profileData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        toast({ title: 'Error saving profile.', variant: 'destructive' });
-      })
-      .finally(() => {
-        setIsSaving(false);
+    try {
+      // First update Firestore
+      await setDoc(profileRef, profileData, { merge: true });
+      
+      // Then update Firebase Auth user profile
+      if(auth.currentUser) {
+        await updateProfile(auth.currentUser, { displayName: newName });
+      }
+
+      toast({ title: 'Profile saved!' });
+      if (setIsOpen) setIsOpen(false);
+    } catch (error: any) {
+       // This is a generic catch, but we can make the error more specific if needed
+       const permissionError = new FirestorePermissionError({
+        path: profileRef.path,
+        operation: 'update',
+        requestResourceData: profileData,
       });
+      errorEmitter.emit('permission-error', permissionError);
+      toast({ title: 'Error saving profile.', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleLogout = async () => {
