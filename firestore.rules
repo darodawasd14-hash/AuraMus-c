@@ -3,8 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the user is signed in.
-     * @return {bool} True if the user is signed in, false otherwise.
+     * @description Checks if the request is made by an authenticated user.
      */
     function isSignedIn() {
       return request.auth != null;
@@ -12,138 +11,96 @@ service cloud.firestore {
 
     /**
      * @description Checks if the authenticated user's UID matches the provided userId.
-     * @param {string} userId The user ID to compare against.
-     * @return {bool} True if the user is the owner, false otherwise.
      */
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the authenticated user is an existing owner.
-     * @param {string} userId The user ID to compare against.
-     * @return {bool} True if the user is the owner and the document exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && exists(resource.data);
-    }
-
-    /**
-     * @description Checks if the authenticated user is an admin.
-     * @return {bool} True if the user is an admin, false otherwise.
+     * @description Checks if the authenticated user is an admin by verifying the existence of their document in the `/roles_admin` collection.
      */
     function isAdmin() {
       return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
     /**
-     * @description
-     * This rule controls access to user profile data.
-     * Only the user themselves can read, update, or delete their profile.
-     * Any authenticated user can create their profile if it doesn't exist.
+     * @description Checks if the authenticated user is the owner of the existing document.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource.data != null;
+    }
+
+
+    /**
+     * @description Manages user profile information.
      * @path /users/{userId}
-     * @allow (get, create, update, delete)
-     *   - User with UID 'user123' can access /users/user123.
-     *   - User with UID 'user123' can create their profile at /users/user123 if it doesn't exist.
-     *   - User with UID 'user123' can update/delete their profile at /users/user123.
-     * @deny (get, create, update, delete)
-     *   - User with UID 'user456' cannot access /users/user123.
-     *   - Unauthenticated user cannot access /users/user123.
-     *   - User with UID 'user123' cannot create a profile at /users/user123 if it already exists.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) User with UID 'user123' can create their profile at /users/user123.
+     * @deny (create) User with UID 'user123' cannot create a profile at /users/user456.
+     * @principle Enforces document ownership for writes; only the authenticated user can create their own profile.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      allow get: if false;
       allow list: if false;
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description
-     * This rule controls access to songs owned by a specific user.
-     * Only the user who owns the song can create, read, update, or delete it.
+     * @description Manages songs owned by a specific user.
      * @path /users/{userId}/songs/{songId}
-     * @allow (get, create, update, delete)
-     *   - User with UID 'user123' can access /users/user123/songs/song456.
-     *   - User with UID 'user123' can create, update, or delete a song at /users/user123/songs/song456.
-     * @deny (get, create, update, delete)
-     *   - User with UID 'user456' cannot access /users/user123/songs/song456.
-     *   - Unauthenticated user cannot access /users/user123/songs/song456.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) User with UID 'user123' can create a song at /users/user123/songs/song456.
+     * @deny (create) User with UID 'user123' cannot create a song at /users/user456/songs/song456.
+     * @principle Enforces document ownership for writes; only the authenticated user can create, update, or delete their own songs.
      */
     match /users/{userId}/songs/{songId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description
-     * This rule controls access to playlists created by a specific user.
-     * Only the user who created the playlist can create, read, update, or delete it.
+     * @description Manages playlists created by a specific user.
      * @path /users/{userId}/playlists/{playlistId}
-     * @allow (get, create, update, delete)
-     *   - User with UID 'user123' can access /users/user123/playlists/playlist456.
-     *   - User with UID 'user123' can create, update, or delete a playlist at /users/user123/playlists/playlist456.
-     * @deny (get, create, update, delete)
-     *   - User with UID 'user456' cannot access /users/user123/playlists/playlist456.
-     *   - Unauthenticated user cannot access /users/user123/playlists/playlist456.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) User with UID 'user123' can create a playlist at /users/user123/playlists/playlist456.
+     * @deny (create) User with UID 'user123' cannot create a playlist at /users/user456/playlists/playlist456.
+     * @principle Enforces document ownership for writes; only the authenticated user can create, update, or delete their own playlists.
      */
     match /users/{userId}/playlists/{playlistId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description
-     * This rule controls access to smart playlists generated for a specific user.
-     * Only the user for whom the smart playlist was generated can create, read, update, or delete it.
+     * @description Manages smart playlists generated for a specific user.
      * @path /users/{userId}/smartPlaylists/{smartPlaylistId}
-     * @allow (get, create, update, delete)
-     *   - User with UID 'user123' can access /users/user123/smartPlaylists/smartPlaylist456.
-     *   - User with UID 'user123' can create, update, or delete a smart playlist at /users/user123/smartPlaylists/smartPlaylist456.
-     * @deny (get, create, update, delete)
-     *   - User with UID 'user456' cannot access /users/user123/smartPlaylists/smartPlaylist456.
-     *   - Unauthenticated user cannot access /users/user123/smartPlaylists/smartPlaylist456.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) User with UID 'user123' can create a smart playlist at /users/user123/smartPlaylists/smartPlaylist456.
+     * @deny (create) User with UID 'user123' cannot create a smart playlist at /users/user456/smartPlaylists/smartPlaylist456.
+     * @principle Enforces document ownership for writes; only the authenticated user can create, update, or delete their own smart playlists.
      */
     match /users/{userId}/smartPlaylists/{smartPlaylistId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description
-     * This rule controls access to the admin role documents.
-     * Only the user themselves can read their admin role document, if it exists.
-     * No one can create, update, or delete these documents through the client;
-     * admin privileges are managed through other secure backend processes.
+     * @description Indicates admin role for a user. Document existence grants admin privileges.
      * @path /roles_admin/{userId}
-     * @allow get
-     *   - User with UID 'admin123' can access /roles_admin/admin123 if they are an admin.
-     * @deny (get, create, update, delete)
-     *   - User with UID 'user456' cannot access /roles_admin/admin123.
-     *   - Unauthenticated user cannot access /roles_admin/admin123.
-     *   - No client-side creation, update, or deletion is allowed.
-     * @principle Restricts admin role management to the backend and enforces read access based on admin status.
      */
     match /roles_admin/{userId} {
-      allow get: if isOwner(userId) && isAdmin();
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+        allow get: if false;
+        allow list: if false;
+        allow create: if isSignedIn() && isAdmin();
+        allow update: if false;
+        allow delete: if isSignedIn() && isAdmin();
     }
   }
 }
