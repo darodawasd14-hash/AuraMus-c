@@ -9,26 +9,25 @@ type PlayerProps = {
   song: Song | null;
 };
 
-const SoundCloudPlayer = ({ song, onEnded, isPlaying }: { song: Song; onEnded: () => void; isPlaying: boolean }) => {
+const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const widgetRef = useRef<any>(null);
   const { setSoundcloudPlayer } = usePlayer();
 
   useEffect(() => {
     if (!iframeRef.current) return;
 
     const widget = (window as any).SC.Widget(iframeRef.current);
-    widgetRef.current = widget;
     setSoundcloudPlayer(widget);
 
     const onReady = () => {
       widget.bind((window as any).SC.Widget.Events.FINISH, onEnded);
-      if(isPlaying) widget.play();
+      widget.play();
     };
 
     widget.bind((window as any).SC.Widget.Events.READY, onReady);
     
     return () => {
+      setSoundcloudPlayer(null);
       try {
         widget.unbind((window as any).SC.Widget.Events.FINISH);
         widget.unbind((window as any).SC.Widget.Events.READY);
@@ -37,7 +36,7 @@ const SoundCloudPlayer = ({ song, onEnded, isPlaying }: { song: Song; onEnded: (
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song.id, onEnded]);
+  }, [song.id, onEnded, setSoundcloudPlayer]);
   
   return (
     <iframe
@@ -48,59 +47,30 @@ const SoundCloudPlayer = ({ song, onEnded, isPlaying }: { song: Song; onEnded: (
       scrolling="no"
       frameBorder="no"
       allow="autoplay"
-      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=false&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
+      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=true&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
     ></iframe>
   );
 };
 
 
-const UrlPlayer = ({ song, onEnded, isPlaying }: { song: Song; onEnded: () => void; isPlaying: boolean; }) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  useEffect(() => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.play().catch(e => console.error("Ses çalma başarısız:", e));
-    } else {
-      audioRef.current.pause();
-    }
-  }, [isPlaying, song.id]);
-
-  useEffect(() => {
-    if(audioRef.current) {
-      audioRef.current.src = song.url;
-      if (isPlaying) {
-        audioRef.current.play().catch(e => console.error("Ses çalma başarısız:", e));
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song.url, song.id]);
-
-  return (
-    <audio
-      ref={audioRef}
-      onEnded={onEnded}
-      key={song.id}
-      src={song.url}
-      className="w-full"
-      controls={false}
-    />
-  );
-};
+const UrlPlayerPlaceholder = () => {
+    // This is a placeholder and doesn't render anything visible.
+    // The actual audio playback is handled by the global <audio> tag in PlayerProvider.
+    return null;
+}
 
 export function Player({ song }: PlayerProps) {
-  const { isPlaying, playNext, setYoutubePlayer } = usePlayer();
+  const { playNext, setYoutubePlayer } = usePlayer();
 
   const onReady = (event: any) => {
     setYoutubePlayer(event.target);
-    event.target.setVolume(100);
   };
 
   const onEnd = () => {
     playNext();
   };
 
-  if (!song || !isPlaying) {
+  if (!song) {
     return (
       <div id="player-wrapper" className="aspect-video bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
         <div id="player-placeholder" className="text-muted-foreground flex flex-col items-center gap-4">
@@ -134,9 +104,9 @@ export function Player({ song }: PlayerProps) {
           />
         ) : null;
       case 'soundcloud':
-        return <SoundCloudPlayer song={song} onEnded={onEnd} isPlaying={isPlaying} />;
+        return <SoundCloudPlayer song={song} onEnded={onEnd} />;
       case 'url':
-        return <UrlPlayer song={song} onEnded={onEnd} isPlaying={isPlaying} />;
+        return <UrlPlayerPlaceholder />;
       default:
         return (
           <div className="aspect-video bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">

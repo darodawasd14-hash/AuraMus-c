@@ -48,12 +48,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
     const soundcloudPlayer = soundcloudPlayerRef.current;
     if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
-      soundcloudPlayer.pause();
+      try {
+        soundcloudPlayer.pause();
+      } catch (e) {
+        // Widget already destroyed, do nothing.
+      }
     }
     if (urlPlayerRef.current) {
       urlPlayerRef.current.pause();
+      urlPlayerRef.current.src = '';
     }
-    setIsPlaying(false);
   };
   
   useEffect(() => {
@@ -103,15 +107,25 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const urlParts = url.split('?');
       const cleanUrl = urlParts[0];
       const oembedUrl = `https://soundcloud.com/oembed?url=${encodeURIComponent(cleanUrl)}&format=json`;
-      const response = await fetch(oembedUrl);
-      if (!response.ok) throw new Error("Geçersiz veya gizli SoundCloud linki.");
-      const data = await response.json();
-      if (!data.title) throw new Error("SoundCloud şarkı başlığı alınamadı.");
-      return {
-        title: data.title,
-        url: cleanUrl,
-        type: 'soundcloud'
-      };
+      
+      try {
+        const response = await fetch(oembedUrl);
+        if (!response.ok) throw new Error("Geçersiz veya gizli SoundCloud linki.");
+        const data = await response.json();
+        if (!data.title) throw new Error("SoundCloud şarkı başlığı alınamadı.");
+        return {
+          title: data.title,
+          url: cleanUrl,
+          type: 'soundcloud'
+        };
+      } catch(e) {
+         return {
+            title: "SoundCloud Şarkısı",
+            url: cleanUrl,
+            type: 'soundcloud'
+        };
+      }
+
     } else if (url.match(/\.(mp3|wav|ogg|m4a)$/) || url.startsWith('http')) {
         const fileName = new URL(url).pathname.split('/').pop() || 'URL Şarkısı';
         return {
@@ -129,7 +143,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const songDetails = await getSongDetails(url);
       const newSong = {
         ...songDetails,
-        id: new Date().toISOString(), // Bellek içi liste için benzersiz ID olarak zaman damgası kullan
+        id: new Date().toISOString(),
       };
       
       setPlaylist(prevPlaylist => {
@@ -158,12 +172,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         const newPlaylist = prevPlaylist.filter(s => s.id !== songId);
 
         if (isCurrentlyPlaying) {
+          resetPlayer();
           if (newPlaylist.length === 0) {
             setCurrentIndex(-1);
             setIsPlaying(false);
-            resetPlayer();
           } else {
-            // Silinen şarkıdan sonraki şarkıyı çal. Liste sonuna gelindiyse başa dön.
             const nextIndex = (songIndex) % newPlaylist.length;
             setCurrentIndex(nextIndex);
             setIsPlaying(true);
@@ -198,7 +211,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
     
     if (playlist.length > 0) {
-      setIsPlaying(!isPlaying);
+      setIsPlaying(prevIsPlaying => !prevIsPlaying);
     }
   };
 
@@ -225,10 +238,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   // YouTube Oynatıcı Kontrolü
   useEffect(() => {
-    const youtubePlayer = youtubePlayerRef.current;
     const song = playlist[currentIndex];
+    const youtubePlayer = youtubePlayerRef.current;
     
-    if (!song || song.type !== 'youtube' || !youtubePlayer || typeof youtubePlayer.playVideo !== 'function') {
+    if (song?.type !== 'youtube' || !youtubePlayer || typeof youtubePlayer.playVideo !== 'function') {
       return;
     }
     
@@ -242,10 +255,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   // SoundCloud Oynatıcı Kontrolü
   useEffect(() => {
-      const soundcloudPlayer = soundcloudPlayerRef.current;
       const song = playlist[currentIndex];
+      const soundcloudPlayer = soundcloudPlayerRef.current;
 
-      if (!song || song.type !== 'soundcloud' || !soundcloudPlayer) {
+      if (song?.type !== 'soundcloud' || !soundcloudPlayer || typeof soundcloudPlayer.play !== 'function') {
           return;
       }
       
@@ -270,7 +283,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     } else {
       urlPlayer.pause();
     }
-  }, [isPlaying, currentIndex, playlist]);
+  }, [isPlaying, currentIndex, playlist, urlPlayerRef]);
 
 
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
@@ -291,7 +304,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setSoundcloudPlayer,
   };
 
-  return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
+  return (
+    <PlayerContext.Provider value={value}>
+        {/* URL Oynatıcısı için her zaman render olan gizli bir audio elementi */}
+        <audio ref={urlPlayerRef} style={{ display: 'none' }} />
+        {children}
+    </PlayerContext.Provider>
+  );
 };
 
 export const usePlayer = (): PlayerContextType => {
