@@ -2,72 +2,99 @@
  * @fileoverview Firestore Security Rules for Aura application.
  *
  * Core Philosophy:
- * This ruleset prioritizes user data protection while allowing for a global song catalog.
- * Users can only read and write their own profile data. Songs are publicly readable but owner-writeable.
+ * This ruleset enforces a user-ownership model for user profiles and playlists.
+ * Users can only access their own profile data and manage their own playlists.
+ * A public songs collection exists for all users.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profiles, accessible only to the user themselves.
- * - /songs/{songId}: Stores song metadata, publicly readable but writable only by the song's owner (userId).
+ * - /users/{userId}: Stores user profile information.
+ * - /users/{userId}/playlist/{songId}: Stores songs in a user's playlist.
+ * - /songs/{songId}: Stores all songs in a global catalog.
  *
  * Key Security Decisions:
- * - User listing is disallowed for privacy.
- * - The /songs collection leverages public read with owner-only write permissions.
+ * - Users can only read and write their own user document.
+ * - Users can only manage songs in their own playlist.
+ * - The global /songs collection is publicly readable, but only owners can create, update, or delete songs they created.
  *
  * Denormalization for Authorization:
- * - Songs documents include the userId to enforce ownership. This avoids costly `get()` calls to other collections for authorization.
+ * - The `Song` entity contains a `userId` field to simplify ownership checks for songs in both the user's playlist and the global songs collection.
+ *
+ * Structural Segregation:
+ * - User-specific playlists are stored in a subcollection of the user's document, ensuring privacy.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Enforces user-only access to their own profile data.
+     * @description Controls access to user profile information.
      * @path /users/{userId}
-     * @allow (create) - Authenticated user can create their profile with a matching userId.
-     * @allow (get, update, delete) - Authenticated user can access their profile data if the userId matches.
-     * @deny (create) - If the userId does not match the authenticated user's ID.
-     * @deny (list) - Listing all users is not permitted.
-     * @principle Enforces strict user-ownership for profile data.
+     * @allow (create) User with matching userId can create their own profile.
+     * @allow (get, update, delete) User with matching userId can read, update, and delete their own profile.
+     * @deny (create) User cannot create a profile with a different userId.
+     * @deny (get, update, delete) User cannot read, update, or delete another user's profile.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    /**
+     * @description Controls access to a user's personal playlist.
+     * @path /users/{userId}/playlist/{songId}
+     * @allow (create) User with matching userId can add songs to their playlist.
+     * @allow (get, list, update, delete) User with matching userId can read, list, update, and delete songs in their own playlist.
+     * @deny (create) User cannot add songs to another user's playlist.
+     * @deny (get, list, update, delete) User cannot read, list, update, or delete songs in another user's playlist.
+     * @principle Enforces document ownership for user playlists.
+     */
+    match /users/{userId}/playlist/{songId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    /**
+     * @description Controls access to the global songs collection.
+     * @path /songs/{songId}
+     * @allow (get, list) All users can read the global song catalog.
+     * @allow (create) User can create a song if the userId matches their own.
+     * @allow (update, delete) Only the song owner can update or delete a song, and only if the song exists.
+     * @deny (create) User cannot create a song with a different userId.
+     * @deny (update, delete) User cannot update or delete another user's song.
+     * @principle Allows public read access but enforces ownership for writes.
+     */
+    match /songs/{songId} {
       function isSignedIn() {
         return request.auth != null;
       }
 
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
 
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
-      allow get, update, delete: if isSignedIn() && isOwner(userId) && resource.data.id == userId;
-      allow list: if false;
-    }
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
 
-    /**
-     * @description Allows public reading of songs while restricting modifications to the owner.
-     * @path /songs/{songId}
-     * @allow (get, list) - Any user can read the song data.
-     * @allow (create) - Authenticated user can create a song if the userId matches their own.
-     * @allow (update, delete) - Only the user who created the song can modify or delete it.
-     * @deny (create) - If the userId does not match the authenticated user's ID.
-     * @principle Implements public read with owner-only write permissions for songs.
-     */
-    match /songs/{songId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
-        function isOwner(userId) {
-          return request.auth.uid == userId;
-        }
-
-        function isExistingOwner(userId) {
-            return isOwner(userId) && resource != null;
-        }
-
-        allow get, list: if true;
-        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-        allow update, delete: if isExistingOwner(resource.data.userId);
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.userId);
+      allow delete: if isExistingOwner(resource.data.userId);
     }
   }
 }
