@@ -21,13 +21,17 @@ export function PlayerControls() {
   } = usePlayer();
   const [progress, setProgress] = useState(0);
   const animationFrameId = useRef<number>();
+  const songStartTimeRef = useRef<number>(0);
+  const pausedProgressRef = useRef<number>(0);
 
   useEffect(() => {
     if (isPlaying && currentSong) {
-      const startTime = Date.now();
+      songStartTimeRef.current = Date.now() - (pausedProgressRef.current / 100) * currentSong.durationSeconds * 1000;
+      
       const animate = () => {
-        const elapsedTime = Date.now() - startTime;
+        const elapsedTime = Date.now() - songStartTimeRef.current;
         const newProgress = (elapsedTime / (currentSong.durationSeconds * 1000)) * 100;
+        
         if (newProgress < 100) {
           setProgress(newProgress);
           animationFrameId.current = requestAnimationFrame(animate);
@@ -40,6 +44,7 @@ export function PlayerControls() {
     } else {
       if (animationFrameId.current) {
         cancelAnimationFrame(animationFrameId.current);
+        pausedProgressRef.current = progress;
       }
     }
 
@@ -52,6 +57,7 @@ export function PlayerControls() {
   
   useEffect(() => {
     setProgress(0);
+    pausedProgressRef.current = 0;
   }, [currentSong]);
 
   if (!currentSong) {
@@ -109,6 +115,12 @@ export function PlayerControls() {
                     className="w-full"
                     onValueChange={(value) => {
                       // In a real app, you would seek the song here
+                      const newProgress = value[0];
+                      setProgress(newProgress);
+                      pausedProgressRef.current = newProgress;
+                      if(currentSong) {
+                        songStartTimeRef.current = Date.now() - (newProgress / 100) * currentSong.durationSeconds * 1000;
+                      }
                     }}
                 />
                 <span className="text-xs text-muted-foreground w-10">{currentSong.duration}</span>
