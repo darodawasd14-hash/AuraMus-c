@@ -10,7 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { youtubeSearchTool } from '@genkit-ai/google-genai';
+import { youtubeSearchTool } from '@genkitx/google-tools';
 
 const YouTubeSearchInputSchema = z.object({
   query: z.string().describe('The search query for YouTube.'),
