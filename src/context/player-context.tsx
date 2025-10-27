@@ -279,6 +279,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
     
     if (isPlaying) {
+      if (urlPlayer.src !== song.url) {
+        urlPlayer.src = song.url;
+      }
       urlPlayer.play().catch(e => console.error("Ses çalma başarısız:", e));
     } else {
       urlPlayer.pause();
@@ -306,8 +309,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <PlayerContext.Provider value={value}>
-        {/* URL Oynatıcısı için her zaman render olan gizli bir audio elementi */}
-        <audio ref={urlPlayerRef} style={{ display: 'none' }} />
+        <audio ref={urlPlayerRef} onEnded={playNext} style={{ display: 'none' }} />
         {children}
     </PlayerContext.Provider>
   );
