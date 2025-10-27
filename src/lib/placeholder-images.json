@@ -1,3 +1,100 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "album-art-1",
+      "description": "Abstract colorful geometric shapes",
+      "imageUrl": "https://images.unsplash.com/photo-1488972685288-c3fd157d7c7a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxhYnN0cmFjdCUyMGdlb21ldHJpY3xlbnwwfHx8fDE3NjE1MTU0MDh8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "abstract geometric"
+    },
+    {
+      "id": "album-art-2",
+      "description": "Serene landscape with mountains and a lake",
+      "imageUrl": "https://images.unsplash.com/photo-1761292035216-48df52dcbba5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxzZXJlbmUlMjBsYW5kc2NhcGV8ZW58MHx8fHwxNzYxNTgwNzIyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "serene landscape"
+    },
+    {
+      "id": "album-art-3",
+      "description": "Neon-lit city street at night",
+      "imageUrl": "https://images.unsplash.com/photo-1601042879364-f3947d3f9c16?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxuZW9uJTIwY2l0eXxlbnwwfHx8fDE3NjE0NzkzMjB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "neon city"
+    },
+    {
+      "id": "album-art-4",
+      "description": "Minimalist black and white pattern",
+      "imageUrl": "https://images.unsplash.com/photo-1637216335760-58e5f509b9fe?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxtaW5pbWFsaXN0JTIwcGF0dGVybnxlbnwwfHx8fDE3NjE1MzYyNjB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "minimalist pattern"
+    },
+    {
+      "id": "album-art-5",
+      "description": "Close-up of a flower with vibrant petals",
+      "imageUrl": "https://images.unsplash.com/photo-1705434616588-8eb32f249817?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHx2aWJyYW50JTIwZmxvd2VyfGVufDB8fHx8MTc2MTQ4ODYxMXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "vibrant flower"
+    },
+    {
+      "id": "album-art-6",
+      "description": "Vintage photograph of a coastal town",
+      "imageUrl": "https://images.unsplash.com/photo-1597151497942-a7819890bee7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHx2aW50YWdlJTIwY29hc3R8ZW58MHx8fHwxNzYxNTgwNzIyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "vintage coast"
+    },
+    {
+      "id": "album-art-7",
+      "description": "Futuristic digital art with glowing lines",
+      "imageUrl": "https://images.unsplash.com/photo-1649558489039-1ba36b33be2e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxmdXR1cmlzdGljJTIwZGlnaXRhbHxlbnwwfHx8fDE3NjE1ODA3MjF8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "futuristic digital"
+    },
+    {
+      "id": "album-art-8",
+      "description": "A tranquil forest scene in autumn",
+      "imageUrl": "https://images.unsplash.com/photo-1700656106838-5a7d917d2678?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxhdXR1bW4lMjBmb3Jlc3R8ZW58MHx8fHwxNzYxNTIyNjI1fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "autumn forest"
+    },
+    {
+      "id": "album-art-9",
+      "description": "Urban graffiti on a brick wall",
+      "imageUrl": "https://images.unsplash.com/photo-1559772955-8657c0566213?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHx1cmJhbiUyMGdyYWZmaXRpfGVufDB8fHx8MTc2MTU4MDcyMXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "urban graffiti"
+    },
+    {
+      "id": "album-art-10",
+      "description": "Watercolor painting of a sunset over the ocean",
+      "imageUrl": "https://images.unsplash.com/photo-1755409604208-4c5633cf47e3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx3YXRlcmNvbG9yJTIwc3Vuc2V0fGVufDB8fHx8MTc2MTU4MDcyMnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "watercolor sunset"
+    },
+    {
+      "id": "album-art-11",
+      "description": "Starry night sky with a milky way",
+      "imageUrl": "https://images.unsplash.com/photo-1502318217862-aa4e294ba657?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxzdGFycnklMjBuaWdodHxlbnwwfHx8fDE3NjE1MzM4NDJ8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "starry night"
+    },
+    {
+      "id": "album-art-12",
+      "description": "Psychedelic swirling colors",
+      "imageUrl": "https://images.unsplash.com/photo-1561053266-cb30a4c7b6b5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxwc3ljaGVkZWxpYyUyMGNvbG9yc3xlbnwwfHx8fDE3NjE1ODA3MjJ8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "psychedelic colors"
+    },
+    {
+      "id": "album-art-13",
+      "description": "A portrait in a pop art style",
+      "imageUrl": "https://images.unsplash.com/photo-1741805190461-eeda3ba59bc3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxwb3BhcnQlMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjE1ODA3MjF8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "popart portrait"
+    },
+    {
+      "id": "album-art-14",
+      "description": "Blueprint-style architectural drawing",
+      "imageUrl": "https://images.unsplash.com/photo-1721244654346-9be0c0129e36?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxibHVlcHJpbnQlMjBkcmF3aW5nfGVufDB8fHx8MTc2MTQ3NjAzMnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "blueprint drawing"
+    },
+    {
+      "id": "album-art-15",
+      "description": "A calm, empty beach at dawn",
+      "imageUrl": "https://images.unsplash.com/photo-1616843412809-b1e875df322b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxkYXduJTIwYmVhY2h8ZW58MHx8fHwxNzYxNTgwNzIyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "dawn beach"
+    },
+    {
+      "id": "album-art-16",
+      "description": "Textured canvas with gold leaf accents",
+      "imageUrl": "https://images.unsplash.com/photo-1733935156769-fe0c2a600d6c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxnb2xkJTIwbGVhZnxlbnwwfHx8fDE3NjE1ODA3MjF8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "gold leaf"
+    }
+  ]
 }
