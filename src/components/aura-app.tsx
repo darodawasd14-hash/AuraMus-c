@@ -16,6 +16,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { ChatPane } from '@/components/chat-pane';
 import { searchYoutube, type YouTubeSearchOutput } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
+import musicCatalogData from '@/lib/music-catalog.json';
 
 const appId = 'Aura';
 
@@ -199,24 +200,6 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
 };
 
 
-const musicCatalog = [
-    {
-        artist: "Example Artist",
-        songs: {
-            "YouTube Examples": [
-                { title: "Google I/O Keynote", url: "https://www.youtube.com/watch?v=Xnzf_X43mU" },
-                { title: "Lofi Girl Radio", url: "https://www.youtube.com/watch?v=jfKfPfyJRdk" }
-            ],
-            "SoundCloud Examples": [
-                { title: "NASA Voyager Golden Record", url: "https://soundcloud.com/nasa/golden-record-sounds-of" },
-                { title: "Tame Impala - Let It Happen", url: "https://soundcloud.com/tame-impala/let-it-happen" },
-                { title: "Kuzu Kuzu", url: "https://soundcloud.com/user9709537/kuzu-kuzu" },
-                { title: "Ma Meilleure Ennemie (English)", url: "https://soundcloud.com/you-know-me-your-dodkdknd/ma-meilleure-ennemie-english?si=5f435f6519214d7eba17960453fa75f7&utm_source=clipboard&utm_medium=text&utm_campaign=social_sharing" }
-            ]
-        }
-    }
-];
-
 const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'search') => void }) => {
   const { addSong } = usePlayer();
   const { toast } = useToast();
@@ -238,12 +221,12 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
   return (
     <div id="catalog-view" className="p-4 md:p-8 h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto space-y-12" id="catalog-content">
-        {musicCatalog.map(artistData => (
+        {musicCatalogData.catalog.map(artistData => (
           <section key={artistData.artist}>
             <h2 className="text-3xl font-bold tracking-tight border-b-2 border-primary/30 pb-3 mb-6">{artistData.artist}</h2>
-            {Object.entries(artistData.songs).map(([mood, songs]) => (
-              <div key={mood} className="mb-8">
-                <h3 className="text-2xl font-semibold text-primary/80 mb-4">{mood}</h3>
+            {Object.entries(artistData.categories).map(([category, songs]) => (
+              <div key={category} className="mb-8">
+                <h3 className="text-2xl font-semibold text-primary/80 mb-4">{category}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {songs.map(song => (
                     <div key={song.url} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-4">

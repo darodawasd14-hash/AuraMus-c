@@ -1,0 +1,23 @@
+{
+    "catalog": [
+        {
+            "artist": "Örnek Sanatçı",
+            "categories": {
+                "Popüler YouTube Müzikleri": [
+                    { "title": "Lofi Girl - Rüzgarlı bir günde ders çalışmak/rahatlamak için ritimler", "url": "https://www.youtube.com/watch?v=jfKfPfyJRdk" },
+                    { "title": "Tarkan - Kuzu Kuzu", "url": "https://www.youtube.com/watch?v=AP6aNqpfU5E" },
+                    { "title": "Sezen Aksu - Hadi Bakalım", "url": "https://www.youtube.com/watch?v=_-qpuZ42uJ8" }
+                ],
+                "Popüler SoundCloud Müzikleri": [
+                    { "title": "NASA - Voyager Altın Plak Sesleri", "url": "https://soundcloud.com/nasa/golden-record-sounds-of" },
+                    { "title": "Tame Impala - Let It Happen", "url": "https://soundcloud.com/tame-impala/let-it-happen" },
+                    { "title": "Stromae - Alors on Danse", "url": "https://soundcloud.com/stromae/alors-on-danse-radio-edit" }
+                ],
+                 "Örnek MP3 Bağlantıları": [
+                    { "title": "Klasik Müzik Örneği", "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+                    { "title": "Elektronik Müzik Örneği", "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3" }
+                ]
+            }
+        }
+    ]
+}
