@@ -13,6 +13,7 @@ import { Loader2 } from 'lucide-react';
 import { ChatPane } from '@/components/chat-pane';
 import { searchYoutube, type YouTubeSearchOutput } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
+import catalogData from '@/app/lib/catalog.json';
 
 const appId = 'Aura';
 
@@ -23,7 +24,9 @@ interface UserProfile {
 interface CatalogSong {
   id: string;
   title: string;
+  artist: string;
   url: string;
+  thumbnailUrl: string;
 }
 
 export function AuraApp() {
@@ -194,15 +197,47 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
 
 
 const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'search') => void }) => {
+  const { addSong } = usePlayer();
+  const { toast } = useToast();
+  const [isAdding, setIsAdding] = useState<string | null>(null);
+
+  const handleAddFromCatalog = async (song: CatalogSong) => {
+    setIsAdding(song.id);
+    toast({ title: `"${song.title}" ekleniyor...` });
+    await addSong(song.url);
+    setIsAdding(null);
+    setView('player');
+  };
+
   return (
     <div id="catalog-view" className="p-4 md:p-8 h-full overflow-y-auto">
-      <div className="max-w-6xl mx-auto space-y-12" id="catalog-content">
-          <h2 className="text-3xl font-bold tracking-tight border-b-2 border-primary/30 pb-3 mb-6">Müzik Kataloğu</h2>
-          <div className="text-center text-muted-foreground py-16">
-              <Music className="w-20 h-20 mx-auto mb-4"/>
-              <h3 className="text-xl font-semibold">Katalog Boş</h3>
-              <p>Bir yöneticinin herkese açık kataloğa şarkı eklemesi gerekiyor.</p>
-          </div>
+      <div className="max-w-6xl mx-auto space-y-8" id="catalog-content">
+        <h2 className="text-3xl font-bold tracking-tight">Müzik Kataloğu</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {catalogData.songs.map((song) => (
+            <div key={song.id} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3">
+              <Image
+                src={song.thumbnailUrl}
+                alt={song.title}
+                width={168}
+                height={94}
+                className="rounded-md aspect-video object-cover w-full"
+              />
+              <div className="flex-grow">
+                <p className="font-semibold truncate leading-tight" title={song.title}>{song.title}</p>
+                <p className="text-sm text-muted-foreground truncate" title={song.artist}>{song.artist}</p>
+              </div>
+              <Button
+                className="w-full mt-2"
+                size="sm"
+                onClick={() => handleAddFromCatalog(song)}
+                disabled={isAdding === song.id}
+              >
+                {isAdding === song.id ? <Loader2 className="animate-spin" /> : "Aura'ya Ekle"}
+              </Button>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -338,10 +373,7 @@ const ProfileModal = ({ isOpen, setIsOpen, profile, setProfile }: { isOpen?: boo
     setIsSaving(true);
     
     try {
-      // Firebase Auth profilini güncelle
       await updateProfile(auth.currentUser, { displayName: newName });
-  
-      // Yerel state'i güncelle
       setProfile({ displayName: newName });
       
       toast({ title: 'Profil kaydedildi!' });
