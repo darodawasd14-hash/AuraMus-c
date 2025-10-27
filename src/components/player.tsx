@@ -48,7 +48,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume, onEnded }: { song: Song; is
         }
       }
     }
-  }, [song.id, onEnded]);
+  }, [song.id, onEnded, isPlaying, volume]);
 
   useEffect(() => {
     if (widgetRef.current && isReadyRef.current && typeof widgetRef.current.setVolume === 'function') {
@@ -86,6 +86,7 @@ export function Player({ song }: PlayerProps) {
 
   const onReady = (event: any) => {
     setYoutubePlayer(event.target);
+    // Set volume immediately when player is ready
     event.target.setVolume(volume);
   };
 

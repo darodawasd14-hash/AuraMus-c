@@ -214,14 +214,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (index >= 0 && index < playlist.length) {
       setCurrentIndex(index);
       setIsPlaying(true);
-      
-      const song = playlist[index];
-      const youtubePlayer = youtubePlayerRef.current;
-
-      if (song.type === 'youtube' && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-        youtubePlayer.setVolume(volume);
-        youtubePlayer.playVideo();
-      }
     } else {
       resetPlayer();
     }
@@ -233,20 +225,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     
-    const newIsPlaying = !isPlaying;
-    setIsPlaying(newIsPlaying);
-  
-    const song = playlist[currentIndex];
-    const youtubePlayer = youtubePlayerRef.current;
-
-    if (song?.type === 'youtube' && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-      if (newIsPlaying) {
-        youtubePlayer.setVolume(volume);
-        youtubePlayer.playVideo();
-      } else {
-        youtubePlayer.pauseVideo();
-      }
-    }
+    setIsPlaying(prevIsPlaying => !prevIsPlaying);
   };
 
   const playNext = useCallback(() => {
