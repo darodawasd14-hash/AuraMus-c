@@ -35,7 +35,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
           currentWidget.unbind((window as any).SC.Widget.Events.READY);
           currentWidget.unbind((window as any).SC.Widget.Events.FINISH);
         } catch (e) {
-           // Suppress error: If the iframe is already gone, unbinding will fail.
+           // Hata bastırma: Eğer iframe zaten yoksa, unbind başarısız olur.
         }
       }
     };
@@ -61,7 +61,7 @@ const UrlPlayer = ({ song, onEnded, isPlaying }: { song: Song; onEnded: () => vo
   useEffect(() => {
     if (!audioRef.current) return;
     if (isPlaying) {
-      audioRef.current.play().catch(e => console.error("Audio play failed:", e));
+      audioRef.current.play().catch(e => console.error("Ses çalma başarısız:", e));
     } else {
       audioRef.current.pause();
     }
@@ -101,7 +101,7 @@ export function Player({ song }: PlayerProps) {
       <div id="player-wrapper" className="aspect-video bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
         <div id="player-placeholder" className="text-muted-foreground flex flex-col items-center gap-4">
           <AuraLogo className="w-20 h-20 animate-pulse" />
-          <p>Select a song to begin</p>
+          <p>Başlamak için bir şarkı seçin</p>
         </div>
       </div>
     );
@@ -136,7 +136,7 @@ export function Player({ song }: PlayerProps) {
       default:
         return (
           <div className="aspect-video bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
-            <div className="text-muted-foreground">Unsupported song type.</div>
+            <div className="text-muted-foreground">Desteklenmeyen şarkı türü.</div>
           </div>
         );
     }

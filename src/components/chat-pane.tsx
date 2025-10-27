@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Loader2, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-// Simplified Message interface, no longer using Firestore Timestamp
+// Basitleştirilmiş Mesaj arayüzü
 interface Message {
     id: string;
     text: string;
@@ -15,7 +15,7 @@ interface Message {
         uid: string;
         displayName: string;
     };
-    timestamp: Date; // Using native Date object
+    timestamp: Date; // Native Date nesnesi kullanılıyor
 }
 
 export function ChatPane({ song, displayName }: { song: Song | null, displayName?: string }) {
@@ -27,7 +27,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [currentSongId, setCurrentSongId] = useState<string | null>(null);
 
-    // Clear messages when song changes
+    // Şarkı değiştiğinde mesajları temizle
     useEffect(() => {
         if (song?.id !== currentSongId) {
             setMessages([]);
@@ -44,7 +44,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         if (!message.trim() || !user) return;
         
         if (!displayName) {
-            toast({ title: 'You must set a display name in your profile to chat.', variant: 'destructive'});
+            toast({ title: 'Sohbet etmek için profilinizde bir görünen ad belirlemelisiniz.', variant: 'destructive'});
             return;
         }
 
@@ -60,7 +60,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
             timestamp: new Date(),
         };
 
-        // Simulate network delay
+        // Ağ gecikmesini simüle et
         await new Promise(resolve => setTimeout(resolve, 300));
 
         setMessages(prevMessages => [...prevMessages, newMessage]);
@@ -71,7 +71,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
     if (!song) {
         return (
             <aside className="w-80 bg-background/50 border-l border-border flex flex-col p-4 justify-center items-center text-center">
-                <p className="text-muted-foreground">Select a song to see the chat.</p>
+                <p className="text-muted-foreground">Sohbeti görmek için bir şarkı seçin.</p>
             </aside>
         );
     }
@@ -80,13 +80,13 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         <aside className="w-80 bg-background/50 border-l border-border flex flex-col">
             <div className="p-4 border-b border-border">
                 <h3 className="font-semibold truncate">{song.title}</h3>
-                <p className="text-sm text-muted-foreground mt-1">Live Chat</p>
+                <p className="text-sm text-muted-foreground mt-1">Canlı Sohbet</p>
             </div>
 
             <div className="flex-grow p-4 overflow-y-auto space-y-4">
                 {messages.length === 0 ? (
                     <div className="flex justify-center items-center h-full">
-                        <p className="text-muted-foreground text-sm">Be the first to say something!</p>
+                        <p className="text-muted-foreground text-sm">İlk mesajı sen gönder!</p>
                     </div>
                 ) : (
                     messages.map(msg => (
@@ -105,7 +105,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
                 <form onSubmit={handleSendMessage} className="flex gap-2">
                     <Input
                         type="text"
-                        placeholder="Say something..."
+                        placeholder="Bir şeyler söyle..."
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         disabled={!user || isSending}

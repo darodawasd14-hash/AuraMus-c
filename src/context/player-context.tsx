@@ -34,7 +34,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(false); // No longer loading from Firestore
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const youtubePlayerRef = useRef<any>(null);
 
 
@@ -64,13 +64,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const getSongDetails = async (url: string): Promise<Omit<Song, 'id'>> => {
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       const videoId = extractYouTubeID(url);
-      if (!videoId) throw new Error("Invalid YouTube link.");
+      if (!videoId) throw new Error("Geçersiz YouTube linki.");
       const canonicalYouTubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
       const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(canonicalYouTubeUrl)}`;
       
       try {
         const response = await fetch(oembedUrl);
-        if (!response.ok) throw new Error('Could not fetch YouTube metadata');
+        if (!response.ok) throw new Error('YouTube metadata alınamadı');
         const data = await response.json();
         if (data.error) throw new Error(data.error);
 
@@ -94,23 +94,23 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const cleanUrl = urlParts[0];
       const oembedUrl = `https://soundcloud.com/oembed?url=${encodeURIComponent(cleanUrl)}&format=json`;
       const response = await fetch(oembedUrl);
-      if (!response.ok) throw new Error("Invalid or private SoundCloud link.");
+      if (!response.ok) throw new Error("Geçersiz veya gizli SoundCloud linki.");
       const data = await response.json();
-      if (!data.title) throw new Error("Could not retrieve SoundCloud song title.");
+      if (!data.title) throw new Error("SoundCloud şarkı başlığı alınamadı.");
       return {
         title: data.title,
         url: cleanUrl,
         type: 'soundcloud'
       };
     } else if (url.match(/\.(mp3|wav|ogg|m4a)$/) || url.startsWith('http')) {
-        const fileName = new URL(url).pathname.split('/').pop() || 'URL Song';
+        const fileName = new URL(url).pathname.split('/').pop() || 'URL Şarkısı';
         return {
           title: fileName.replace(/\.[^/.]+$/, ""),
           url: url,
           type: 'url'
         };
     } else {
-      throw new Error("Unsupported link type. Please use YouTube, SoundCloud, or a direct audio link.");
+      throw new Error("Desteklenmeyen link türü. Lütfen YouTube, SoundCloud veya doğrudan ses linki kullanın.");
     }
   };
 
@@ -119,15 +119,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const songDetails = await getSongDetails(url);
       const newSong = {
         ...songDetails,
-        id: new Date().toISOString(), // Use timestamp as a unique ID for in-memory list
+        id: new Date().toISOString(), // Bellek içi liste için benzersiz ID olarak zaman damgası kullan
       };
       
       setPlaylist(prevPlaylist => [...prevPlaylist, newSong]);
-      toast({ title: "Song added!" });
+      toast({ title: "Şarkı eklendi!" });
 
     } catch (error: any) {
-      console.error("Error adding song:", error);
-      toast({ title: error.message || "Failed to add song.", variant: 'destructive' });
+      console.error("Şarkı eklenirken hata:", error);
+      toast({ title: error.message || "Şarkı eklenemedi.", variant: 'destructive' });
     }
   };
 
@@ -136,23 +136,23 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         const songIndex = prevPlaylist.findIndex(s => s.id === songId);
         if (songIndex === -1) return prevPlaylist;
 
-        // If the deleted song is the currently playing one
+        // Eğer silinen şarkı o an çalan şarkıysa
         if (songIndex === currentIndex) {
-            if (prevPlaylist.length === 1) { // If it's the last song
+            if (prevPlaylist.length === 1) { // Eğer son şarkıysa
                 setCurrentIndex(-1);
                 setIsPlaying(false);
-            } else { // Play the next song, or the first if it was the last
+            } else { // Bir sonraki şarkıyı çal, veya sonuncusuysa ilkini
                 const nextIndex = (currentIndex % (prevPlaylist.length - 1));
                 setCurrentIndex(nextIndex);
             }
         } else if (songIndex < currentIndex) {
-            // If a song before the current one is deleted, shift index
+            // Eğer mevcut olandan önceki bir şarkı silinirse, index'i kaydır
             setCurrentIndex(prevIndex => prevIndex -1);
         }
         
         return prevPlaylist.filter(s => s.id !== songId);
     });
-    toast({ title: "Song deleted." });
+    toast({ title: "Şarkı silindi." });
   };
   
   const playSong = (index: number) => {
@@ -234,7 +234,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 export const usePlayer = (): PlayerContextType => {
   const context = useContext(PlayerContext);
   if (context === undefined) {
-    throw new Error('usePlayer must be used within a PlayerProvider');
+    throw new Error('usePlayer bir PlayerProvider içinde kullanılmalıdır');
   }
   return context;
 };

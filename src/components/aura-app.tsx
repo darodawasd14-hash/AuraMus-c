@@ -64,7 +64,7 @@ export function AuraApp() {
                   <Player song={currentSong} />
                   <div className="mt-6 text-center">
                     <h3 id="current-song-title" className="text-2xl font-bold truncate">
-                      {currentSong?.title || 'No Song Selected'}
+                      {currentSong?.title || 'Şarkı Seçilmedi'}
                     </h3>
                     <p className="text-muted-foreground mt-1">{currentSong?.type === 'youtube' ? 'YouTube' : currentSong?.type === 'soundcloud' ? 'SoundCloud' : currentSong?.type === 'url' ? 'URL' : '...'}</p>
                   </div>
@@ -82,19 +82,19 @@ export function AuraApp() {
                 </div>
               </div>
               <aside className="w-full md:w-2/5 p-4 md:p-6 flex flex-col bg-secondary/30 border-l border-border backdrop-blur-sm">
-                <h2 className="text-2xl font-semibold mb-4">My Playlist</h2>
+                <h2 className="text-2xl font-semibold mb-4">Çalma Listem</h2>
                 <form id="add-song-form" className="flex mb-4 gap-2" onSubmit={handleAddSong}>
                   <Input
                     type="url"
                     id="song-url-input"
-                    placeholder="YouTube, SoundCloud, or MP3 link..."
+                    placeholder="YouTube, SoundCloud veya MP3 linki..."
                     required
                     value={songUrl}
                     onChange={(e) => setSongUrl(e.target.value)}
                     className="flex-grow"
                   />
                   <Button type="submit" id="add-song-button" disabled={isAdding}>
-                    {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
+                    {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ekle'}
                   </Button>
                 </form>
                 <div id="playlist-container" className="flex-grow overflow-y-auto space-y-2 pr-2 -mr-2">
@@ -103,8 +103,8 @@ export function AuraApp() {
                   ) : playlist.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
                       <Music className="w-16 h-16 mb-4"/>
-                      <p className="font-semibold">Your playlist is empty</p>
-                      <p className="text-sm">Add songs using the field above.</p>
+                      <p className="font-semibold">Çalma listeniz boş</p>
+                      <p className="text-sm">Yukarıdaki alandan şarkı ekleyin.</p>
                     </div>
                   ) : (
                     playlist.map((song, index) => (
@@ -137,9 +137,9 @@ const Header = ({ setView, currentView, profile, setProfile }: { setView: (view:
           <span className="text-xl font-bold tracking-tight">Aura</span>
         </div>
         <div className="flex items-center p-1 bg-muted/50 rounded-lg border-border">
-           <Button onClick={() => setView('player')} variant={currentView === 'player' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <ListMusic/> My List</Button>
-           <Button onClick={() => setView('catalog')} variant={currentView === 'catalog' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Music/> Catalog</Button>
-           <Button onClick={() => setView('search')} variant={currentView === 'search' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Search/> Search</Button>
+           <Button onClick={() => setView('player')} variant={currentView === 'player' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <ListMusic/> Listem</Button>
+           <Button onClick={() => setView('catalog')} variant={currentView === 'catalog' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Music/> Katalog</Button>
+           <Button onClick={() => setView('search')} variant={currentView === 'search' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Search/> Ara</Button>
         </div>
         <div className="flex items-center gap-4">
           <Button onClick={() => setModalOpen(true)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
@@ -167,7 +167,7 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
       case 'youtube': return 'YouTube';
       case 'soundcloud': return 'SoundCloud';
       case 'url': return 'URL';
-      default: return 'Unknown';
+      default: return 'Bilinmeyen';
     }
   }
 
@@ -176,7 +176,7 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
       <div className="flex items-center flex-grow min-w-0 gap-4">
         <span className={`text-xl ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>{getIcon(song.type)}</span>
         <div className="truncate">
-          <p className={`font-semibold ${isActive ? 'text-primary-foreground' : ''}`}>{song.title || 'Untitled Song'}</p>
+          <p className={`font-semibold ${isActive ? 'text-primary-foreground' : ''}`}>{song.title || 'İsimsiz Şarkı'}</p>
           <p className="text-sm text-muted-foreground">{getSourceText(song.type)}</p>
         </div>
       </div>
@@ -197,11 +197,11 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
   return (
     <div id="catalog-view" className="p-4 md:p-8 h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto space-y-12" id="catalog-content">
-          <h2 className="text-3xl font-bold tracking-tight border-b-2 border-primary/30 pb-3 mb-6">Music Catalog</h2>
+          <h2 className="text-3xl font-bold tracking-tight border-b-2 border-primary/30 pb-3 mb-6">Müzik Kataloğu</h2>
           <div className="text-center text-muted-foreground py-16">
               <Music className="w-20 h-20 mx-auto mb-4"/>
-              <h3 className="text-xl font-semibold">The Catalog is Empty</h3>
-              <p>An administrator needs to add songs to the public catalog.</p>
+              <h3 className="text-xl font-semibold">Katalog Boş</h3>
+              <p>Bir yöneticinin herkese açık kataloğa şarkı eklemesi gerekiyor.</p>
           </div>
       </div>
     </div>
@@ -227,10 +227,10 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
       const results = await searchYoutube({ query: searchQuery });
       setSearchResults(results);
     } catch (error) {
-      console.error('YouTube search failed:', error);
+      console.error('YouTube arama hatası:', error);
       toast({
-        title: 'Search Failed',
-        description: 'Could not fetch search results. Please try again.',
+        title: 'Arama Başarısız',
+        description: 'Arama sonuçları getirilemedi. Lütfen tekrar deneyin.',
         variant: 'destructive',
       });
     } finally {
@@ -240,12 +240,12 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
 
   const handleAddFromSearch = async (videoId: string, title: string) => {
     if (!user) {
-      toast({ title: 'You must be logged in to add songs.', variant: 'destructive' });
+      toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
       return;
     }
     setIsAdding(videoId);
     const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    toast({ title: `Adding "${title}"...` });
+    toast({ title: `"${title}" ekleniyor...` });
     await addSong(youtubeUrl);
     setIsAdding(null);
     setView('player');
@@ -254,11 +254,11 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
   return (
     <div id="search-view" className="p-4 md:p-8 h-full overflow-y-auto">
       <div className="max-w-6xl mx-auto space-y-8" id="search-content">
-        <h2 className="text-3xl font-bold tracking-tight">Search YouTube</h2>
+        <h2 className="text-3xl font-bold tracking-tight">YouTube'da Ara</h2>
         <form onSubmit={handleSearch} className="flex gap-2">
           <Input
             type="search"
-            placeholder="Search for songs, artists, albums..."
+            placeholder="Şarkı, sanatçı, albüm ara..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-grow"
@@ -302,7 +302,7 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
                   onClick={() => handleAddFromSearch(song.videoId, song.title)}
                   disabled={isAdding === song.videoId}
                 >
-                  {isAdding === song.videoId ? <Loader2 className="animate-spin" /> : 'Add to Aura'}
+                  {isAdding === song.videoId ? <Loader2 className="animate-spin" /> : "Aura'ya Ekle"}
                 </Button>
               </div>
             ))}
@@ -331,24 +331,24 @@ const ProfileModal = ({ isOpen, setIsOpen, profile, setProfile }: { isOpen?: boo
     if (!user || !auth.currentUser) return;
     const newName = displayName.trim();
     if (!newName) {
-      toast({ title: 'Please enter a valid name.', variant: 'destructive' });
+      toast({ title: 'Lütfen geçerli bir isim girin.', variant: 'destructive' });
       return;
     }
   
     setIsSaving(true);
     
     try {
-      // Update Firebase Auth profile
+      // Firebase Auth profilini güncelle
       await updateProfile(auth.currentUser, { displayName: newName });
   
-      // Update local state
+      // Yerel state'i güncelle
       setProfile({ displayName: newName });
       
-      toast({ title: 'Profile saved!' });
+      toast({ title: 'Profil kaydedildi!' });
       if (setIsOpen) setIsOpen(false);
     } catch (error: any) {
-      console.error('Error updating profile:', error);
-      toast({ title: 'Error saving profile.', variant: 'destructive', description: error.message });
+      console.error('Profil güncellenirken hata:', error);
+      toast({ title: 'Profil kaydedilirken hata oluştu.', variant: 'destructive', description: error.message });
     } finally {
       setIsSaving(false);
     }
@@ -358,10 +358,10 @@ const ProfileModal = ({ isOpen, setIsOpen, profile, setProfile }: { isOpen?: boo
     try {
       await signOut(auth);
       if (setIsOpen) setIsOpen(false);
-      toast({ title: 'Logged out.' });
+      toast({ title: 'Çıkış yapıldı.' });
     } catch (error) {
-      console.error("Error logging out:", error);
-      toast({ title: 'Failed to log out.', variant: 'destructive' });
+      console.error("Çıkış yapılırken hata:", error);
+      toast({ title: 'Çıkış yapılamadı.', variant: 'destructive' });
     }
   };
   
@@ -371,32 +371,32 @@ const ProfileModal = ({ isOpen, setIsOpen, profile, setProfile }: { isOpen?: boo
     <div className="modal-overlay fixed inset-0 flex items-center justify-center z-50 p-4">
       <div className="modal-content w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-semibold">Profile</h2>
+          <h2 className="text-2xl font-semibold">Profil</h2>
           <Button variant="ghost" size="icon" onClick={() => setIsOpen && setIsOpen(false)} className="text-muted-foreground hover:text-foreground">
             &times;
           </Button>
         </div>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-muted-foreground">Email</label>
+            <label className="block text-sm font-medium text-muted-foreground">E-posta</label>
             <p className="mt-1 text-lg">{user?.email}</p>
           </div>
           <div>
-            <label htmlFor="display-name-input" className="block text-sm font-medium text-muted-foreground">Display Name</label>
+            <label htmlFor="display-name-input" className="block text-sm font-medium text-muted-foreground">Görünen Ad</label>
             <Input
               type="text"
               id="display-name-input"
-              placeholder="Enter your name..."
+              placeholder="Adınızı girin..."
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               className="mt-1"
             />
           </div>
           <Button onClick={handleSave} disabled={isSaving} className="w-full">
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Save Changes'}
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Değişiklikleri Kaydet'}
           </Button>
           <Button onClick={handleLogout} variant="destructive" className="w-full mt-2">
-            Logout
+            Çıkış Yap
           </Button>
         </div>
       </div>

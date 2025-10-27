@@ -23,12 +23,12 @@ export default function AuthPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    await handleAuth(signInWithEmailAndPassword, email, password, "Logged in successfully!");
+    await handleAuth(signInWithEmailAndPassword, email, password, "Başarıyla giriş yapıldı!");
   }
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    await handleAuth(createUserWithEmailAndPassword, registerEmail, registerPassword, "Registered successfully!");
+    await handleAuth(createUserWithEmailAndPassword, registerEmail, registerPassword, "Başarıyla kayıt olundu!");
   }
 
   const handleAuth = async (authFn: Function, emailParam: string, passwordParam: string, successMessage: string) => {
@@ -38,13 +38,13 @@ export default function AuthPage() {
     try {
       await authFn(auth, emailParam, passwordParam);
       toast({ title: successMessage});
-      // onAuthStateChanged will handle redirect
+      // onAuthStateChanged yönlendirmeyi halledecek
     } catch (err: any) {
-      let friendlyMessage = "An error occurred.";
-      if (err.code === 'auth/invalid-email') friendlyMessage = 'Invalid email format.';
-      else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') friendlyMessage = 'Incorrect email or password.';
-      else if (err.code === 'auth/email-already-in-use') friendlyMessage = 'This email is already in use.';
-      else if (err.code === 'auth/weak-password') friendlyMessage = 'Password should be at least 6 characters.';
+      let friendlyMessage = "Bir hata oluştu.";
+      if (err.code === 'auth/invalid-email') friendlyMessage = 'Geçersiz e-posta formatı.';
+      else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') friendlyMessage = 'Yanlış e-posta veya şifre.';
+      else if (err.code === 'auth/email-already-in-use') friendlyMessage = 'Bu e-posta zaten kullanılıyor.';
+      else if (err.code === 'auth/weak-password') friendlyMessage = 'Şifre en az 6 karakter olmalıdır.';
       setError(friendlyMessage);
       console.error(err);
     } finally {
@@ -62,8 +62,8 @@ export default function AuthPage() {
               <h1 className="text-4xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Aura</h1>
             </div>
             <TabsList className="grid w-full grid-cols-2 bg-muted/50">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
+              <TabsTrigger value="login">Giriş Yap</TabsTrigger>
+              <TabsTrigger value="register">Kayıt Ol</TabsTrigger>
             </TabsList>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -72,15 +72,15 @@ export default function AuthPage() {
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-muted-foreground mb-1">Email</label>
+                  <label htmlFor="email" className="block text-sm font-medium text-muted-foreground mb-1">E-posta</label>
                   <Input type="email" id="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-muted-foreground mb-1">Password</label>
+                  <label htmlFor="password" className="block text-sm font-medium text-muted-foreground mb-1">Şifre</label>
                   <Input type="password" id="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Login'}
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Giriş Yap'}
                 </Button>
               </form>
             </TabsContent>
@@ -88,15 +88,15 @@ export default function AuthPage() {
             <TabsContent value="register">
               <form onSubmit={handleRegister} className="space-y-4">
                 <div>
-                  <label htmlFor="register-email" className="block text-sm font-medium text-muted-foreground mb-1">Email</label>
+                  <label htmlFor="register-email" className="block text-sm font-medium text-muted-foreground mb-1">E-posta</label>
                   <Input type="email" id="register-email" required value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} />
                 </div>
                 <div>
-                  <label htmlFor="register-password" className="block text-sm font-medium text-muted-foreground mb-1">Password</label>
+                  <label htmlFor="register-password" className="block text-sm font-medium text-muted-foreground mb-1">Şifre</label>
                   <Input type="password" id="register-password" required value={registerPassword} onChange={(e) => setRegisterPassword(e.target.value)} />
                 </div>
                 <Button type="submit" variant="secondary" className="w-full" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Register'}
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Kayıt Ol'}
                 </Button>
               </form>
             </TabsContent>
