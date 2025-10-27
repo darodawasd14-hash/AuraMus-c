@@ -1,13 +1,14 @@
 'use client';
 import React, { useState, useEffect, FormEvent, useRef } from 'react';
 import type { Song } from '@/context/player-context';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { collection, addDoc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
 
-// Basitleştirilmiş Mesaj arayüzü
+// Firestore'dan gelen mesajların arayüzü
 interface Message {
     id: string;
     text: string;
@@ -15,25 +16,29 @@ interface Message {
         uid: string;
         displayName: string;
     };
-    timestamp: Date; // Native Date nesnesi kullanılıyor
+    timestamp: any; // Firestore'un zaman damgası nesnesi
 }
 
 export function ChatPane({ song, displayName }: { song: Song | null, displayName?: string }) {
     const [message, setMessage] = useState('');
-    const [messages, setMessages] = useState<Message[]>([]);
     const [isSending, setIsSending] = useState(false);
     const { user } = useUser();
+    const firestore = useFirestore();
     const { toast } = useToast();
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const [currentSongId, setCurrentSongId] = useState<string | null>(null);
 
-    // Şarkı değiştiğinde mesajları temizle
-    useEffect(() => {
-        if (song?.id !== currentSongId) {
-            setMessages([]);
-            setCurrentSongId(song?.id ?? null);
-        }
-    }, [song, currentSongId]);
+    // Seçili şarkının sohbet mesajlarını getirmek için bir query oluştur
+    const messagesQuery = useMemoFirebase(() => {
+        if (!firestore || !song) return null;
+        // Her şarkının kendi `messages` alt koleksiyonu olacak
+        return query(
+            collection(firestore, 'songs', song.id, 'messages'),
+            orderBy('timestamp', 'asc'),
+            limit(50)
+        );
+    }, [firestore, song]);
+
+    const { data: messages, isLoading } = useCollection<Message>(messagesQuery);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -41,7 +46,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
 
     const handleSendMessage = async (e: FormEvent) => {
         e.preventDefault();
-        if (!message.trim() || !user) return;
+        if (!message.trim() || !user || !firestore || !song) return;
         
         if (!displayName) {
             toast({ title: 'Sohbet etmek için profilinizde bir görünen ad belirlemelisiniz.', variant: 'destructive'});
@@ -50,22 +55,24 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
 
         setIsSending(true);
 
-        const newMessage: Message = {
-            id: new Date().toISOString(),
-            text: message,
-            sender: {
-                uid: user.uid,
-                displayName: displayName,
-            },
-            timestamp: new Date(),
-        };
+        const messagesColRef = collection(firestore, 'songs', song.id, 'messages');
 
-        // Ağ gecikmesini simüle et
-        await new Promise(resolve => setTimeout(resolve, 300));
-
-        setMessages(prevMessages => [...prevMessages, newMessage]);
-        setMessage('');
-        setIsSending(false);
+        try {
+            await addDoc(messagesColRef, {
+                text: message,
+                sender: {
+                    uid: user.uid,
+                    displayName: displayName,
+                },
+                timestamp: serverTimestamp(),
+            });
+            setMessage('');
+        } catch (error) {
+            console.error("Mesaj gönderilirken hata:", error);
+            toast({ title: 'Mesaj gönderilemedi.', variant: 'destructive'});
+        } finally {
+            setIsSending(false);
+        }
     };
 
     if (!song) {
@@ -84,20 +91,24 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
             </div>
 
             <div className="flex-grow p-4 overflow-y-auto space-y-4">
-                {messages.length === 0 ? (
+                {isLoading && (
+                    <div className="flex justify-center items-center h-full">
+                        <Loader2 className="animate-spin text-primary" />
+                    </div>
+                )}
+                {!isLoading && messages && messages.length === 0 && (
                     <div className="flex justify-center items-center h-full">
                         <p className="text-muted-foreground text-sm">İlk mesajı sen gönder!</p>
                     </div>
-                ) : (
-                    messages.map(msg => (
-                        <div key={msg.id} className={`flex flex-col ${msg.sender.uid === user?.uid ? 'items-end' : 'items-start'}`}>
-                            <div className={`p-2 rounded-lg max-w-xs ${msg.sender.uid === user?.uid ? 'bg-primary/90 text-primary-foreground' : 'bg-secondary'}`}>
-                                <p className="text-xs font-bold text-accent mb-1">{msg.sender.displayName}</p>
-                                <p className="text-sm">{msg.text}</p>
-                            </div>
-                        </div>
-                    ))
                 )}
+                {messages && messages.map(msg => (
+                    <div key={msg.id} className={`flex flex-col ${msg.sender.uid === user?.uid ? 'items-end' : 'items-start'}`}>
+                        <div className={`p-2 rounded-lg max-w-xs ${msg.sender.uid === user?.uid ? 'bg-primary/90 text-primary-foreground' : 'bg-secondary'}`}>
+                            <p className="text-xs font-bold text-accent mb-1">{msg.sender.displayName}</p>
+                            <p className="text-sm break-words">{msg.text}</p>
+                        </div>
+                    </div>
+                ))}
                  <div ref={messagesEndRef} />
             </div>
 
@@ -108,10 +119,10 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
                         placeholder="Bir şeyler söyle..."
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
-                        disabled={!user || isSending}
+                        disabled={!user || isSending || isLoading}
                         className="flex-grow"
                     />
-                    <Button type="submit" size="icon" disabled={!user || isSending || !message.trim()}>
+                    <Button type="submit" size="icon" disabled={!user || isSending || !message.trim() || isLoading}>
                         {isSending ? <Loader2 className="animate-spin" /> : <Send />}
                     </Button>
                 </form>
