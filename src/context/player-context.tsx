@@ -359,8 +359,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const urlPlayer = urlPlayerRef.current;
     const song = playlist[currentIndex];
+
+    if (!urlPlayer) {
+      return;
+    }
     
-    if (!song || song.type !== 'url' || !urlPlayer) {
+    if (!song || song.type !== 'url') {
+      if (!urlPlayer.paused) {
+        urlPlayer.pause();
+      }
       return;
     }
     
@@ -372,7 +379,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     } else {
       urlPlayer.pause();
     }
-  }, [isPlaying, currentIndex, playlist, urlPlayerRef]);
+  }, [isPlaying, currentIndex, playlist]);
 
 
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
