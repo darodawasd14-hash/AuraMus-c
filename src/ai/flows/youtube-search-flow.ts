@@ -12,12 +12,6 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { google } from 'googleapis';
 
-// YouTube API'sini başlatma
-const youtube = google.youtube({
-  version: 'v3',
-  auth: process.env.YOUTUBE_API_KEY,
-});
-
 // Kendi YouTube arama aracımızı tanımlıyoruz
 const youtubeSearchTool = ai.defineTool(
   {
@@ -37,9 +31,18 @@ const youtubeSearchTool = ai.defineTool(
   async ({ query }) => {
     // GÜVENLİK KİLİDİ: API anahtarı yoksa, istek gönderme ve boş dön.
     if (!process.env.YOUTUBE_API_KEY) {
-      console.warn("YOUTUBE_API_KEY ayarlanmamış. Arama aracı atlanıyor.");
+      console.warn("YOUTUBE_API_KEY ortam değişkeni ayarlanmamış. Arama aracı atlanıyor.");
       return { videos: [] };
     }
+    
+    // TEŞHİS ADIMI: Kullanılan API anahtarını konsola yazdır
+    console.log("Kullanılan API Anahtarı (ilk 5 karakter):", process.env.YOUTUBE_API_KEY.substring(0, 5));
+
+    // YouTube API'sini başlatma
+    const youtube = google.youtube({
+      version: 'v3',
+      auth: process.env.YOUTUBE_API_KEY,
+    });
     
     try {
       const response = await youtube.search.list({
@@ -117,14 +120,16 @@ const youtubeSearchFlow = ai.defineFlow(
     outputSchema: YouTubeSearchOutputSchema,
   },
   async input => {
+    // Akışın yapay zeka tarafından çağrılmasını bekle
     const response = await prompt(input);
 
     // Eğer LLM bir araç kullanmaya karar vermediyse, boş bir sonuç döndür.
     if (!response.toolRequests || response.toolRequests.length === 0) {
-      console.log("LLM, arama aracı kullanmaya gerek duymadı.");
-      return { songs: [] };
+        console.log("LLM, arama aracı kullanmaya gerek duymadı.");
+        return { songs: [] };
     }
-
+    
+    // Araç çağrısını manuel olarak yürüt
     const toolResponse = response.toolRequests[0];
     if (!toolResponse) {
        console.error("Tool response tanımsız geldi.");
