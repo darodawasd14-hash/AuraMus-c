@@ -31,23 +31,23 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
         // In a real app, you'd call playNext() here through the context.
       });
     }
-  }, [song.id, volume, isPlaying]);
+  }, [song.id]); // Removed isPlaying and volume from dependencies to avoid re-creating widget
 
   useEffect(() => {
-    if (widgetRef.current) {
+    if (widgetRef.current && typeof widgetRef.current.setVolume === 'function') {
         widgetRef.current.setVolume(volume);
     }
   }, [volume]);
 
   useEffect(() => {
-    if (widgetRef.current) {
+    if (widgetRef.current && typeof widgetRef.current.play === 'function' && typeof widgetRef.current.pause === 'function') {
       if (isPlaying) {
         widgetRef.current.play();
       } else {
         widgetRef.current.pause();
       }
     }
-  }, [isPlaying]);
+  }, [isPlaying, song.id]); // Added song.id to re-evaluate when song changes
 
   return (
     <iframe
@@ -75,10 +75,13 @@ export function Player({ song }: PlayerProps) {
 
   useEffect(() => {
     if (youtubePlayer && typeof youtubePlayer.playVideo === 'function' && typeof youtubePlayer.pauseVideo === 'function') {
-      if (isPlaying) {
-        youtubePlayer.playVideo();
-      } else {
-        youtubePlayer.pauseVideo();
+      // Ensure we don't act on a stale player instance for a different song
+      if (song?.type === 'youtube' && youtubePlayer.getVideoData()?.video_id === song.videoId) {
+        if (isPlaying) {
+          youtubePlayer.playVideo();
+        } else {
+          youtubePlayer.pauseVideo();
+        }
       }
     }
   }, [isPlaying, song, youtubePlayer]);

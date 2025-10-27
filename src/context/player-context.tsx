@@ -160,6 +160,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const newCurrentIndex = playlist.findIndex(song => song.id === currentSongId);
 
     if (currentIndex !== -1 && newCurrentIndex === -1) {
+      // Current song was deleted from the playlist
       resetPlayer();
     } else {
       setCurrentIndex(newCurrentIndex);
@@ -258,6 +259,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setCurrentIndex(-1);
   }
   
+  const togglePlayPause = () => {
+    if(currentIndex === -1 && playlist.length > 0) {
+      setCurrentIndex(0);
+      setIsPlaying(true);
+    } else if (currentIndex !== -1) {
+      setIsPlaying(prev => !prev);
+    }
+  };
+  
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
       if (currentIndex !== index) {
@@ -269,16 +279,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     } else {
       resetPlayer();
     }
-  }, [playlist, currentIndex]);
-
-  const togglePlayPause = () => {
-    if(currentIndex === -1 && playlist.length > 0) {
-      setCurrentIndex(0);
-      setIsPlaying(true);
-    } else if (currentIndex !== -1) {
-      setIsPlaying(prev => !prev);
-    }
-  };
+  }, [playlist, currentIndex, togglePlayPause]);
 
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
