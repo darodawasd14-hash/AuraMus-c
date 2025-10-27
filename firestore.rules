@@ -1,98 +1,90 @@
 /**
- * @file Firestore Security Rules for Aura Müzik
- * @core_philosophy This ruleset enforces a strict user-ownership model for personal music libraries.
- * All user-specific data is stored under /artifacts/{appId}/users/{userId}, and only the authenticated user can access their own data.
- * Additionally, it implements a role-based access control for admin privileges.
- * @data_structure
- *   - /artifacts/{appId}/users/{userId}: Stores user profiles.
- *   - /artifacts/{appId}/users/{userId}/songs/{songId}: Stores songs in user's library.  Each song has a denormalized userId.
- *   - /roles_admin/{userId}:  Presence of a document grants admin access.
- * @key_security_decisions
- *   - Users can only manage their own songs.
- *   - Listing other user's songs is disallowed.
- *   - The 'artifacts' collection is namespaced by 'appId'.
- * @denormalization_for_authorization Songs denormalize the userId to allow direct ownership checks without additional reads.
- * @structural_segregation User data and songs are stored in separate subcollections to ensure data isolation and simplified security rules.
+ * @fileoverview Firestore Security Rules for the Aura music application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for user profiles and their associated songs. Users can only read and write their own data.
+ *
+ * Data Structure:
+ * - User profiles are stored in `/artifacts/Aura/users/{userId}`.
+ * - Each user's songs are stored in a subcollection `/artifacts/Aura/users/{userId}/songs/{songId}`.
+ *
+ * Key Security Decisions:
+ * - Users can only create their profile if the `userId` matches their `auth.uid`.
+ * - Users can only manage (create, update, delete) songs within their own profile.
+ * - Data validation is minimal to facilitate rapid prototyping and iteration. Only authorization-related data is validated.
+ * - Listing of user documents is disallowed, but users can list songs within their own profile.
+ *
+ * Denormalization for Authorization:
+ * No explicit denormalization is used in this version. The rules rely on path-based authorization for simplicity.
+ *
+ * Structural Segregation:
+ * The application uses separate collections for user profiles and their songs, ensuring data privacy and efficient querying.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the request is made by a signed-in user.
+     * @description Protects user profile documents.
+     * @path /artifacts/Aura/users/{userId}
+     * @allow (create) - Authenticated user can create their own profile if the userId matches their auth.uid.
+     * @allow (get) - Authenticated user can read their own profile.
+     * @allow (update) - Authenticated user can update their own profile if the userId matches their auth.uid.
+     * @allow (delete) - Authenticated user can delete their own profile if the userId matches their auth.uid.
+     * @deny (list) - Listing user profiles is not allowed.
+     * @principle Enforces document ownership for user profiles.
      */
-    function isSignedIn() {
-      return request.auth != null;
-    }
+    match /artifacts/Aura/users/{userId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
 
-    /**
-     * @description Checks if the authenticated user's UID matches the provided userId.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
 
-    /**
-     * @description Checks if the authenticated user's UID matches the provided userId and the resource exists.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource.data != null;
+      }
 
-     /**
-      * @description Checks if the current user is an admin by verifying the existence of a document in the roles_admin collection.
-      */
-     function isAdmin() {
-          return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-     }
-
-    /**
-     * @description Defines the security rules for user profiles.
-     * @path /artifacts/{appId}/users/{userId}
-     * @allow (create) Signed-in user creates their profile.
-     * @allow (get, update, delete) Owner can read, update, and delete their profile.
-     * @deny (create) Non-owner tries to create a profile.
-     * @deny (get, update, delete) Non-owner tries to read, update, or delete a profile.
-     * @principle Enforces document ownership for all operations.
-     */
-    match /artifacts/{appId}/users/{userId} {
-      allow get: if isOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
       allow list: if false;
       allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Defines the security rules for songs within a user's library.
-     * @path /artifacts/{appId}/users/{userId}/songs/{songId}
-     * @allow (create) Owner can create songs in their library.
-     * @allow (get, list, update, delete) Owner can manage songs in their library.
-     * @deny (create, get, list, update, delete) Non-owner tries to manage songs.
-     * @principle Enforces document ownership for all operations.
+     * @description Protects song documents within a user's profile.
+     * @path /artifacts/Aura/users/{userId}/songs/{songId}
+     * @allow (create) - Authenticated user can create a song within their own profile.
+     * @allow (get) - Authenticated user can read a song within their own profile.
+     * @allow (update) - Authenticated user can update a song within their own profile.
+     * @allow (delete) - Authenticated user can delete a song within their own profile.
+     * @allow (list) - Authenticated user can list songs within their own profile.
+     * @deny (create) - If a user tries to create a song in another user's profile.
+     * @deny (update) - If a user tries to update a song in another user's profile.
+     * @deny (delete) - If a user tries to delete a song in another user's profile.
+     * @principle Enforces document ownership for songs.
      */
-    match /artifacts/{appId}/users/{userId}/songs/{songId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(userId);
-    }
+    match /artifacts/Aura/users/{userId}/songs/{songId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
 
-     /**
-      * @description Defines the security rules for admin roles.
-      * @path /roles_admin/{userId}
-      * @allow (get) Anyone can check for admin status.
-      * @allow (create, update, delete) Only admins can manage admin roles.
-      * @deny (create, update, delete) Non-admins cannot manage admin roles.
-      * @principle DBAC (Database Based Access Control) for admin roles.
-      */
-     match /roles_admin/{userId} {
-          allow get: if true; // Anyone can check for admin status.
-          allow list: if false; // No listing.  This is usually a bad idea.
-          allow create: if isAdmin();
-          allow update: if isExistingOwner(userId) && isAdmin();
-          allow delete: if isAdmin();
-     }
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource.data != null;
+      }
+
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
+    }
   }
 }

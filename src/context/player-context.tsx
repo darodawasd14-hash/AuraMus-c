@@ -67,12 +67,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         snapshot.forEach((doc) => {
           serverPlaylist.push({ id: doc.id, ...doc.data() } as Song);
         });
-        setPlaylist(serverPlaylist);
-        setIsLoading(false);
-        
-        if (currentIndex >= 0 && !serverPlaylist.find(song => song.id === playlist[currentIndex]?.id)) {
+
+        // Check against the PREVIOUS state of the playlist to see if the current song was removed
+        setPlaylist((prevPlaylist) => {
+          if (currentIndex >= 0 && !serverPlaylist.find(song => song.id === prevPlaylist[currentIndex]?.id)) {
             resetPlayer();
-        }
+          }
+          return serverPlaylist;
+        });
+
+        setIsLoading(false);
       },
       (error) => {
         const contextualError = new FirestorePermissionError({
@@ -85,7 +89,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     );
 
     return () => unsubscribe();
-  }, [songsCollectionRef, currentIndex, playlist]);
+    // The dependency array should ONLY contain songsCollectionRef.
+    // The onSnapshot listener handles all updates to the playlist data.
+    // Including `playlist` or `currentIndex` here will cause an infinite loop.
+  }, [songsCollectionRef]);
 
   const extractYouTubeID = (url: string): string | null => {
     const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -98,7 +105,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const videoId = extractYouTubeID(url);
       if (!videoId) throw new Error("Invalid YouTube link.");
       const canonicalYouTubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      // Using a proxy to bypass CORS issues if any, noembed.com is a public one
       const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(canonicalYouTubeUrl)}`;
       const response = await fetch(oembedUrl);
       if (!response.ok) return { title: `YouTube: ${videoId}`, url: canonicalYouTubeUrl, type: 'youtube', videoId: videoId };
@@ -180,14 +186,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setCurrentIndex(-1);
   }
 
-  const playSong = (index: number) => {
+  const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
       setCurrentIndex(index);
       setIsPlaying(true);
     } else {
       resetPlayer();
     }
-  };
+  }, [playlist.length]);
 
   const togglePlayPause = () => {
     if(currentIndex === -1 && playlist.length > 0) {
@@ -201,7 +207,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
     playSong(nextIndex);
-  }, [currentIndex, playlist, playSong]);
+  }, [currentIndex, playlist.length, playSong]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
