@@ -48,7 +48,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume, onEnded }: { song: Song; is
         }
       }
     }
-  }, [song.id, onEnded, volume, isPlaying]);
+  }, [song.id, onEnded]);
 
   useEffect(() => {
     if (widgetRef.current && isReadyRef.current && typeof widgetRef.current.setVolume === 'function') {

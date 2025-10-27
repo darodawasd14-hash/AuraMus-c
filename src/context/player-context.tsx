@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -32,7 +32,6 @@ type PlayerContextType = {
   setVolume: (volume: number) => void;
   isMuted: boolean;
   toggleMute: () => void;
-  youtubePlayer: any;
   setYoutubePlayer: (player: any) => void;
 };
 
@@ -52,7 +51,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [volume, setVolume] = useState<number>(80);
   const [isMuted, setIsMuted] = useState(false);
   const [previousVolume, setPreviousVolume] = useState(80);
-  const [youtubePlayer, setYoutubePlayer] = useState<any>(null);
+  const youtubePlayerRef = useRef<any>(null);
   
   const songsCollectionRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -96,10 +95,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
   useEffect(() => {
+    const youtubePlayer = youtubePlayerRef.current;
     if (youtubePlayer && typeof youtubePlayer.setVolume === 'function') {
       youtubePlayer.setVolume(volume);
     }
-  }, [volume, youtubePlayer]);
+  }, [volume]);
 
   useEffect(() => {
     const currentSongId = playlist[currentIndex]?.id;
@@ -202,12 +202,30 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const resetPlayer = () => {
+    const youtubePlayer = youtubePlayerRef.current;
     if (youtubePlayer && typeof youtubePlayer.stopVideo === 'function') {
       youtubePlayer.stopVideo();
     }
     setIsPlaying(false);
     setCurrentIndex(-1);
   }
+  
+  const playSong = (index: number) => {
+    if (index >= 0 && index < playlist.length) {
+      setCurrentIndex(index);
+      setIsPlaying(true);
+      
+      const song = playlist[index];
+      const youtubePlayer = youtubePlayerRef.current;
+
+      if (song.type === 'youtube' && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
+        youtubePlayer.setVolume(volume);
+        youtubePlayer.playVideo();
+      }
+    } else {
+      resetPlayer();
+    }
+  };
   
   const togglePlayPause = () => {
     if (currentIndex === -1 && playlist.length > 0) {
@@ -219,25 +237,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlaying(newIsPlaying);
   
     const song = playlist[currentIndex];
+    const youtubePlayer = youtubePlayerRef.current;
+
     if (song?.type === 'youtube' && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-        if (newIsPlaying) {
-          youtubePlayer.playVideo();
-        } else {
-          youtubePlayer.pauseVideo();
-        }
-    }
-  };
-  
-  const playSong = (index: number) => {
-    if (index >= 0 && index < playlist.length) {
-      if (currentIndex !== index) {
-        setCurrentIndex(index);
-        setIsPlaying(true);
+      if (newIsPlaying) {
+        youtubePlayer.setVolume(volume);
+        youtubePlayer.playVideo();
       } else {
-        togglePlayPause();
+        youtubePlayer.pauseVideo();
       }
-    } else {
-      resetPlayer();
     }
   };
 
@@ -275,6 +283,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  const setYoutubePlayer = (player: any) => {
+    youtubePlayerRef.current = player;
+  };
+
   const value: PlayerContextType = {
     playlist,
     currentSong,
@@ -291,7 +303,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setVolume: handleSetVolume,
     isMuted,
     toggleMute,
-    youtubePlayer,
     setYoutubePlayer,
   };
 
