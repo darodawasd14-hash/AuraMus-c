@@ -70,7 +70,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
     if (urlPlayerRef.current) {
       urlPlayerRef.current.pause();
-      urlPlayerRef.current.src = '';
+      if (urlPlayerRef.current.src) {
+        urlPlayerRef.current.src = '';
+      }
     }
   }, []);
   
@@ -87,14 +89,22 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(isPlaylistLoading);
     if (!isPlaylistLoading) {
       if (userPlaylist) {
+        const oldPlaylistLength = playlist.length;
         setPlaylist(userPlaylist);
-        if (userPlaylist.length > 0 && currentIndex === -1) {
-          setCurrentIndex(0);
-          setIsPlaying(false);
-        } else if (userPlaylist.length === 0) {
-          setCurrentIndex(-1);
-          setIsPlaying(false);
-          resetPlayer();
+
+        // Eğer çalma listesi boşaldıysa veya ilk defa yükleniyorsa durumu ayarla
+        if (userPlaylist.length === 0) {
+            setCurrentIndex(-1);
+            setIsPlaying(false);
+            resetPlayer();
+        } else if (oldPlaylistLength === 0 && userPlaylist.length > 0 && currentIndex === -1) {
+            // İlk şarkılar eklendiğinde ilk şarkıyı seç ama çalma
+            setCurrentIndex(0);
+            setIsPlaying(false);
+        } else if (currentIndex >= userPlaylist.length) {
+            // Çalan şarkı silindiğinde ve son şarkıysa, listenin başına dön
+            setCurrentIndex(0);
+            setIsPlaying(false); // Otomatik çalmayı durdur
         }
       } else if (!user) { 
         setPlaylist([]);
@@ -103,14 +113,20 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         resetPlayer();
       }
     }
-  }, [userPlaylist, isPlaylistLoading, user, currentIndex, resetPlayer]);
+  }, [userPlaylist, isPlaylistLoading, user, resetPlayer, currentIndex, playlist.length]);
 
   useEffect(() => {
     if (firestore && user && !isPlaylistLoading && dataLoadedRef.current === false && userPlaylist?.length === 0) {
         dataLoadedRef.current = true; // Sadece bir kere çalışsın
         const addInitialSongs = async () => {
             for (const song of initialCatalog.songs) {
-                await addSong({ url: song.url }, user.uid);
+                // Burada addSong içindeki mantığı tekrar uygulamak yerine doğrudan detayları iletiyoruz.
+                await addSong({ 
+                    url: song.url, 
+                    title: song.title, 
+                    videoId: extractYouTubeID(song.url) || undefined,
+                    type: 'youtube'
+                }, user.uid);
             }
         };
 
@@ -253,7 +269,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
       await addDoc(userPlaylistRef, songData);
   
-      toast({ title: "Şarkı eklendi!" });
+      if (songDetailsInput.title) {
+        toast({ title: `"${songDetailsInput.title}" eklendi!`});
+      } else {
+        toast({ title: "Şarkı eklendi!" });
+      }
   
     } catch (error: any) {
       console.error("Şarkı eklenirken hata:", error);
@@ -264,33 +284,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const deleteSong = async (songId: string) => {
     if (!firestore || !user) return;
 
-    const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
-    await deleteDoc(songDocRef);
-    
     const songIndex = playlist.findIndex(s => s.id === songId);
     if (songIndex === -1) return;
 
-    const isCurrentlyPlaying = songIndex === currentIndex;
-    const newPlaylist = playlist.filter(s => s.id !== songId);
-
-    if (isCurrentlyPlaying) {
-      resetPlayer();
-      if (newPlaylist.length === 0) {
-        setCurrentIndex(-1);
-        setIsPlaying(false);
-      } else {
-        const nextIndex = songIndex % newPlaylist.length;
-        setCurrentIndex(nextIndex);
-        setIsPlaying(true);
-      }
-    } else if (songIndex < currentIndex) {
-        setCurrentIndex(prevIndex => prevIndex - 1);
-    }
+    const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
+    await deleteDoc(songDocRef);
+    
+    // Firestore'dan veri silindikten sonra `useCollection` hook'u otomatik olarak
+    // playlist state'ini güncelleyecektir. Bu yüzden manuel state güncellemesi (setPlaylist)
+    // çoğu zaman gereksizdir ve re-render döngülerine neden olabilir.
+    // useEffect [userPlaylist] bağımlılığı bu durumu yönetecek.
     
     toast({ title: "Şarkı silindi." });
   };
   
-  const playSong = (index: number) => {
+  const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
       if(currentIndex !== index) {
         resetPlayer();
@@ -302,7 +310,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setIsPlaying(false);
       resetPlayer();
     }
-  };
+  }, [playlist, currentIndex, resetPlayer]);
   
   const togglePlayPause = () => {
     if (currentIndex === -1 && playlist.length > 0) {
@@ -319,7 +327,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
     playSong(nextIndex);
-  }, [currentIndex, playlist.length]);
+  }, [currentIndex, playlist.length, playSong]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
@@ -342,22 +350,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
 
-    // Stop all players if no song or not playing
-    if (!song || !isPlaying) {
-      if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
-        youtubePlayer.pauseVideo();
-      }
-      if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
-        soundcloudPlayer.pause();
-      }
-      if (urlPlayer && !urlPlayer.paused) {
-        urlPlayer.pause();
-      }
+    if (!song) {
+      resetPlayer();
       return;
     }
-    
-    // Play the correct player based on song type
+
     if (isPlaying) {
+      // Play the correct player based on song type
       switch (song.type) {
         case 'youtube':
           if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
@@ -384,9 +383,20 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           }
           break;
       }
+    } else {
+      // Pause all players if not playing
+      if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
+        youtubePlayer.pauseVideo();
+      }
+      if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
+        soundcloudPlayer.pause();
+      }
+      if (urlPlayer && !urlPlayer.paused) {
+        urlPlayer.pause();
+      }
     }
 
-  }, [isPlaying, currentIndex, playlist]);
+  }, [isPlaying, currentIndex, playlist, resetPlayer]);
 
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
@@ -395,7 +405,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     currentSong,
     currentIndex,
     isPlaying,
-    isLoading,
+    isLoading: isLoading || isUserLoading,
     addSong,
     deleteSong,
     playSong,
