@@ -18,7 +18,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
       const widget = (window as any).SC.Widget(iframeRef.current);
       widgetRef.current = widget;
       widget.bind((window as any).SC.Widget.Events.READY, () => {
-        if (widgetRef.current) {
+        if (widgetRef.current && typeof widgetRef.current.setVolume === 'function') {
           widgetRef.current.setVolume(volume);
           if (isPlaying) {
             widgetRef.current.play();
@@ -31,7 +31,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
         // In a real app, you'd call playNext() here through the context.
       });
     }
-  }, [song.id]); // Removed isPlaying and volume from dependencies to avoid re-creating widget
+  }, [song.id]);
 
   useEffect(() => {
     if (widgetRef.current && typeof widgetRef.current.setVolume === 'function') {
@@ -47,7 +47,7 @@ const SoundCloudPlayer = ({ song, isPlaying, volume }: { song: Song; isPlaying: 
         widgetRef.current.pause();
       }
     }
-  }, [isPlaying, song.id]); // Added song.id to re-evaluate when song changes
+  }, [isPlaying, song.id]);
 
   return (
     <iframe
@@ -67,6 +67,7 @@ export function Player({ song }: PlayerProps) {
   const { isPlaying, playNext, youtubePlayer, setYoutubePlayer, volume } = usePlayer();
 
   useEffect(() => {
+    // Ensure player and its functions exist before calling them.
     if (youtubePlayer && song?.type === 'youtube' && typeof youtubePlayer.setVolume === 'function') {
       youtubePlayer.setVolume(volume);
     }
@@ -74,9 +75,11 @@ export function Player({ song }: PlayerProps) {
 
 
   useEffect(() => {
+    // Ensure player and its functions exist before calling them.
     if (youtubePlayer && song?.type === 'youtube' && typeof youtubePlayer.playVideo === 'function' && typeof youtubePlayer.pauseVideo === 'function') {
       // Ensure we don't act on a stale player instance for a different song
-      if (youtubePlayer.getVideoData()?.video_id === song.videoId) {
+      // This can happen if the component re-renders before the player is fully updated.
+      if (youtubePlayer.getVideoData && youtubePlayer.getVideoData()?.video_id === song.videoId) {
         if (isPlaying) {
           youtubePlayer.playVideo();
         } else {
@@ -89,7 +92,10 @@ export function Player({ song }: PlayerProps) {
 
   const onReady = (event: any) => {
     setYoutubePlayer(event.target);
-    event.target.setVolume(volume);
+    // Ensure setVolume is available before calling it.
+    if (event.target && typeof event.target.setVolume === 'function') {
+        event.target.setVolume(volume);
+    }
   };
 
   const onEnd = () => {
