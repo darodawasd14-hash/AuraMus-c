@@ -88,6 +88,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
+  const resetPlayer = () => {
+    const youtubePlayer = youtubePlayerRef.current;
+    if (youtubePlayer && typeof youtubePlayer.stopVideo === 'function') {
+      youtubePlayer.stopVideo();
+    }
+    setIsPlaying(false);
+    setCurrentIndex(-1);
+  };
+
   useEffect(() => {
     const currentSongId = playlist[currentIndex]?.id;
     const newCurrentIndex = playlist.findIndex(song => song.id === currentSongId);
@@ -204,15 +213,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           toast({ title: 'Error deleting song.', variant: 'destructive' });
       });
   };
-  
-  const resetPlayer = () => {
-    const youtubePlayer = youtubePlayerRef.current;
-    if (youtubePlayer && typeof youtubePlayer.stopVideo === 'function') {
-      youtubePlayer.stopVideo();
-    }
-    setIsPlaying(false);
-    setCurrentIndex(-1);
-  }
   
   const playSong = (index: number) => {
     if (index >= 0 && index < playlist.length) {
