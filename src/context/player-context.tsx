@@ -100,10 +100,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (firestore && user && !isPlaylistLoading && dataLoadedRef.current === false && userPlaylist?.length === 0) {
         dataLoadedRef.current = true; // Sadece bir kere çalışsın
-        const initialSongs = initialCatalog.songs;
-        
         const addInitialSongs = async () => {
-            for (const song of initialSongs) {
+            for (const song of initialCatalog.songs) {
                 await addSong(song.url, user.uid);
             }
         };
@@ -212,17 +210,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const songDetails = await getSongDetails(url, userId);
   
       // Prepare the data once, ensuring no undefined fields
-      const songData: Omit<Song, 'id'> & { videoId?: string } = {
+      const songData: Omit<Song, 'id'> = {
         title: songDetails.title,
         url: songDetails.url,
         type: songDetails.type,
         userId: songDetails.userId,
         timestamp: songDetails.timestamp,
+        ...(songDetails.videoId && { videoId: songDetails.videoId }),
       };
-      if (songDetails.videoId) {
-        songData.videoId = songDetails.videoId;
-      }
-  
+      
+      // Check if song already exists in the main catalog
       const songsColRef = collection(firestore, 'songs');
       const q = query(
         songsColRef, 
@@ -233,11 +230,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
-        await addDoc(songsColRef, songData); // Add to the main catalog
+        await addDoc(songsColRef, songData); // Add to the main catalog if it doesn't exist
       }
       
       const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-      await addDoc(userPlaylistRef, songData); // Add to the user's playlist
+      await addDoc(userPlaylistRef, songData); // Always add to the user's playlist
   
       toast({ title: "Şarkı eklendi!" });
   
@@ -326,7 +323,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const song = playlist[currentIndex];
     const youtubePlayer = youtubePlayerRef.current;
     
-    if (!song || song.type !== 'youtube' || !youtubePlayer || typeof youtubePlayer.playVideo !== 'function') {
+    if (!song || song.type !== 'youtube' || !youtubePlayer) {
       return;
     }
     
