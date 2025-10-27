@@ -1,13 +1,11 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
-
-const appId = 'Aura';
 
 export interface Song {
   id: string;
@@ -53,9 +51,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [previousVolume, setPreviousVolume] = useState(80);
   const [youtubePlayer, setYoutubePlayer] = useState<any>(null);
   
-  const currentSongRef = useRef<Song | null>(null);
-
-
   const songsCollectionRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return collection(firestore, 'artifacts', 'Aura', 'users', user.uid, 'songs');
@@ -95,76 +90,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubscribe();
   }, [songsCollectionRef]);
   
-  const clearListener = async () => {
-    if (currentSongRef.current && user && firestore) {
-        const listenerRef = doc(firestore, 'artifacts', appId, 'songs', currentSongRef.current.id, 'live_listeners', user.uid);
-        deleteDoc(listenerRef).catch((e) => {
-            const permissionError = new FirestorePermissionError({
-                path: listenerRef.path,
-                operation: 'delete',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
-    }
-  };
-  
-  // Update listener status
-  useEffect(() => {
-      const song = playlist[currentIndex] ?? null;
-      if (user && firestore) {
-          // If song has changed, remove listener from old song
-          if (currentSongRef.current && currentSongRef.current.id !== song?.id) {
-              clearListener();
-          }
-
-          // If a song is playing, add user to listeners
-          if (song && isPlaying) {
-              const listenerRef = doc(firestore, 'artifacts', appId, 'songs', song.id, 'live_listeners', user.uid);
-              const profileRef = doc(firestore, 'artifacts', appId, 'users', user.uid);
-
-              getDoc(profileRef).then(profileSnap => {
-                const displayName = profileSnap.data()?.displayName || user.email;
-                const listenerData = {
-                    uid: user.uid,
-                    displayName,
-                    timestamp: serverTimestamp(),
-                };
-                setDoc(listenerRef, listenerData).catch(e => {
-                  const permissionError = new FirestorePermissionError({
-                      path: listenerRef.path,
-                      operation: 'create',
-                      requestResourceData: listenerData,
-                  });
-                  errorEmitter.emit('permission-error', permissionError);
-                });
-              });
-              
-          } else if (song && !isPlaying) { // If paused, remove listener
-              clearListener();
-          }
-      }
-      currentSongRef.current = song;
-      
-      return () => {
-        // Clear listener on unmount
-        // This doesn't run reliably on page close, so we need beforeunload
-      };
-  }, [currentIndex, playlist, isPlaying, user, firestore]);
-  
-  // Add beforeunload listener to clear status when user leaves
-  useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-        clearListener();
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-        window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [user, firestore, playlist, currentIndex]);
-
-
   useEffect(() => {
     const currentSongId = playlist[currentIndex]?.id;
     const newCurrentIndex = playlist.findIndex(song => song.id === currentSongId);

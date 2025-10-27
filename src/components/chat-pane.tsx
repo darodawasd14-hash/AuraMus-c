@@ -42,14 +42,6 @@ export function ChatPane({ song }: { song: Song | null }) {
 
     const { data: messages, isLoading: isMessagesLoading } = useCollection<Message>(messagesQuery);
     
-    const listenersCollectionRef = useMemoFirebase(() => {
-      if (!song || !firestore) return null;
-      return collection(firestore, 'artifacts', appId, 'songs', song.id, 'live_listeners');
-    }, [song, firestore]);
-
-    const { data: listeners } = useCollection(listenersCollectionRef);
-    const listenerCount = listeners?.length || 0;
-
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
@@ -104,7 +96,7 @@ export function ChatPane({ song }: { song: Song | null }) {
         <aside className="w-80 bg-background/50 border-l border-border flex flex-col">
             <div className="p-4 border-b border-border">
                 <h3 className="font-semibold truncate">{song.title}</h3>
-                <p className="text-sm text-primary">{listenerCount} {listenerCount === 1 ? 'person is' : 'people are'} listening</p>
+                <p className="text-sm text-muted-foreground">Chat</p>
             </div>
 
             <div className="flex-grow p-4 overflow-y-auto space-y-4">
