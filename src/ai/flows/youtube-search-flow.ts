@@ -10,6 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import { youtubeSearchTool } from '@genkit-ai/google-genai';
 
 const YouTubeSearchInputSchema = z.object({
   query: z.string().describe('The search query for YouTube.'),
@@ -23,7 +24,6 @@ const SongSuggestionSchema = z.object({
       'The YouTube video ID. This should be a valid YouTube video ID.'
     ),
   title: z.string().describe('The title of the song.'),
-  artist: z.string().describe('The artist of the song.'),
   thumbnailUrl: z.string().url().describe('The URL of the video thumbnail.'),
 });
 
@@ -44,11 +44,13 @@ const prompt = ai.definePrompt({
   name: 'youtubeSearchPrompt',
   input: { schema: YouTubeSearchInputSchema },
   output: { schema: YouTubeSearchOutputSchema },
-  prompt: `You are an expert YouTube music search engine. You take a user's query and find relevant songs on YouTube.
+  tools: [youtubeSearchTool],
+  prompt: `You are an expert YouTube music search engine. You take a user's query and find relevant songs on YouTube using the provided tool.
 
     Search Query: {{{query}}}
 
-    Find 16 relevant songs on YouTube based on the query. Ensure the videoId is a valid YouTube video ID. For the thumbnailUrl, use the format 'https://i.ytimg.com/vi/VIDEO_ID/hqdefault.jpg'.
+    Find 16 relevant songs on YouTube based on the query using the youtubeSearchTool.
+    For the thumbnailUrl, use the format 'https://i.ytimg.com/vi/VIDEO_ID/hqdefault.jpg'.
     Return a JSON object with a "songs" array.`,
 });
 

@@ -386,7 +386,6 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
                 />
                 <div className="flex-grow">
                    <p className="font-semibold truncate leading-tight" title={song.title}>{song.title}</p>
-                   <p className="text-sm text-muted-foreground truncate" title={song.artist}>{song.artist}</p>
                 </div>
                 <Button
                   className="w-full mt-2"
