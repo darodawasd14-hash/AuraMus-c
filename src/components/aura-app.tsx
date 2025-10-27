@@ -196,7 +196,7 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
 
   const songsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'songs_v2'), orderBy('timestamp', 'desc'), limit(50));
+    return query(collection(firestore, 'songs'), orderBy('timestamp', 'desc'), limit(50));
   }, [firestore]);
 
   const { data: catalogSongs, isLoading, error } = useCollection<Song>(songsQuery);

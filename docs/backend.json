@@ -93,7 +93,7 @@
         }
       },
       {
-        "path": "/songs_v2/{songId}",
+        "path": "/songs/{songId}",
         "definition": {
           "entityName": "Song",
           "schema": {

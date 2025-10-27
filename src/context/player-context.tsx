@@ -209,7 +209,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       // --- AKILLI EKLEME MANTIĞI BAŞLANGICI ---
       
       // 1. Önce ortak katalogda şarkının var olup olmadığını kontrol et.
-      const songsColRef = collection(firestore, 'songs_v2');
+      const songsColRef = collection(firestore, 'songs');
       const q = query(
         songsColRef, 
         where(songDetails.videoId ? 'videoId' : 'url', '==', songDetails.videoId || songDetails.url), 
