@@ -57,14 +57,15 @@ export function AuraApp() {
   }, []);
 
   return (
-    <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
+    <div id="app-container" className="relative h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       
       <Player />
 
       <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
       
       <main className="flex-grow flex flex-row overflow-hidden">
-        <div className="flex-grow flex flex-col overflow-y-auto pb-32">
+        {/* This div wraps the main content and provides padding for the bottom player */}
+        <div className="flex-grow flex flex-col overflow-y-auto pb-20 md:pb-20">
           {view === 'playlist' && <PlaylistView />}
           {view === 'catalog' && <CatalogView setView={setView} />}
           {view === 'search' && <SearchView setView={setView} />}
@@ -122,7 +123,7 @@ const Header = ({ isChatOpen, setIsChatOpen }: { isChatOpen: boolean, setIsChatO
 
 const BottomNavBar = ({ currentView, setView }: { currentView: string, setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 h-16 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 flex justify-around items-center">
+    <nav className="fixed bottom-0 left-0 right-0 h-16 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 flex justify-around items-center md:hidden">
       <button onClick={() => setView('playlist')} className={cn('nav-button', {'active': currentView === 'playlist'})}>
         <ListMusic/>
         <span>Listem</span>
@@ -494,9 +495,8 @@ function MiniPlayer() {
     return (
         <div 
             className={cn(
-                "fixed bottom-20 right-4 z-40 flex items-center gap-3 rounded-lg bg-secondary/80 p-3 shadow-2xl backdrop-blur-lg border border-border/50 transition-all duration-300 ease-in-out",
-                currentSong ? "translate-x-0 opacity-100" : "translate-x-full opacity-0",
-                "md:hidden" // Hide on medium screens and up
+                "fixed bottom-20 right-4 z-40 flex items-center gap-3 rounded-lg bg-secondary/80 p-3 shadow-2xl backdrop-blur-lg border border-border/50 transition-all duration-300 ease-in-out md:hidden",
+                currentSong ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
             )}
         >
             <Image
@@ -573,7 +573,12 @@ function FullPlayerView() {
     return `https://picsum.photos/seed/${song.id}/640/640`;
   }
   
-  if (!isPlayerOpen && currentSong) {
+  if (!currentSong) {
+    return null;
+  }
+  
+  // Desktop persistent player bar
+  if (!isPlayerOpen) {
      return (
         <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-20 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 justify-between items-center px-6">
             <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -637,8 +642,7 @@ function FullPlayerView() {
     )
   }
   
-  if (!currentSong) return null;
-
+  // Fullscreen player view
   return (
     <div className={cn(
         "fixed inset-0 bg-background/90 backdrop-blur-2xl z-50 transform-gpu transition-transform duration-500 ease-in-out flex flex-col",
