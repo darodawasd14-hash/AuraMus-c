@@ -347,43 +347,26 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const togglePlayPause = useCallback(() => {
-    if (currentIndex === -1 && playlist.length > 0) {
-      playSong(0);
-      return;
-    }
+    if (!currentSong || !youtubePlayerRef.current) return;
     
-    setIsPlaying(prevIsPlaying => {
-      const newIsPlaying = !prevIsPlaying;
-      if (currentSong) {
-          try {
-              if (currentSong.type === 'youtube' && youtubePlayerRef.current && typeof youtubePlayerRef.current.playVideo === 'function') {
-                  newIsPlaying ? youtubePlayerRef.current.playVideo() : youtubePlayerRef.current.pauseVideo();
-              } else if (currentSong.type === 'soundcloud' && soundcloudPlayerRef.current) {
-                  const widget = (window as any).SC.Widget(soundcloudPlayerRef.current);
-                  newIsPlaying ? widget.play() : widget.pause();
-              } else if (currentSong.type === 'url' && urlPlayerRef.current) {
-                  newIsPlaying ? urlPlayerRef.current.play() : urlPlayerRef.current.pause();
-              }
-          } catch (e) {
-              console.error("Toggle play/pause error", e);
-          }
-      }
-      return newIsPlaying;
-    });
-  }, [currentSong, currentIndex, playlist.length]);
+    const player = youtubePlayerRef.current;
+    if (isPlaying) {
+      player.pauseVideo();
+    } else {
+      player.playVideo();
+    }
+  }, [currentSong, isPlaying]);
   
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
       if (currentIndex !== index) {
         setCurrentIndex(index);
-        // Autoplay is handled by the player component's onReady or useEffect.
+        setProgress(0);
+        setDuration(0);
       } else {
-        // If it's the same song, just toggle
         togglePlayPause();
       }
       setIsPlayerOpen(true);
-      setProgress(0);
-      setDuration(0);
     } else {
       setCurrentIndex(-1);
       setIsPlaying(false);
