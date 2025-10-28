@@ -9,7 +9,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
   const widgetRef = useRef<any>(null);
 
   useEffect(() => {
-    if (!soundcloudPlayerRef.current) return;
+    if (!song.url) return;
     const widget = (window as any).SC.Widget(soundcloudPlayerRef.current);
     widgetRef.current = widget;
     
@@ -31,15 +31,17 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
 
     return () => {
       try {
-        widget.unbind((window as any).SC.Widget.Events.FINISH);
-        widget.unbind((window as any).SC.Widget.Events.READY);
-        widget.unbind((window as any).SC.Widget.Events.PLAY_PROGRESS);
+        if (widgetRef.current) {
+          widgetRef.current.unbind((window as any).SC.Widget.Events.FINISH);
+          widgetRef.current.unbind((window as any).SC.Widget.Events.READY);
+          widgetRef.current.unbind((window as any).SC.Widget.Events.PLAY_PROGRESS);
+        }
       } catch (e) {
         // Hata bastırma
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song.id]);
+  }, [song.url]);
   
   useEffect(() => {
      if (!widgetRef.current) return;
@@ -60,7 +62,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
       scrolling="no"
       frameBorder="no"
       allow="autoplay"
-      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=false&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
+      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=true&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
     ></iframe>
   );
 };
@@ -69,7 +71,25 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
 const UrlPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
     const { urlPlayerRef, isPlaying, setProgress, setDuration, isSeeking } = usePlayer();
 
-    // Effect for attaching event listeners
+    useEffect(() => {
+        const player = urlPlayerRef.current;
+        if (player && song.url) {
+            player.src = song.url;
+        }
+    }, [song.url, urlPlayerRef]);
+
+    useEffect(() => {
+        const player = urlPlayerRef.current;
+        if (!player) return;
+
+        if (isPlaying) {
+            player.play().catch(e => console.error("URL audio playback error:", e));
+        } else {
+            player.pause();
+        }
+    }, [isPlaying, urlPlayerRef]);
+
+
     useEffect(() => {
         const player = urlPlayerRef.current;
         if (!player) return;
@@ -87,42 +107,22 @@ const UrlPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
         player.addEventListener('durationchange', handleDurationChange);
         player.addEventListener('canplay', handleDurationChange);
         player.addEventListener('loadedmetadata', handleDurationChange);
+        player.addEventListener('ended', onEnded);
+
 
         return () => {
             player.removeEventListener('timeupdate', handleTimeUpdate);
             player.removeEventListener('durationchange', handleDurationChange);
             player.removeEventListener('canplay', handleDurationChange);
             player.removeEventListener('loadedmetadata', handleDurationChange);
+            player.removeEventListener('ended', onEnded);
         };
-    }, [urlPlayerRef, setProgress, setDuration, isSeeking]);
-
-    // Effect for setting the source URL
-    useEffect(() => {
-        const player = urlPlayerRef.current;
-        if (player && song.url) {
-            player.src = song.url;
-            if (isPlaying) {
-                player.play().catch(e => console.error("URL audio playback error:", e));
-            }
-        }
-    }, [song.url, urlPlayerRef, isPlaying]);
+    }, [urlPlayerRef, setProgress, setDuration, isSeeking, onEnded]);
 
 
-    // Effect for controlling play/pause state
-    useEffect(() => {
-        const player = urlPlayerRef.current;
-        if (!player) return;
-
-        if (isPlaying) {
-            player.play().catch(e => console.error("URL audio playback error:", e));
-        } else {
-            player.pause();
-        }
-    }, [isPlaying, urlPlayerRef]);
-
-
-    return <audio ref={urlPlayerRef} onEnded={onEnded} className="w-0 h-0"/>;
+    return <audio ref={urlPlayerRef} className="w-0 h-0"/>;
 }
+
 
 export function Player({ song }: { song: Song | null }) {
   const { 
@@ -144,23 +144,23 @@ export function Player({ song }: { song: Song | null }) {
       }
   };
 
-  // Main logic to control the player based on context state
   useEffect(() => {
     const player = youtubePlayerRef.current;
-    if (!player || !song || song.type !== 'youtube') {
-      return;
-    }
-
-    if (isPlaying) {
+    if (player && typeof player.playVideo === 'function') {
+      if (isPlaying) {
         player.playVideo();
-    } else {
+      } else {
         player.pauseVideo();
+      }
     }
-  }, [isPlaying, song, youtubePlayerRef]);
+  }, [isPlaying, youtubePlayerRef]);
 
   const onReady = (event: any) => {
     youtubePlayerRef.current = event.target;
-    // Don't auto-play here, let the useEffect handle it based on isPlaying state
+    // When the player is ready, check if we should be playing and play.
+    if (isPlaying) {
+      event.target.playVideo();
+    }
   };
   
   const onStateChange = (event: any) => {

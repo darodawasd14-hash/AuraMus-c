@@ -311,7 +311,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         setCurrentIndex(index);
         setIsPlaying(true);
       } else {
-        // If the same song is clicked, toggle play/pause
         togglePlayPause();
       }
       setIsPlayerOpen(true);
