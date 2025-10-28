@@ -4,7 +4,7 @@ import { usePlayer, type Song, type SongDetails } from '@/context/player-context
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, Wand2 } from '@/components/icons';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search } from '@/components/icons';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut, updateProfile } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -13,7 +13,7 @@ import { Loader2 } from 'lucide-react';
 import { ChatPane } from '@/components/chat-pane';
 import { searchYoutube, type YouTubeSearchOutput } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
-import { collection, query, orderBy, limit, serverTimestamp, addDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, serverTimestamp, addDoc, getDoc, doc } from 'firebase/firestore';
 
 const appId = 'Aura';
 
@@ -272,7 +272,7 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
                 />
                 <div className="flex-grow">
                   <p className="font-semibold truncate leading-tight" title={song.title}>{song.title}</p>
-                  <p className="text-sm text-muted-foreground truncate">{song.type}</p>
+                  <p className="text-sm text-muted-foreground">{song.type}</p>
                 </div>
                 <Button
                   className="w-full mt-2"
@@ -510,5 +510,3 @@ const ProfileModal = ({ isOpen, setIsOpen, profile, setProfile }: { isOpen?: boo
     </div>
   );
 };
-
-    
