@@ -148,7 +148,10 @@ const addSong = async (songDetails: SongDetails, userId: string): Promise<Song |
             // Transaction İÇİNDE kontrol et
             const userPlaylistColRef = collection(firestore, 'users', userId, 'playlist');
             const duplicateQuery = query(userPlaylistColRef, where("title", "==", songDetails.title), limit(1));
-            // Transaction içinde okuma yapmak için transaction.get kullan
+            // Transaction içinde okuma yapmak için transaction.get kullanmalıyız ama query için getDocs gerekiyor.
+            // Bu nedenle bu kontrolü transaction dışında yapmak daha güvenli.
+            // Fakat transaction atomikliği için, transaction içinde bir kontrol mekanizması daha iyi.
+            // Bu sorguyu transaction içinde çalıştıralım.
             const duplicateSnapshot = await getDocs(duplicateQuery);
 
             if (!duplicateSnapshot.empty) {
@@ -277,10 +280,13 @@ const addSong = async (songDetails: SongDetails, userId: string): Promise<Song |
     const urlPlayer = urlPlayerRef.current;
   
     const pauseAllPlayers = () => {
-      if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function' && typeof youtubePlayer.getPlayerState === 'function') {
-        const state = youtubePlayer.getPlayerState();
-        if (state === 1 || state === 3) youtubePlayer.pauseVideo();
-      }
+        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function' && typeof youtubePlayer.getPlayerState === 'function') {
+            const playerState = youtubePlayer.getPlayerState();
+            // 1 (playing), 3 (buffering)
+            if (playerState === 1 || playerState === 3) {
+              youtubePlayer.pauseVideo();
+            }
+          }
       if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
       if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
     };
@@ -354,3 +360,5 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
+
+    
