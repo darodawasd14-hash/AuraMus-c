@@ -390,7 +390,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setActivePlaylistId,
     createPlaylist,
     seekTo,
-    toggleMute,
+toggleMute,
     setIsSeeking,
 
     _setIsPlaying: setIsPlaying,
