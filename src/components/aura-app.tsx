@@ -61,7 +61,7 @@ export function AuraApp() {
       
       <Player />
 
-      <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
+      <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} currentView={view} setView={setView} />
       
       <main className="flex-grow flex flex-row overflow-hidden">
         {/* This div wraps the main content and provides padding for the bottom player */}
@@ -96,7 +96,7 @@ export function AuraApp() {
   );
 }
 
-const Header = ({ isChatOpen, setIsChatOpen }: { isChatOpen: boolean, setIsChatOpen: (isOpen: boolean) => void }) => {
+const Header = ({ isChatOpen, setIsChatOpen, currentView, setView }: { isChatOpen: boolean, setIsChatOpen: (isOpen: boolean) => void, currentView: string, setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
   const { user } = useUser();
   return (
     <header className="flex items-center justify-between p-4 bg-secondary/30 border-b border-border shadow-md backdrop-blur-sm z-20 flex-shrink-0">
@@ -104,6 +104,14 @@ const Header = ({ isChatOpen, setIsChatOpen }: { isChatOpen: boolean, setIsChatO
         <AuraLogo className="w-8 h-8" />
         <span className="text-xl font-bold tracking-tight">Aura</span>
       </div>
+      
+      {/* Desktop Navigation */}
+      <div className="hidden md:flex items-center gap-4">
+        <Button variant={currentView === 'playlist' ? 'secondary' : 'ghost'} onClick={() => setView('playlist')} className="rounded-full">Çalma Listem</Button>
+        <Button variant={currentView === 'catalog' ? 'secondary' : 'ghost'} onClick={() => setView('catalog')} className="rounded-full">Katalog</Button>
+        <Button variant={currentView === 'search' ? 'secondary' : 'ghost'} onClick={() => setView('search')} className="rounded-full">Ara</Button>
+      </div>
+
       <div className="flex items-center gap-2">
         {user && (
           <Link href={`/profile/${user.uid}`} passHref>
