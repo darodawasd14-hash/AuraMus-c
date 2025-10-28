@@ -26,14 +26,18 @@ export interface Song {
 
 export type SongDetails = Omit<Song, 'id' | 'timestamp'>;
 
+// This context holds the "state" and "intentions" of the player, but not the player logic itself.
 type PlayerContextType = {
+  // Data
   playlist: Song[];
   userPlaylists: Playlist[] | null;
   activePlaylistId: string | null;
   currentSong: Song | null;
   currentIndex: number;
-  isPlaying: boolean;
   isLoading: boolean;
+  
+  // State
+  isPlaying: boolean;
   isPlayerOpen: boolean;
   progress: number;
   duration: number;
@@ -41,7 +45,7 @@ type PlayerContextType = {
   isMuted: boolean;
   seekTime: number | null;
   
-  // User "Intentions"
+  // User "Intentions" (Functions to change the state)
   addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
   deleteSong: (songId: string, playlistId: string) => Promise<void>;
   playSong: (index: number) => void;
@@ -55,7 +59,7 @@ type PlayerContextType = {
   toggleMute: () => void;
   setIsSeeking: (isSeeking: boolean) => void;
   
-  // Callbacks from the Player Engine
+  // Callbacks from the Player Engine (for internal use by the player component)
   _setIsPlaying: (isPlaying: boolean) => void;
   _setProgress: (progress: number) => void;
   _setDuration: (duration: number) => void;
@@ -82,6 +86,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isSeeking, setIsSeeking] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState(true);
   
+  // Fetch user's playlists
   const userPlaylistsQuery = useMemoFirebase(() => {
     if (user && firestore) {
       return query(collection(firestore, 'users', user.uid, 'playlists'), orderBy('createdAt', 'asc'));
@@ -90,6 +95,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   }, [user, firestore]);
   const { data: userPlaylists, isLoading: isUserPlaylistsLoading } = useCollection<Playlist>(userPlaylistsQuery);
 
+  // Set the first playlist as active by default
   useEffect(() => {
     if (userPlaylists && userPlaylists.length > 0 && !activePlaylistId) {
       setActivePlaylistId(userPlaylists[0].id);
@@ -98,6 +104,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [userPlaylists, activePlaylistId]);
 
+  // Fetch songs for the active playlist
   const songsQuery = useMemoFirebase(() => {
     if (user && firestore && activePlaylistId) {
       return query(collection(firestore, 'users', user.uid, 'playlists', activePlaylistId, 'songs'), orderBy('timestamp', 'asc'));
@@ -108,12 +115,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
   
+  // Sync local playlist state with Firestore data
   useEffect(() => {
     if (activePlaylistSongs) {
       const currentSongId = playlist[currentIndex]?.id;
       setPlaylist(activePlaylistSongs);
       const newIndex = activePlaylistSongs.findIndex(s => s.id === currentSongId);
       
+      // If the currently playing song was removed from the list, stop playing.
       if (newIndex === -1 && currentIndex !== -1) {
          setIsPlaying(false);
          setCurrentIndex(-1);
@@ -124,6 +133,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       }
       
     } else if (!activePlaylistId) {
+      // If no playlist is active, clear the local playlist and reset state.
       setPlaylist([]);
       setCurrentIndex(-1);
       setIsPlaying(false);
@@ -157,6 +167,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  // Setup initial playlist for new, non-anonymous users.
   useEffect(() => {
     if (user && !isUserLoading && !isUserPlaylistsLoading && userPlaylists?.length === 0) {
       const setupInitialPlaylist = async () => {
@@ -317,7 +328,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         // If a new song is clicked, play it
         setCurrentIndex(index);
         setIsPlaying(true);
-        // If the player starts muted by default, unmute it on first play
+        // Unmute on first intentional play action
         if(isMuted) {
           setIsMuted(false);
         }
@@ -331,11 +342,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const togglePlayPause = () => {
     if (!currentSong) return;
-    // If it's muted, the first action is to unmute.
+    // The first user intention to play should always unmute.
     if (isMuted) {
       setIsMuted(false);
     }
-    // Then toggle the playing state.
     setIsPlaying(prev => !prev);
   };
 
@@ -390,9 +400,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setActivePlaylistId,
     createPlaylist,
     seekTo,
-toggleMute,
+    toggleMute,
     setIsSeeking,
 
+    // Callbacks for the "Motor"
     _setIsPlaying: setIsPlaying,
     _setProgress: setProgress,
     _setDuration: setDuration,

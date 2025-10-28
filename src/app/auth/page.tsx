@@ -41,7 +41,6 @@ export default function AuthPage() {
       toast({ title: "Misafir olarak giriş yapıldı!" });
     } catch (err: any) {
       setError("Misafir girişi sırasında bir hata oluştu.");
-      console.error(err);
     } finally {
       setIsGuestLoading(false);
     }
@@ -69,10 +68,6 @@ export default function AuthPage() {
       
       setError(friendlyMessage);
       
-      const expectedErrors = ['auth/invalid-credential', 'auth/user-not-found', 'auth/wrong-password', 'auth/email-already-in-use'];
-      if (!expectedErrors.includes(err.code)) {
-        console.error(err);
-      }
     } finally {
       setIsLoading(false);
     }
