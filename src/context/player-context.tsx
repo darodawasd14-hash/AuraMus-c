@@ -29,6 +29,7 @@ export type SongDetails = Omit<Song, 'id' | 'timestamp'>;
 declare global {
   interface Window {
     myGlobalPlayer: any;
+    SC: any;
   }
 }
 
@@ -319,38 +320,27 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const togglePlayPause = () => {
-    console.log("--- BUTONA TIKLANDI ---");
-    
     const player = (window as any).myGlobalPlayer;
   
-    // 1. OYNATICIYI KONTROL ET
     if (!player || !player.getPlayerState) {
       console.error("HATA: Global oynatıcı 'window.myGlobalPlayer' bulunamadı!");
       return;
     }
-  
-    // 2. SESİ KONTROL ET (Her tıklamada sesi açmayı dene)
+
+    // --- EN ÖNEMLİ KISIM ---
+    // Kullanıcı butona bastığı için artık sesi açma iznimiz var.
+    // Eğer oynatıcı sessizse, sesi aç.
     if (player.isMuted()) {
-      console.log("Oynatıcı sessizdi. 'unMute()' ve 'setVolume(100)' komutları gönderiliyor.");
       player.unMute();
-      player.setVolume(100); // Garanti olsun
-    } else {
-      console.log("Oynatıcının sesi zaten açık.");
+      player.setVolume(100); // Garanti olsun diye sesi %100 yap
     }
   
-    // 3. MEVCUT DURUMU AL (EN ÖNEMLİ KISIM)
-    // Durumlar: 1 = Oynatılıyor, 2 = Duraklatıldı
+    // Oynatıcının mevcut durumunu al (1: Oynatılıyor, 2: Duraklatıldı)
     const currentState = player.getPlayerState();
-    console.log("Oynatıcının mevcut durumu:", currentState);
   
-    // 4. OYNAT / DURDUR MANTIĞI
-    if (currentState === 1) {
-      // EĞER OYNATILIYORSA (Durum 1), DURDUR.
-      console.log("Mevcut durum '1' (Oynatılıyor). 'pauseVideo()' komutu gönderiliyor.");
+    if (currentState === 1) { // Eğer oynatılıyorsa
       player.pauseVideo();
-    } else {
-      // EĞER DURAKLATILDIYSA (Durum 2) veya başka bir durumdaysa, OYNAT.
-      console.log("Mevcut durum '1' DEĞİL (Muhtemelen '2'). 'playVideo()' komutu gönderiliyor.");
+    } else { // Eğer duraklatılmışsa veya başka bir durumdaysa
       player.playVideo();
     }
   };
