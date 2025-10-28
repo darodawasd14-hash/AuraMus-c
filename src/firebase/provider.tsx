@@ -2,7 +2,7 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
+import { Firestore, doc, setDoc } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { Analytics } from 'firebase/analytics';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
@@ -84,6 +84,16 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     const unsubscribe = onAuthStateChanged(
       auth,
       (firebaseUser) => { // Auth state determined
+        if (firebaseUser && firestore) {
+            // Write user data to Firestore
+            const userRef = doc(firestore, "users", firebaseUser.uid);
+            setDoc(userRef, {
+                displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Anonymous',
+                email: firebaseUser.email,
+                photoURL: firebaseUser.photoURL,
+                uid: firebaseUser.uid
+            }, { merge: true });
+        }
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => { // Auth listener error
@@ -92,7 +102,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       }
     );
     return () => unsubscribe(); // Cleanup
-  }, [auth]); // Depends on the auth instance
+  }, [auth, firestore]); // Depends on the auth and firestore instances
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {

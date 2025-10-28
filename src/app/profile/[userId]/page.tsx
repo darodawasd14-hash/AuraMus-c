@@ -12,8 +12,8 @@ import Link from 'next/link';
 
 // Define types used in the component
 type UserProfile = {
-  displayName: string;
-  email: string;
+  displayName: string | null;
+  email: string | null;
 };
 
 type Playlist = {
@@ -80,6 +80,11 @@ export default function ProfilePage() {
     );
   }
 
+  const displayName = profileUser.displayName || 'İsimsiz Kullanıcı';
+  const displayEmail = profileUser.email || 'E-posta yok';
+  const fallbackAvatar = displayName.charAt(0).toUpperCase() || 'U';
+
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto p-4 md:p-8">
@@ -90,12 +95,12 @@ export default function ProfilePage() {
         {/* Profile Header */}
         <header className="flex flex-col items-center gap-6 rounded-lg border border-border bg-secondary/50 p-8 text-center md:flex-row md:text-left">
           <Avatar className="h-24 w-24 border-4 border-primary">
-            <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${profileUserId}`} alt={profileUser.displayName} />
-            <AvatarFallback>{profileUser.displayName?.charAt(0) ?? 'U'}</AvatarFallback>
+            <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${profileUserId}`} alt={displayName} />
+            <AvatarFallback>{fallbackAvatar}</AvatarFallback>
           </Avatar>
           <div className="flex-grow">
-            <h1 className="text-4xl font-bold tracking-tight">{profileUser.displayName}</h1>
-            <p className="text-muted-foreground">{profileUser.email}</p>
+            <h1 className="text-4xl font-bold tracking-tight">{displayName}</h1>
+            <p className="text-muted-foreground">{displayEmail}</p>
             <div className="mt-4 flex justify-center gap-6 md:justify-start">
               <div>
                 <p className="text-2xl font-bold">{followers?.length ?? 0}</p>
