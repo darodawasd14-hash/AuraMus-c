@@ -138,49 +138,49 @@ const addSong = async (songDetails: SongDetails, userId: string): Promise<Song |
     try {
         // 1. Merkezi şarkı referansını bul veya oluştur.
         const songsCollectionRef = collection(firestore, 'songs');
+        // Benzersiz tanımlayıcı olarak videoId veya URL kullan.
         const queryIdentifier = songDetails.videoId || songDetails.url;
         const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
         
         const querySnapshot = await getDocs(q); 
         let centralSongRef: DocumentReference;
+        let centralSongData: Song;
 
         if (querySnapshot.empty) {
             // Şarkı merkezde yok, yeni bir tane oluştur.
             centralSongRef = doc(songsCollectionRef);
-            const newSongData = {
+            centralSongData = {
                 ...songDetails,
                 id: centralSongRef.id,
                 userId: userId,
                 timestamp: serverTimestamp(),
             };
-            await setDoc(centralSongRef, newSongData);
+            await setDoc(centralSongRef, centralSongData);
         } else {
             // Şarkı merkezde var, mevcut olanı kullan.
             centralSongRef = querySnapshot.docs[0].ref;
+            centralSongData = querySnapshot.docs[0].data() as Song;
         }
 
-        // 2. Kullanıcının çalma listesindeki şarkı referansını oluştur.
+        // 2. Kullanıcının çalma listesindeki şarkı referansını oluştur (ID, merkezi şarkının ID'si olacak).
         const userPlaylistSongRef = doc(firestore, 'users', userId, 'playlist', centralSongRef.id);
 
-        // 3. Kullanıcının çalma listesinde bu şarkının olup olmadığını KONTROL ET.
+        // 3. ADIM: YAZMADAN ÖNCE OKU - Şarkının kullanıcının listesinde olup olmadığını kontrol et.
         const docSnap = await getDoc(userPlaylistSongRef);
 
+        // 4. ADIM: KONTROL ET
         if (docSnap.exists()) {
-            // 4. EĞER ŞARKI ZATEN VARSA: Uyarı göster ve işlemi bitir.
+            // EĞER BELGE VARSA: Uyarı ver ve işlemi durdur.
             toast({
                 title: `"${songDetails.title}" zaten listenizde var.`,
                 variant: 'default',
             });
             return null; // Ekleme işlemi yapılmadı.
         } else {
-            // 5. EĞER ŞARKI YOKSA: Ekle.
-            const centralSongDoc = await getDoc(centralSongRef);
-            if (!centralSongDoc.exists()) {
-                throw new Error("Merkezi şarkı dokümanı bulunamadı!");
-            }
+            // EĞER BELGE YOKSA: Ekle.
             const songDataForPlaylist = {
-                ...(centralSongDoc.data() as Song),
-                timestamp: serverTimestamp()
+                ...centralSongData, // Merkezi şarkının tüm bilgilerini kopyala
+                timestamp: serverTimestamp() // Kullanıcının listesine eklenme tarihini ayarla
             };
             await setDoc(userPlaylistSongRef, songDataForPlaylist);
 
@@ -191,6 +191,12 @@ const addSong = async (songDetails: SongDetails, userId: string): Promise<Song |
        
     } catch (error: any) {
         console.error("Şarkı ekleme işlemi sırasında hata: ", error);
+        // Bu hata, bir izin hatası olabilir, bu yüzden merkezi hata yayıcıya gönderelim.
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `users/${userId}/playlist`, // Genel bir yol
+            operation: 'write',
+            requestResourceData: songDetails
+        }));
         toast({
             title: "Şarkı eklenemedi",
             description: "İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.",
