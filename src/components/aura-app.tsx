@@ -32,6 +32,7 @@ import {
   DialogTrigger,
   DialogClose
 } from '@/components/ui/dialog';
+import Link from 'next/link';
 
 const appId = 'Aura';
 
@@ -112,8 +113,6 @@ export function AuraApp() {
       <Header 
         setView={setView} 
         currentView={view} 
-        profile={userProfile} 
-        setProfile={setUserProfile}
         isChatOpen={isChatOpen}
         setIsChatOpen={setIsChatOpen} 
       />
@@ -240,8 +239,8 @@ export function AuraApp() {
   );
 }
 
-const Header = ({ setView, currentView, profile, setProfile, isChatOpen, setIsChatOpen }: { setView: (view: 'player' | 'catalog' | 'search') => void; currentView: 'player' | 'catalog' | 'search', profile: UserProfile, setProfile: (profile: UserProfile) => void; isChatOpen: boolean; setIsChatOpen: (isOpen: boolean) => void; }) => {
-  const [isModalOpen, setModalOpen] = useState(false);
+const Header = ({ setView, currentView, isChatOpen, setIsChatOpen }: { setView: (view: 'player' | 'catalog' | 'search') => void; currentView: 'player' | 'catalog' | 'search', isChatOpen: boolean; setIsChatOpen: (isOpen: boolean) => void; }) => {
+  const { user } = useUser();
   
   return (
     <>
@@ -256,15 +255,18 @@ const Header = ({ setView, currentView, profile, setProfile, isChatOpen, setIsCh
            <Button onClick={() => setView('search')} variant={currentView === 'search' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Search/> Ara</Button>
         </div>
         <div className="flex items-center gap-4">
-          <Button onClick={() => setModalOpen(true)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-            <UserIcon/>
-          </Button>
+          {user && (
+            <Link href={`/profile/${user.uid}`} passHref>
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+                  <UserIcon/>
+              </Button>
+            </Link>
+          )}
            <Button onClick={() => setIsChatOpen(!isChatOpen)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
             {isChatOpen ? <X /> : <MessageSquare />}
           </Button>
         </div>
       </header>
-      <ProfileModal isOpen={isModalOpen} setIsOpen={setModalOpen} profile={profile} setProfile={setProfile} />
     </>
   );
 };
@@ -529,94 +531,6 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
             ))}
           </div>
         )}
-      </div>
-    </div>
-  );
-};
-
-
-const ProfileModal = ({ isOpen, setIsOpen, profile, setProfile }: { isOpen?: boolean; setIsOpen?: (open: boolean) => void; profile: UserProfile, setProfile: (profile: UserProfile) => void; }) => {
-  const { user } = useUser();
-  const auth = useAuth();
-  const { toast } = useToast();
-  const [displayName, setDisplayName] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      setDisplayName(profile.displayName || '');
-    }
-  }, [isOpen, profile]);
-
-  const handleSave = async () => {
-    if (!user || !auth.currentUser) return;
-    const newName = displayName.trim();
-    if (!newName) {
-      toast({ title: 'Lütfen geçerli bir isim girin.', variant: 'destructive' });
-      return;
-    }
-  
-    setIsSaving(true);
-    
-    try {
-      await updateProfile(auth.currentUser, { displayName: newName });
-      setProfile({ displayName: newName });
-      
-      toast({ title: 'Profil kaydedildi!' });
-      if (setIsOpen) setIsOpen(false);
-    } catch (error: any) {
-      console.error('Profil güncellenirken hata:', error);
-      toast({ title: 'Profil kaydedilirken hata oluştu.', variant: 'destructive', description: error.message });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      if (setIsOpen) setIsOpen(false);
-      toast({ title: 'Çıkış yapıldı.' });
-    } catch (error) {
-      console.error("Çıkış yapılırken hata:", error);
-      toast({ title: 'Çıkış yapılamadı.', variant: 'destructive' });
-    }
-  };
-  
-  if (!isOpen) return null;
-
-  return (
-    <div className="modal-overlay fixed inset-0 flex items-center justify-center z-50 p-4">
-      <div className="modal-content w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-semibold">Profil</h2>
-          <Button variant="ghost" size="icon" onClick={() => setIsOpen && setIsOpen(false)} className="text-muted-foreground hover:text-foreground">
-            &times;
-          </Button>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-muted-foreground">E-posta</label>
-            <p className="mt-1 text-lg">{user?.email}</p>
-          </div>
-          <div>
-            <label htmlFor="display-name-input" className="block text-sm font-medium text-muted-foreground">Görünen Ad</label>
-            <Input
-              type="text"
-              id="display-name-input"
-              placeholder="Adınızı girin..."
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <Button onClick={handleSave} disabled={isSaving} className="w-full">
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Değişiklikleri Kaydet'}
-          </Button>
-          <Button onClick={handleLogout} variant="destructive" className="w-full mt-2">
-            Çıkış Yap
-          </Button>
-        </div>
       </div>
     </div>
   );

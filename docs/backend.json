@@ -107,7 +107,19 @@
         }
       },
       "required": ["text", "sender", "timestamp"]
-    }
+    },
+     "Follow": {
+        "title": "Follow",
+        "description": "Represents a follow relationship between two users.",
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "The UID of the user who is following or being followed."
+          }
+        },
+        "required": ["uid"]
+      }
   },
   "auth": {
     "providers": [
@@ -145,6 +157,18 @@
         "$ref": "#/entities/Message"
       },
       "description": "Sub-collection storing the chat messages for a specific song."
-    }
+    },
+     "/users/{userId}/followers/{followerId}": {
+        "schema": {
+          "$ref": "#/entities/Follow"
+        },
+        "description": "A list of users who are following the user specified by {userId}."
+      },
+      "/users/{userId}/following/{followingId}": {
+        "schema": {
+          "$ref": "#/entities/Follow"
+        },
+        "description": "A list of users that the user specified by {userId} is following."
+      }
   }
 }
