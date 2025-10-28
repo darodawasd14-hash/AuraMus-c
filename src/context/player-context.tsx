@@ -304,13 +304,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
       if (index === currentIndex) {
-        togglePlayPause();
+        // If the same song is clicked, toggle play/pause
+        setIsPlaying(prev => !prev);
       } else {
+        // If a new song is clicked, start playing it
         setCurrentIndex(index);
         setIsPlaying(true);
         setIsPlayerOpen(true);
       }
     } else {
+      // Invalid index, stop playback
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
@@ -318,25 +321,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const togglePlayPause = useCallback(() => {
     if (!currentSong) return;
-    const player = youtubePlayerRef.current;
-    if (player && typeof player.getPlayerState === 'function') {
-      if (isPlaying) {
-        player.pauseVideo();
-      } else {
-        player.playVideo();
-      }
-    }
-    // For other player types
-    else if (currentSong.type === 'soundcloud') {
-        const widget = (window as any).SC.Widget(soundcloudPlayerRef.current);
-        if (isPlaying) widget.pause();
-        else widget.play();
-    } else if (currentSong.type === 'url') {
-        if (isPlaying) urlPlayerRef.current?.pause();
-        else urlPlayerRef.current?.play();
-    }
-     setIsPlaying(prev => !prev);
-  }, [currentSong, isPlaying]);
+    setIsPlaying(prev => !prev);
+  }, [currentSong]);
 
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
