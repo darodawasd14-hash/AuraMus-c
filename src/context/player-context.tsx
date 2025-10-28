@@ -1,63 +1,65 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useState, useContext, ReactNode } from 'react';
 
-export interface Song {
+// 1. Şarkı nesnesinin nasıl görüneceğini tanımlayalım
+export interface Song { 
   id: string;
+  videoId?: string;
   title: string;
   url: string;
   type: 'youtube' | 'soundcloud' | 'url';
-  videoId?: string;
   timestamp?: any;
 }
 
-interface PlayerControls {
-  play: () => void;
-  pause: () => void;
-  seek: (time: number) => void;
-  unmute: () => void;
-}
-
+// 2. Context'in içinde hangi bilgilerin olacağını tanımlayalım
 interface PlayerContextType {
-  playlist: Song[];
   currentSong: Song | null;
-  currentIndex: number;
   isPlaying: boolean;
+  playlist: Song[]; 
+  playSong: (song: Song, index: number) => void;
+  togglePlayPause: () => void;
+  addSong: (song: Song) => void; 
+  setPlaylist: (playlist: Song[]) => void;
+  currentIndex: number;
+
   isPlayerOpen: boolean;
   progress: number;
   duration: number;
   
-  setPlaylist: (playlist: Song[]) => void;
-  playSong: (song: Song, index: number) => void;
-  togglePlayPause: () => void;
-  playNext: () => void;
-  playPrev: () => void;
   setIsPlayerOpen: (isOpen: boolean) => void;
   seekTo: (time: number) => void;
+  playNext: () => void;
+  playPrev: () => void;
 
   _playerSetIsPlaying: (playing: boolean) => void;
   _playerSetProgress: (progress: number) => void;
   _playerSetDuration: (duration: number) => void;
   _playerOnEnd: () => void;
-  _playerRegisterControls: (controls: PlayerControls) => void;
+  _playerRegisterControls: (controls: any) => void;
 }
 
+// 3. Context'i oluşturalım
 export const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
+// 4. Provider (Sağlayıcı) Bileşeni
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
+  const [currentSong, setCurrentSong] = useState<Song | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isPlayerOpen, setIsPlayerOpen] = useState<boolean>(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isMutedByAutoplay, setIsMutedByAutoplay] = useState(false);
+  const playerControlsRef = React.useRef<any>(null);
 
-  const playerControlsRef = useRef<PlayerControls | null>(null);
 
-  const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
+  // === MANTIK FONKSİYONLARI ===
 
+  // Fonksiyon 1: BİR ŞARKIYI OYNAT (Listeden tıklayınca)
   const playSong = (song: Song, index: number) => {
+    setCurrentSong(song);
     setCurrentIndex(index);
     setIsPlaying(true);
     setIsMutedByAutoplay(true);
@@ -65,24 +67,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setDuration(0);
   };
 
-  const togglePlayPause = () => {
-    if (!currentSong) return;
-    
-    if (isMutedByAutoplay) {
-      playerControlsRef.current?.unmute();
-      setIsMutedByAutoplay(false);
-    }
-    
-    if (isPlaying) {
-      playerControlsRef.current?.pause();
-    } else {
-      playerControlsRef.current?.play();
-    }
-    // Note: We don't set isPlaying here directly. 
-    // The player's onStateChange will report the actual state.
-  };
-
-  const playNext = useCallback(() => {
+  const playNext = React.useCallback(() => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
     playSong(playlist[nextIndex], nextIndex);
@@ -92,6 +77,30 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (playlist.length === 0) return;
     const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
     playSong(playlist[prevIndex], prevIndex);
+  };
+
+
+  // Fonksiyon 2: ÇAL / DURDUR (Player bar'daki buton)
+   const togglePlayPause = () => {
+    if (!currentSong) return;
+    
+    if (isMutedByAutoplay) {
+      playerControlsRef.current?.unmute();
+      setIsMutedByAutoplay(false);
+    }
+
+    if (isPlaying) {
+      playerControlsRef.current?.pause();
+    } else {
+      playerControlsRef.current?.play();
+    }
+  };
+
+  // YENİ Fonksiyon 3: LİSTEYE YENİ ŞARKI EKLE VE ÇAL (Ekle butonu)
+  const addSong = (song: Song) => {
+    const newPlaylist = [...playlist, song];
+    setPlaylist(newPlaylist);
+    playSong(song, newPlaylist.length - 1);
   };
   
   const seekTo = (time: number) => {
@@ -103,25 +112,27 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const _playerSetProgress = (p: number) => setProgress(p);
   const _playerSetDuration = (d: number) => setDuration(d);
   const _playerOnEnd = () => playNext();
-  const _playerRegisterControls = (controls: PlayerControls) => {
+  const _playerRegisterControls = (controls: any) => {
     playerControlsRef.current = controls;
   }
 
+  // Bu fonksiyonları ve state'leri tüm uygulamaya "dağıtıyoruz"
   const value = {
-    playlist,
     currentSong,
-    currentIndex,
     isPlaying,
+    playlist, 
+    playSong,
+    togglePlayPause,
+    addSong, 
+    setPlaylist,
+    currentIndex,
     isPlayerOpen,
     progress,
     duration,
-    setPlaylist,
-    playSong,
-    togglePlayPause,
-    playNext,
-    playPrev,
     setIsPlayerOpen,
     seekTo,
+    playNext,
+    playPrev,
     _playerSetIsPlaying,
     _playerSetProgress,
     _playerSetDuration,
@@ -136,8 +147,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-
-export const usePlayer = (): PlayerContextType => {
+// 5. Kolay kullanım için 'hook'
+export const usePlayer = () => {
   const context = useContext(PlayerContext);
   if (context === undefined) {
     throw new Error('usePlayer must be used within a PlayerProvider');

@@ -34,6 +34,7 @@ import {
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
+import { getYoutubeVideoId } from '@/lib/utils';
 
 
 export function AuraApp() {
@@ -149,7 +150,7 @@ const BottomNavBar = ({ currentView, setView }: { currentView: string, setView: 
 }
 
 const PlaylistView = () => {
-    const { playlist, currentIndex, playSong, setPlaylist } = usePlayer();
+    const { playlist, currentIndex, playSong, setPlaylist, addSong } = usePlayer();
     const [isLoading, setIsLoading] = useState(false);
     const { user } = useUser();
     const { toast } = useToast();
@@ -160,24 +161,14 @@ const PlaylistView = () => {
 
     const handleAddSong = async (e: FormEvent) => {
         e.preventDefault();
-        if (!songUrl || !user || !firestore) return;
+        if (!songUrl) return;
         setIsAdding(true);
-
-        let songDetails: Song;
-        if (songUrl.includes('youtube.com') || songUrl.includes('youtu.be')) {
-            const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
-            const match = songUrl.match(youtubeRegex);
-            const videoId = match ? match[1] : undefined;
-
-            if (!videoId) {
-                toast({ title: "Geçersiz YouTube linki", description: "Video ID'si bulunamadı.", variant: 'destructive' });
-                setIsAdding(false);
-                return;
-            }
-            
-            let videoTitle = `YouTube Video: ${videoId}`; // Fallback title
+    
+        const videoId = getYoutubeVideoId(songUrl);
+    
+        if (videoId) {
+            let videoTitle = `Yeni Şarkı (${videoId.substring(0, 5)}...)`;
             try {
-                // Use a CORS proxy if running into CORS issues in development
                 const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
                 if (oembedResponse.ok) {
                     const oembedData = await oembedResponse.json();
@@ -185,32 +176,33 @@ const PlaylistView = () => {
                 }
             } catch (error) {
                 console.error("Could not fetch YouTube video title:", error);
-                toast({ title: "Video başlığı alınamadı", variant: 'destructive' });
             }
-
-            songDetails = { 
-                id: videoId, 
-                videoId, 
-                url: `https://www.youtube.com/watch?v=${videoId}`, 
-                title: videoTitle, 
-                type: 'youtube' as const, 
-                timestamp: serverTimestamp() 
+    
+            const newSong: Song = {
+                id: videoId,
+                videoId: videoId,
+                title: videoTitle,
+                url: `https://www.youtube.com/watch?v=${videoId}`,
+                type: 'youtube',
+                timestamp: serverTimestamp(),
             };
+    
+            addSong(newSong);
+            toast({ title: `"${videoTitle}" eklendi ve çalınıyor.` });
         } else {
+            // Handle non-YouTube URLs (e.g., SoundCloud or direct URL)
              const safeId = typeof window !== "undefined" ? window.btoa(songUrl).replace(/\//g, '-') : Buffer.from(songUrl).toString('base64').replace(/\//g, '-');
-             songDetails = { 
-                id: safeId, 
-                url: songUrl, 
-                title: songUrl, 
-                type: 'url' as const, 
-                timestamp: serverTimestamp() 
+             const newSong: Song = {
+                id: safeId,
+                url: songUrl,
+                title: songUrl,
+                type: songUrl.includes('soundcloud.com') ? 'soundcloud' : 'url',
+                timestamp: serverTimestamp()
             };
+            addSong(newSong);
+            toast({ title: `"${newSong.title}" eklendi ve çalınıyor.` });
         }
-
-        const newPlaylist = [...playlist, songDetails];
-        setPlaylist(newPlaylist);
-
-        toast({ title: `"${songDetails.title}" eklendi.` });
+    
         setSongUrl('');
         setIsAdding(false);
     };
@@ -304,7 +296,7 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
 
 
 const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
-  const { setPlaylist, playlist } = usePlayer();
+  const { addSong } = usePlayer();
   const { toast } = useToast();
   const firestore = useFirestore();
 
@@ -316,8 +308,8 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
   const { data: catalogSongs, isLoading, error } = useCollection<Song>(songsQuery);
 
   const handleAddFromCatalog = async (song: Song) => {
-    setPlaylist([...playlist, song]);
-    toast({ title: `"${song.title}" listenize eklendi.` });
+    addSong(song);
+    toast({ title: `"${song.title}" listenize eklendi ve çalınıyor.` });
     setView('playlist');
   };
 
@@ -380,7 +372,7 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
 };
 
 const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
-  const { setPlaylist, playlist } = usePlayer();
+  const { addSong } = usePlayer();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ songs: { videoId: string; title: string; thumbnailUrl: string; }[] } | null>(null);
@@ -422,8 +414,8 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
       type: 'youtube'
     };
     
-    setPlaylist([...playlist, songDetails]);
-    toast({ title: `"${title}" listenize eklendi.` });
+    addSong(songDetails);
+    toast({ title: `"${title}" listenize eklendi ve çalınıyor.` });
     setView('playlist');
   };
 
