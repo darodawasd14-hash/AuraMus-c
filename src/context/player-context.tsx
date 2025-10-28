@@ -45,6 +45,7 @@ type PlayerContextType = {
   progress: number;
   duration: number;
   isSeeking: boolean;
+  isMuted: boolean;
   
   addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
   deleteSong: (songId: string, playlistId: string) => Promise<void>;
@@ -56,6 +57,7 @@ type PlayerContextType = {
   setActivePlaylistId: (id: string | null) => void;
   createPlaylist: (name: string) => Promise<void>;
   seekTo: (time: number) => void; 
+  toggleMute: () => void;
   
   // Player Engine'den gelen durum güncellemeleri
   _setIsPlaying: (isPlaying: boolean) => void;
@@ -64,6 +66,7 @@ type PlayerContextType = {
   _clearSeek: () => void;
   seekTime: number | null;
   setIsSeeking: (isSeeking: boolean) => void;
+  _setIsMuted: (isMuted: boolean) => void;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -83,6 +86,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [duration, setDuration] = useState(0);
   const [seekTime, setSeekTime] = useState<number | null>(null);
   const [isSeeking, setIsSeeking] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState(true);
   
   const userPlaylistsQuery = useMemoFirebase(() => {
     if (user && firestore) {
@@ -313,6 +317,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (index >= 0 && index < playlist.length) {
       setCurrentIndex(index);
       setIsPlaying(true);
+      const player = (window as any).myGlobalPlayer;
+      if (player && player.getPlayerState && player.isMuted()) {
+          player.unMute();
+          setIsMuted(false);
+      }
     } else {
       setCurrentIndex(-1);
       setIsPlaying(false);
@@ -326,17 +335,32 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       console.error("HATA: Global oynatıcı 'window.myGlobalPlayer' bulunamadı!");
       return;
     }
-
+  
+    // Sesi kontrol et ve gerekiyorsa aç
     if (player.isMuted()) {
       player.unMute();
+      setIsMuted(false);
     }
   
-    const currentState = player.getPlayerState();
+    const playerState = player.getPlayerState();
   
-    if (currentState === 1) { // Oynatılıyorsa
+    if (playerState === 1) { // Oynatılıyorsa durdur
       player.pauseVideo();
-    } else { // Duraklatıldıysa veya başka bir durumdaysa
+    } else { // Duraklatıldıysa veya başka bir durumdaysa oynat
       player.playVideo();
+    }
+  };
+
+  const toggleMute = () => {
+    const player = (window as any).myGlobalPlayer;
+    if (!player || typeof player.isMuted !== 'function') return;
+
+    if(player.isMuted()) {
+        player.unMute();
+        setIsMuted(false);
+    } else {
+        player.mute();
+        setIsMuted(true);
     }
   };
 
@@ -374,6 +398,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     progress,
     duration,
     isSeeking,
+    isMuted,
     addSong,
     deleteSong,
     playSong,
@@ -384,12 +409,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setActivePlaylistId,
     createPlaylist,
     seekTo,
+    toggleMute,
     seekTime,
     setIsSeeking,
     _setIsPlaying: setIsPlaying,
     _setProgress: setProgress,
     _setDuration: setDuration,
     _clearSeek,
+    _setIsMuted: setIsMuted,
   };
 
   return (

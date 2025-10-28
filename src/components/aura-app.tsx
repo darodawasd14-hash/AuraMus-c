@@ -5,7 +5,7 @@ import type { Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, MessageSquare, X, Plus, ChevronDown } from '@/components/icons';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, MessageSquare, X, Plus, ChevronDown, Volume2, VolumeX } from '@/components/icons';
 import { useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -41,7 +41,7 @@ interface UserProfile {
 }
 
 export function AuraApp() {
-  const { currentSong, isPlaying, togglePlayPause, playNext, playPrev, isPlayerOpen, setIsPlayerOpen, progress, duration, seekTo, setIsSeeking } = usePlayer();
+  const { currentSong, isPlaying, togglePlayPause, playNext, playPrev, isPlayerOpen, setIsPlayerOpen, progress, duration, seekTo, setIsSeeking, isMuted, toggleMute } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const { user } = useUser();
@@ -111,6 +111,8 @@ export function AuraApp() {
           duration={duration}
           onSeek={seekTo}
           onSeeking={setIsSeeking}
+          isMuted={isMuted}
+          onMuteToggle={toggleMute}
         />
       )}
       
@@ -175,7 +177,7 @@ const formatTime = (seconds: number) => {
 };
 
 
-const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onPrev, onClick, progress, duration, onSeek, onSeeking }: { song: Song, isPlaying: boolean, onPlayPause: () => void, onNext: () => void, onPrev: () => void, onClick: () => void, progress: number, duration: number, onSeek: (time: number) => void, onSeeking: (isSeeking: boolean) => void}) => {
+const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onPrev, onClick, progress, duration, onSeek, onSeeking, isMuted, onMuteToggle }: { song: Song, isPlaying: boolean, onPlayPause: () => void, onNext: () => void, onPrev: () => void, onClick: () => void, progress: number, duration: number, onSeek: (time: number) => void, onSeeking: (isSeeking: boolean) => void, isMuted: boolean, onMuteToggle: () => void }) => {
   const [sliderValue, setSliderValue] = useState(progress);
   const { isSeeking } = usePlayer();
 
@@ -217,6 +219,9 @@ const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onPrev, onClick, prog
           </div>
         </div>
         <div className="flex items-center gap-2 pl-4">
+           <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onMuteToggle(); }}>
+              {isMuted ? <VolumeX className="w-6 h-6"/> : <Volume2 className="w-6 h-6"/>}
+          </Button>
           <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onPrev(); }}>
               <SkipBack className="w-6 h-6"/>
           </Button>
@@ -246,7 +251,7 @@ const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onPrev, onClick, prog
 }
 
 const FullPlayerView = ({ song, onClose }: { song: Song | null, onClose: () => void }) => {
-    const { isPlaying, togglePlayPause, playNext, playPrev, progress, duration, seekTo, setIsSeeking } = usePlayer();
+    const { isPlaying, togglePlayPause, playNext, playPrev, progress, duration, seekTo, setIsSeeking, isMuted, toggleMute } = usePlayer();
 
     if (!song) return null;
     
@@ -278,7 +283,9 @@ const FullPlayerView = ({ song, onClose }: { song: Song | null, onClose: () => v
             <header className="flex-shrink-0 flex items-center justify-between">
                 <Button variant="ghost" size="icon" onClick={onClose}><ChevronDown className="w-8 h-8"/></Button>
                 <span className="text-sm font-bold uppercase text-muted-foreground">Şimdi Oynatılıyor</span>
-                <div className="w-10"></div>
+                 <Button variant="ghost" size="icon" onClick={toggleMute}>
+                    {isMuted ? <VolumeX className="w-6 h-6"/> : <Volume2 className="w-6 h-6"/>}
+                </Button>
             </header>
             <main className="flex-grow flex flex-col items-center justify-center gap-8 text-center">
                 <div className="w-full max-w-md aspect-square rounded-lg shadow-2xl overflow-hidden">

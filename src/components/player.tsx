@@ -14,13 +14,15 @@ const YouTubePlayerInternal = () => {
     _setProgress,
     seekTime,
     _clearSeek,
+    _setIsMuted,
   } = usePlayer();
   
   const onReady = useCallback((event: any) => {
     console.log("Oynatıcı hazır. SESSİZ oynatılıyor ve GLOBALE kaydediliyor.");
-    event.target.playVideo();
     (window as any).myGlobalPlayer = event.target;
-  }, []);
+    event.target.playVideo(); // Autoplay'i tetikle
+    _setIsMuted(event.target.isMuted());
+  }, [_setIsMuted]);
 
   const onStateChange = useCallback((event: any) => {
     const player = event.target;
@@ -28,6 +30,10 @@ const YouTubePlayerInternal = () => {
     if (player && typeof player.getDuration === 'function') {
         const duration = player.getDuration();
         if (duration) _setDuration(duration);
+    }
+     // Sync Mute State
+    if (player && typeof player.isMuted === 'function') {
+        _setIsMuted(player.isMuted());
     }
     
     // Playing
@@ -40,7 +46,7 @@ const YouTubePlayerInternal = () => {
     } else { 
       _setIsPlaying(false);
     }
-  }, [_setIsPlaying, _setDuration, playNext]);
+  }, [_setIsPlaying, _setDuration, playNext, _setIsMuted]);
   
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -89,7 +95,8 @@ const YouTubePlayerInternal = () => {
           controls: 0,
           modestbranding: 1,
           rel: 0,
-          playsinline: 1
+          playsinline: 1,
+          mute: 1, // Otomatik oynatmayı garantilemek için sessiz başlat
         },
       }}
       onReady={onReady}
@@ -102,7 +109,7 @@ const YouTubePlayerInternal = () => {
 
 
 const SoundCloudPlayerInternal = () => {
-    const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress, isSeeking } = usePlayer();
+    const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress, isSeeking, _setIsMuted } = usePlayer();
     const soundcloudPlayerRef = useRef<any>(null);
 
     useEffect(() => {
@@ -126,9 +133,11 @@ const SoundCloudPlayerInternal = () => {
         
         const widget = (window as any).SC.Widget(iframe);
         soundcloudPlayerRef.current = widget;
+        (window as any).myGlobalPlayer = widget;
 
         const onReady = () => {
             widget.getDuration((d: number) => _setDuration(d / 1000));
+             widget.getVolume((v: number) => _setIsMuted(v === 0));
         };
 
         const onPlay = () => _setIsPlaying(true);
@@ -159,7 +168,7 @@ const SoundCloudPlayerInternal = () => {
             if (iframe) iframe.remove();
             soundcloudPlayerRef.current = null;
         };
-    }, [currentSong, _setDuration, playNext, _setIsPlaying, _setProgress, isSeeking, isPlaying]);
+    }, [currentSong, _setDuration, playNext, _setIsPlaying, _setProgress, isSeeking, isPlaying, _setIsMuted]);
     
     useEffect(() => {
         const widget = soundcloudPlayerRef.current;
@@ -184,8 +193,9 @@ const SoundCloudPlayerInternal = () => {
 
 
 const UrlPlayerInternal = () => {
-    const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress, isSeeking } = usePlayer();
+    const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress, isSeeking, _setIsMuted, isMuted } = usePlayer();
     const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
+    (window as any).myGlobalPlayer = urlPlayerRef.current;
     
     useEffect(() => {
         const player = urlPlayerRef.current ?? new Audio();
@@ -195,6 +205,7 @@ const UrlPlayerInternal = () => {
 
         if (currentSong && currentSong.type === 'url' && currentSong.url && player.src !== currentSong.url) {
             player.src = currentSong.url;
+            player.muted = isMuted; // Set initial mute state
         }
 
         const handleLoadedMetadata = () => _setDuration(player.duration);
@@ -204,12 +215,15 @@ const UrlPlayerInternal = () => {
         const handlePlay = () => _setIsPlaying(true);
         const handlePause = () => _setIsPlaying(false);
         const handleEnded = () => playNext();
+        const handleVolumeChange = () => _setIsMuted(player.muted || player.volume === 0);
 
         player.addEventListener('loadedmetadata', handleLoadedMetadata);
         player.addEventListener('timeupdate', handleTimeUpdate);
         player.addEventListener('play', handlePlay);
         player.addEventListener('pause', handlePause);
         player.addEventListener('ended', handleEnded);
+        player.addEventListener('volumechange', handleVolumeChange);
+
 
         return () => {
             player.removeEventListener('loadedmetadata', handleLoadedMetadata);
@@ -217,8 +231,9 @@ const UrlPlayerInternal = () => {
             player.removeEventListener('play', handlePlay);
             player.removeEventListener('pause', handlePause);
             player.removeEventListener('ended', handleEnded);
+            player.removeEventListener('volumechange', handleVolumeChange);
         };
-    }, [currentSong, _setDuration, _setProgress, _setIsPlaying, playNext, isSeeking]);
+    }, [currentSong, _setDuration, _setProgress, _setIsPlaying, playNext, isSeeking, _setIsMuted, isMuted]);
 
      useEffect(() => {
         const player = urlPlayerRef.current;
@@ -229,12 +244,14 @@ const UrlPlayerInternal = () => {
             _clearSeek();
         }
         
+        player.muted = isMuted;
+
         if (isPlaying) {
             player.play().catch(e => console.error("Audio playback failed:", e));
         } else {
             player.pause();
         }
-    }, [isPlaying, seekTime, _clearSeek]);
+    }, [isPlaying, seekTime, _clearSeek, isMuted]);
 
     return null;
 };
