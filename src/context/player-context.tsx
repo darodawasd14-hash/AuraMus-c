@@ -52,6 +52,7 @@ type PlayerContextType = {
   setActivePlaylistId: (id: string | null) => void;
   createPlaylist: (name: string) => Promise<void>;
   setIsSeeking: (isSeeking: boolean) => void;
+  setIsPlaying: (isPlaying: boolean) => void;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -99,38 +100,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const { data: activePlaylistSongs, isLoading: isSongsLoading } = useCollection<Song>(songsQuery);
   
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
-
-  // This is the CRITICAL effect that syncs the `isPlaying` state to the actual player.
-  useEffect(() => {
-    if (!currentSong) return;
-
-    const youtubePlayer = youtubePlayerRef.current;
-    const soundcloudPlayer = soundcloudPlayerRef.current;
-    const urlPlayer = urlPlayerRef.current;
-
-    try {
-        if (isPlaying) {
-            if (currentSong.type === 'youtube' && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-                youtubePlayer.playVideo();
-            } else if (currentSong.type === 'soundcloud' && soundcloudPlayer && typeof soundcloudPlayer.play === 'function') {
-                soundcloudPlayer.play();
-            } else if (currentSong.type === 'url' && urlPlayer) {
-                urlPlayer.play().catch(e => console.error("URL audio playback error:", e));
-            }
-        } else {
-            if (currentSong.type === 'youtube' && youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
-                youtubePlayer.pauseVideo();
-            } else if (currentSong.type === 'soundcloud' && soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
-                soundcloudPlayer.pause();
-            } else if (currentSong.type === 'url' && urlPlayer) {
-                urlPlayer.pause();
-            }
-        }
-    } catch (e) {
-        console.error("Error controlling player state:", e);
-    }
-  }, [isPlaying, currentSong]);
-
 
   useEffect(() => {
     let progressInterval: NodeJS.Timeout | null = null;
@@ -186,10 +155,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       
       if (newIndex === -1) {
          if (currentIndex !== -1) {
-            // If the currently playing song is removed from the active playlist,
-            // we could either stop playback or play the next song.
-            // For now, we'll just reset the index which will stop playback.
-            // A more advanced implementation might play the next available song.
             // setCurrentIndex(-1);
             // setIsPlaying(false);
          }
@@ -201,9 +166,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setPlaylist([]);
       setCurrentIndex(-1);
     }
-    // This dependency array intentionally omits `currentIndex` and `playlist`
-    // to avoid re-running when we manually update them inside.
-    // We only want this to run when the source of truth (activePlaylistSongs) changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlaylistSongs, activePlaylistId]);
 
@@ -386,8 +348,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
-      setCurrentIndex(index);
-      setIsPlaying(true);
+      if (currentIndex !== index) {
+        setCurrentIndex(index);
+        // Don't set isPlaying to true here. Let the player do it onReady/onPlay.
+        setIsPlaying(false);
+      } else {
+        // If it's the same song, just toggle
+        togglePlayPause();
+      }
       setIsPlayerOpen(true);
       setProgress(0);
       setDuration(0);
@@ -396,7 +364,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setIsPlaying(false);
       setIsPlayerOpen(false);
     }
-  }, [playlist.length]);
+  }, [playlist.length, currentIndex]);
 
   const togglePlayPause = () => {
     if (currentIndex === -1 && playlist.length > 0) {
@@ -404,7 +372,23 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     
-    setIsPlaying(prevIsPlaying => !prevIsPlaying);
+    setIsPlaying(prevIsPlaying => {
+      const newIsPlaying = !prevIsPlaying;
+      if (currentSong) {
+          try {
+              if (currentSong.type === 'youtube' && youtubePlayerRef.current) {
+                  newIsPlaying ? youtubePlayerRef.current.playVideo() : youtubePlayerRef.current.pauseVideo();
+              } else if (currentSong.type === 'soundcloud' && soundcloudPlayerRef.current) {
+                  newIsPlaying ? soundcloudPlayerRef.current.play() : soundcloudPlayerRef.current.pause();
+              } else if (currentSong.type === 'url' && urlPlayerRef.current) {
+                  newIsPlaying ? urlPlayerRef.current.play() : urlPlayerRef.current.pause();
+              }
+          } catch (e) {
+              console.error("Toggle play/pause error", e);
+          }
+      }
+      return newIsPlaying;
+    });
   };
 
   const playNext = useCallback(() => {
@@ -461,7 +445,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlayerOpen,
     setActivePlaylistId,
     createPlaylist,
-    setIsSeeking
+    setIsSeeking,
+    setIsPlaying,
   };
 
   return (
