@@ -17,6 +17,9 @@ const SoundCloudPlayer = ({ song }: { song: Song; }) => {
     const onReady = () => {
       widget.bind((window as any).SC.Widget.Events.FINISH, playNext);
       widget.getDuration((d: number) => setDuration(d / 1000));
+      if (isPlaying) {
+        widget.play();
+      }
     };
 
     const onPlayProgress = (data: { currentPosition: number }) => {
@@ -39,7 +42,7 @@ const SoundCloudPlayer = ({ song }: { song: Song; }) => {
         // Suppress errors
       }
     };
-  }, [song.url, playNext, setDuration, setProgress, isSeeking, soundcloudPlayerRef]);
+  }, [song.url, playNext, setDuration, setProgress, isSeeking, soundcloudPlayerRef, isPlaying]);
 
   useEffect(() => {
     if (!widgetRef.current) return;
@@ -117,17 +120,6 @@ export function Player({ song }: { song: Song | null }) {
 
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    const player = youtubePlayerRef.current;
-    if (player && typeof player.getPlayerState === 'function') {
-      if (isPlaying) {
-        player.playVideo();
-      } else {
-        player.pauseVideo();
-      }
-    }
-  }, [isPlaying, youtubePlayerRef]);
-
   const onReady = (event: any) => {
     youtubePlayerRef.current = event.target;
     if (isPlaying) {
@@ -156,6 +148,8 @@ export function Player({ song }: { song: Song | null }) {
       playNext();
     } else if (event.data === 2) { // Paused
        setIsPlaying(false);
+    } else {
+       setIsPlaying(false);
     }
   };
 
@@ -183,7 +177,7 @@ export function Player({ song }: { song: Song | null }) {
               width: '0',
               height: '0',
               playerVars: {
-                autoplay: 0, // Let our logic handle autoplay
+                autoplay: 1, // Let the onReady handler manage playback start
                 controls: 0,
                 modestbranding: 1,
                 rel: 0,

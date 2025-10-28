@@ -303,20 +303,40 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
-      setCurrentIndex(index);
-      setIsPlaying(true);
-      setIsPlayerOpen(true);
+      if (index === currentIndex) {
+        togglePlayPause();
+      } else {
+        setCurrentIndex(index);
+        setIsPlaying(true);
+        setIsPlayerOpen(true);
+      }
     } else {
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
-  }, [playlist.length]);
+  }, [playlist.length, currentIndex]);
 
   const togglePlayPause = useCallback(() => {
-    if (playlist.length > 0) {
-      setIsPlaying(prev => !prev);
+    if (!currentSong) return;
+    const player = youtubePlayerRef.current;
+    if (player && typeof player.getPlayerState === 'function') {
+      if (isPlaying) {
+        player.pauseVideo();
+      } else {
+        player.playVideo();
+      }
     }
-  }, [playlist.length]);
+    // For other player types
+    else if (currentSong.type === 'soundcloud') {
+        const widget = (window as any).SC.Widget(soundcloudPlayerRef.current);
+        if (isPlaying) widget.pause();
+        else widget.play();
+    } else if (currentSong.type === 'url') {
+        if (isPlaying) urlPlayerRef.current?.pause();
+        else urlPlayerRef.current?.play();
+    }
+     setIsPlaying(prev => !prev);
+  }, [currentSong, isPlaying]);
 
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
