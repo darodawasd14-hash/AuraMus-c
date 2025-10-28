@@ -14,7 +14,7 @@ import { google } from 'googleapis';
 
 // API ANAHTARINI GÜVENLİ BİR ŞEKİLDE DOĞRUDAN KODA EKLİYORUZ.
 // Bu dosya 'use server' olarak işaretlendiği için anahtar istemciye sızdırılmaz.
-const YOUTUBE_API_KEY = "AIzaSyAXua69v9V1KgttqLR27d7HjPTs6O7-HyA";
+const YOUTUBE_API_KEY = "AIzaSyBROCNucLfq3jMNtZX1dqZXel4qv-OvKtA";
 
 // Kendi YouTube arama aracımızı tanımlıyoruz
 const youtubeSearchTool = ai.defineTool(
