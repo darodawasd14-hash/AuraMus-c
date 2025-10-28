@@ -12,9 +12,8 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { google } from 'googleapis';
 
-// API ANAHTARINI GÜVENLİ BİR ŞEKİLDE DOĞRUDAN KODA EKLİYORUZ.
-// Bu dosya 'use server' olarak işaretlendiği için anahtar istemciye sızdırılmaz.
-const YOUTUBE_API_KEY = "AIzaSyBROCNucLfq3jMNtZX1dqZXel4qv-OvKtA";
+// API anahtarını ortam değişkenlerinden alıyoruz.
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 
 // Kendi YouTube arama aracımızı tanımlıyoruz
 const youtubeSearchTool = ai.defineTool(
@@ -35,8 +34,8 @@ const youtubeSearchTool = ai.defineTool(
   async ({ query }) => {
     // GÜVENLİK KİLİDİ: API anahtarı boşsa veya geçersizse, istek gönderme ve hata fırlat.
     if (!YOUTUBE_API_KEY) {
-      console.warn("YOUTUBE_API_KEY sabiti ayarlanmamış veya varsayılan değerde. Arama aracı atlanıyor.");
-      throw new Error("YouTube API anahtarı yapılandırılmamış. Lütfen geçerli bir anahtar sağlayın.");
+      console.error("YOUTUBE_API_KEY ortam değişkeni ayarlanmamış. Arama aracı atlanıyor.");
+      throw new Error("YouTube API anahtarı yapılandırılmamış. Lütfen .env dosyanızı kontrol edin.");
     }
     
     // YouTube API'sini başlatma
@@ -67,8 +66,8 @@ const youtubeSearchTool = ai.defineTool(
     } catch (error: any) {
       console.error("YouTube API Hatası:", error.message);
       // API'den bir hata geldiğinde (örneğin kota aşımı), bunu kullanıcıya net bir şekilde bildir.
-      if (error.message.includes('quota')) {
-          throw new Error('YouTube arama kotası aşıldı. Lütfen daha sonra tekrar deneyin.');
+      if (error.code === 403 || error.message.includes('quota')) {
+          throw new Error('YouTube arama kotası aşıldı veya API anahtarı geçersiz. Lütfen daha sonra tekrar deneyin.');
       }
       throw new Error(`YouTube API hatası: ${error.message}. Lütfen API anahtarınızı veya YouTube Data API kotanızı kontrol edin.`);
     }
