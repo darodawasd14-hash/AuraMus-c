@@ -30,9 +30,11 @@ export default function ProfilePage() {
   const auth = useAuth();
 
   const profileUserRef = useMemoFirebase(() => firestore ? doc(firestore, 'users', profileUserId) : null, [firestore, profileUserId]);
-  const followersRef = useMemoFirebase(() => firestore ? collection(firestore, 'users', profileUserId, 'followers') : null, [firestore, profileUserId]);
-  const followingRef = useMemoFirebase(() => firestore ? collection(firestore, 'users', profileUserId, 'following') : null, [firestore, profileUserId]);
-  const playlistsRef = useMemoFirebase(() => firestore ? collection(firestore, 'users', profileUserId, 'playlists') : null, [firestore, profileUserId]);
+  
+  // Only create these refs if a user is logged in
+  const followersRef = useMemoFirebase(() => (firestore && currentUser) ? collection(firestore, 'users', profileUserId, 'followers') : null, [firestore, profileUserId, currentUser]);
+  const followingRef = useMemoFirebase(() => (firestore && currentUser) ? collection(firestore, 'users', profileUserId, 'following') : null, [firestore, profileUserId, currentUser]);
+  const playlistsRef = useMemoFirebase(() => (firestore && currentUser) ? collection(firestore, 'users', profileUserId, 'playlists') : null, [firestore, profileUserId, currentUser]);
 
   const { data: profileUser, isLoading: isProfileLoading } = useDoc<UserProfile>(profileUserRef);
   const { data: followers, isLoading: isFollowersLoading } = useCollection(followersRef);
@@ -102,7 +104,7 @@ export default function ProfilePage() {
   };
 
 
-  if (isLoading) {
+  if (isLoading || isAuthLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
