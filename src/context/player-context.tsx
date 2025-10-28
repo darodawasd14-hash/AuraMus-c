@@ -336,8 +336,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   useEffect(() => {
     const song = playlist[currentIndex];
-  
-    if (!isPlaying || !song) {
+    
+    // Safety Guard: Do not proceed if there is no song
+    if (!song) {
+        return;
+    }
+
+    if (!isPlaying) {
       if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
       if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
       if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
