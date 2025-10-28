@@ -28,17 +28,6 @@ export async function answerSongQuestion(
   return songQuestionFlow(input);
 }
 
-const prompt = ai.definePrompt({
-  name: 'songQuestionPrompt',
-  input: { schema: SongQuestionInputSchema },
-  output: { schema: SongQuestionOutputSchema },
-  prompt: `Sen Aura, bir müzik uzmanı ve sohbet asistanısın. Kullanıcı, "{{songTitle}}" adlı şarkıyı dinliyor ve bu şarkıyla ilgili bir soru sordu.
-
-Kullanıcının sorusu: "{{question}}"
-
-Lütfen bu soruya internetten veya kendi bilginden yararlanarak bilgilendirici ve samimi bir cevap ver. Cevabın Markdown formatında olabilir.`,
-});
-
 const songQuestionFlow = ai.defineFlow(
   {
     name: 'songQuestionFlow',

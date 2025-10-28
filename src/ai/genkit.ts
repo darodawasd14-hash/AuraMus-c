@@ -1,4 +1,3 @@
-'use server';
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 
@@ -9,6 +8,8 @@ if (!GEMINI_API_KEY) {
   console.warn("GEMINI_API_KEY ortam değişkeni ayarlanmamış. Genkit düzgün çalışmayabilir.");
 }
 
+// Bu dosya artık 'use server' içermiyor.
+// Sadece 'ai' nesnesini yapılandırıp dışa aktarır.
 export const ai = genkit({
   plugins: [googleAI({ apiKey: GEMINI_API_KEY })],
 });
