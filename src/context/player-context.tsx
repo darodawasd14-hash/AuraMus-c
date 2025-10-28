@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit, runTransaction, DocumentReference, getDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit, runTransaction, DocumentReference, getDoc, setDoc } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import initialCatalog from '@/app/lib/catalog.json';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -42,14 +42,6 @@ type PlayerContextType = {
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
-
-// Özel hata sınıfı
-class SongAlreadyExistsError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'SongAlreadyExistsError';
-  }
-}
 
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
@@ -144,83 +136,66 @@ const addSong = async (songDetails: SongDetails, userId: string): Promise<Song |
     }
 
     try {
-        const songRef = await runTransaction(firestore, async (transaction) => {
-            // Transaction İÇİNDE kontrol et
-            const userPlaylistColRef = collection(firestore, 'users', userId, 'playlist');
-            const duplicateQuery = query(userPlaylistColRef, where("title", "==", songDetails.title), limit(1));
-            // Transaction içinde okuma yapmak için transaction.get kullanmalıyız ama query için getDocs gerekiyor.
-            // Bu nedenle bu kontrolü transaction dışında yapmak daha güvenli.
-            // Fakat transaction atomikliği için, transaction içinde bir kontrol mekanizması daha iyi.
-            // Bu sorguyu transaction içinde çalıştıralım.
-            const duplicateSnapshot = await getDocs(duplicateQuery);
+        // 1. Merkezi şarkı referansını bul veya oluştur.
+        const songsCollectionRef = collection(firestore, 'songs');
+        const queryIdentifier = songDetails.videoId || songDetails.url;
+        const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
+        
+        const querySnapshot = await getDocs(q); 
+        let centralSongRef: DocumentReference;
 
-            if (!duplicateSnapshot.empty) {
-                // Şarkı zaten varsa, özel bir hata fırlatarak transaction'ı sonlandır
-                throw new SongAlreadyExistsError(`"${songDetails.title}" zaten listenizde var.`);
-            }
+        if (querySnapshot.empty) {
+            // Şarkı merkezde yok, yeni bir tane oluştur.
+            centralSongRef = doc(songsCollectionRef);
+            const newSongData = {
+                ...songDetails,
+                id: centralSongRef.id,
+                userId: userId,
+                timestamp: serverTimestamp(),
+            };
+            await setDoc(centralSongRef, newSongData);
+        } else {
+            // Şarkı merkezde var, mevcut olanı kullan.
+            centralSongRef = querySnapshot.docs[0].ref;
+        }
 
-            // --- Yinelenen şarkı yoksa ekleme işlemine devam et ---
+        // 2. Kullanıcının çalma listesindeki şarkı referansını oluştur.
+        const userPlaylistSongRef = doc(firestore, 'users', userId, 'playlist', centralSongRef.id);
 
-            const songsCollectionRef = collection(firestore, 'songs');
-            const queryIdentifier = songDetails.videoId || songDetails.url;
-            const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
-            
-            const querySnapshot = await getDocs(q); 
-            let centralSongRef: DocumentReference;
+        // 3. Kullanıcının çalma listesinde bu şarkının olup olmadığını KONTROL ET.
+        const docSnap = await getDoc(userPlaylistSongRef);
 
-            if (querySnapshot.empty) {
-                centralSongRef = doc(songsCollectionRef);
-                const newSongData = {
-                    ...songDetails,
-                    id: centralSongRef.id,
-                    userId: userId,
-                    timestamp: serverTimestamp(),
-                };
-                transaction.set(centralSongRef, newSongData);
-            } else {
-                centralSongRef = querySnapshot.docs[0].ref;
-            }
-
-            const userPlaylistSongRef = doc(firestore, 'users', userId, 'playlist', centralSongRef.id);
-            const centralSongDoc = await transaction.get(centralSongRef);
-            
+        if (docSnap.exists()) {
+            // 4. EĞER ŞARKI ZATEN VARSA: Uyarı göster ve işlemi bitir.
+            toast({
+                title: `"${songDetails.title}" zaten listenizde var.`,
+                variant: 'default',
+            });
+            return null; // Ekleme işlemi yapılmadı.
+        } else {
+            // 5. EĞER ŞARKI YOKSA: Ekle.
+            const centralSongDoc = await getDoc(centralSongRef);
             if (!centralSongDoc.exists()) {
                 throw new Error("Merkezi şarkı dokümanı bulunamadı!");
             }
-
             const songDataForPlaylist = {
                 ...(centralSongDoc.data() as Song),
                 timestamp: serverTimestamp()
             };
-            transaction.set(userPlaylistSongRef, songDataForPlaylist);
+            await setDoc(userPlaylistSongRef, songDataForPlaylist);
+
+            toast({ title: `"${songDetails.title}" listenize eklendi.` });
             
-            return centralSongRef;
-        });
-
-        toast({ title: `"${songDetails.title}" listenize eklendi.` });
-
-        const finalSongDoc = await getDoc(songRef);
-        if(finalSongDoc.exists()){
-             return finalSongDoc.data() as Song;
+            return songDataForPlaylist;
         }
-        return null;
        
     } catch (error: any) {
-        if (error instanceof SongAlreadyExistsError) {
-            // Fırlattığımız özel hatayı yakala ve kullanıcıya göster
-            toast({
-                title: error.message,
-                variant: "default",
-            });
-        } else {
-            // Diğer hataları genel bir mesajla bildir
-            console.error("Şarkı ekleme işlemi sırasında hata (transaction failed): ", error);
-            toast({
-                title: "Şarkı eklenemedi",
-                description: "İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.",
-                variant: "destructive"
-            });
-        }
+        console.error("Şarkı ekleme işlemi sırasında hata: ", error);
+        toast({
+            title: "Şarkı eklenemedi",
+            description: "İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.",
+            variant: "destructive"
+        });
         return null;
     }
 };
@@ -360,5 +335,3 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
-
-    
