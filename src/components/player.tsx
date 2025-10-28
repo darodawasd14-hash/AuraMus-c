@@ -8,60 +8,67 @@ const YouTubePlayerInternal = () => {
   const {
     currentSong,
     isPlaying,
+    isMuted,
+    seekTime,
     playNext,
     _setIsPlaying,
     _setDuration,
     _setProgress,
-    seekTime,
     _clearSeek,
     _setIsMuted,
+    isSeeking,
   } = usePlayer();
   
+  const playerRef = useRef<any>(null);
+
   const onReady = useCallback((event: any) => {
-    console.log("Oynatıcı hazır. SESSİZ oynatılıyor ve GLOBALE kaydediliyor.");
-    (window as any).myGlobalPlayer = event.target;
-    event.target.playVideo(); // Autoplay'i tetikle
-    _setIsMuted(event.target.isMuted());
+    console.log("YouTube Player: Ready. Saving reference and starting muted.");
+    playerRef.current = event.target;
+    // Autoplay muted to comply with browser policies
+    playerRef.current.mute();
+    playerRef.current.playVideo();
+    _setIsMuted(true);
   }, [_setIsMuted]);
 
   const onStateChange = useCallback((event: any) => {
-    const player = event.target;
+    const player = playerRef.current;
+    if (!player) return;
+
     // Sync duration
-    if (player && typeof player.getDuration === 'function') {
-        const duration = player.getDuration();
-        if (duration) _setDuration(duration);
-    }
-     // Sync Mute State
-    if (player && typeof player.isMuted === 'function') {
-        _setIsMuted(player.isMuted());
-    }
+    const duration = player.getDuration();
+    if (duration) _setDuration(duration);
+
+    // Sync Mute State
+    _setIsMuted(player.isMuted());
     
+    const playerState = event.data;
     // Playing
-    if (event.data === 1) { 
+    if (playerState === 1) { 
       _setIsPlaying(true);
     // Ended
-    } else if (event.data === 0) {
+    } else if (playerState === 0) {
       playNext();
     // Paused or other states
     } else { 
       _setIsPlaying(false);
     }
   }, [_setIsPlaying, _setDuration, playNext, _setIsMuted]);
-  
+
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // This effect handles the progress bar updates
   useEffect(() => {
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
     }
     
-    const player = (window as any).myGlobalPlayer;
+    const player = playerRef.current;
 
     if (isPlaying && player && typeof player.getCurrentTime === 'function') {
       progressIntervalRef.current = setInterval(() => {
-        const progress = player.getCurrentTime();
-        if (typeof progress === 'number') {
-          _setProgress(progress);
+        if (!isSeeking) {
+           const progress = player.getCurrentTime();
+           _setProgress(progress);
         }
       }, 250);
     }
@@ -71,21 +78,43 @@ const YouTubePlayerInternal = () => {
         clearInterval(progressIntervalRef.current);
       }
     };
-  }, [isPlaying, _setProgress]);
+  }, [isPlaying, isSeeking, _setProgress]);
   
+  // This is the MASTER CONTROLLER effect for the YouTube player.
+  // It listens to intentions from the context (isPlaying, isMuted, seekTime)
+  // and applies them directly to the player instance held in playerRef.
   useEffect(() => {
-    const player = (window as any).myGlobalPlayer;
-    if (seekTime !== null && player && typeof player.seekTo === 'function') {
+    const player = playerRef.current;
+    if (!player || !currentSong) return;
+
+    // Sync Play/Pause state
+    const playerState = player.getPlayerState();
+    if (isPlaying && playerState !== 1) {
+      player.playVideo();
+    } else if (!isPlaying && playerState === 1) {
+      player.pauseVideo();
+    }
+    
+    // Sync Mute state
+    if (isMuted && !player.isMuted()) {
+        player.mute();
+    } else if (!isMuted && player.isMuted()) {
+        player.unMute();
+    }
+
+    // Sync Seek Time
+    if (seekTime !== null) {
       player.seekTo(seekTime, true);
       _clearSeek(); 
     }
-  }, [seekTime, _clearSeek]);
+  }, [isPlaying, isMuted, seekTime, currentSong, _clearSeek]);
+
 
   if (!currentSong || currentSong.type !== 'youtube' || !currentSong.videoId) return null;
 
   return (
     <YouTube
-      key={currentSong.id}
+      key={currentSong.id} // Re-mounts the component when the song changes
       videoId={currentSong.videoId}
       opts={{
         width: '1',
@@ -96,7 +125,6 @@ const YouTubePlayerInternal = () => {
           modestbranding: 1,
           rel: 0,
           playsinline: 1,
-          mute: 1, // Otomatik oynatmayı garantilemek için sessiz başlat
         },
       }}
       onReady={onReady}
@@ -109,7 +137,7 @@ const YouTubePlayerInternal = () => {
 
 
 const SoundCloudPlayerInternal = () => {
-    const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress, isSeeking, _setIsMuted } = usePlayer();
+    const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress, isSeeking, _setIsMuted, isMuted } = usePlayer();
     const soundcloudPlayerRef = useRef<any>(null);
 
     useEffect(() => {
@@ -129,15 +157,15 @@ const SoundCloudPlayerInternal = () => {
             document.body.appendChild(iframe);
         }
         
-        iframe.src = `https://w.soundcloud.com/player/?url=${currentSong.url}&auto_play=${isPlaying}&visual=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false`;
+        iframe.src = `https://w.soundcloud.com/player/?url=${currentSong.url}&auto_play=true&visual=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false`;
         
         const widget = (window as any).SC.Widget(iframe);
         soundcloudPlayerRef.current = widget;
-        (window as any).myGlobalPlayer = widget;
 
         const onReady = () => {
+            widget.setVolume(isMuted ? 0 : 1);
             widget.getDuration((d: number) => _setDuration(d / 1000));
-             widget.getVolume((v: number) => _setIsMuted(v === 0));
+            widget.getVolume((v: number) => _setIsMuted(v === 0));
         };
 
         const onPlay = () => _setIsPlaying(true);
@@ -168,8 +196,9 @@ const SoundCloudPlayerInternal = () => {
             if (iframe) iframe.remove();
             soundcloudPlayerRef.current = null;
         };
-    }, [currentSong, _setDuration, playNext, _setIsPlaying, _setProgress, isSeeking, isPlaying, _setIsMuted]);
+    }, [currentSong, _setDuration, playNext, _setIsPlaying, _setProgress, isSeeking, isMuted, _setIsMuted]);
     
+    // Master controller for SoundCloud
     useEffect(() => {
         const widget = soundcloudPlayerRef.current;
         if (!widget) return;
@@ -179,14 +208,14 @@ const SoundCloudPlayerInternal = () => {
             if (!isPlaying && !paused) widget.pause();
         });
 
-    }, [isPlaying]);
+        widget.setVolume(isMuted ? 0 : 1);
 
-    useEffect(() => {
-        if (seekTime !== null && soundcloudPlayerRef.current && typeof soundcloudPlayerRef.current.seekTo === 'function') {
-            soundcloudPlayerRef.current.seekTo(seekTime * 1000);
+        if (seekTime !== null) {
+            widget.seekTo(seekTime * 1000);
             _clearSeek();
         }
-    }, [seekTime, _clearSeek]);
+    }, [isPlaying, isMuted, seekTime, _clearSeek]);
+
 
     return null;
 };
@@ -195,7 +224,6 @@ const SoundCloudPlayerInternal = () => {
 const UrlPlayerInternal = () => {
     const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress, isSeeking, _setIsMuted, isMuted } = usePlayer();
     const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
-    (window as any).myGlobalPlayer = urlPlayerRef.current;
     
     useEffect(() => {
         const player = urlPlayerRef.current ?? new Audio();
@@ -203,11 +231,11 @@ const UrlPlayerInternal = () => {
             urlPlayerRef.current = player;
         }
 
-        if (currentSong && currentSong.type === 'url' && currentSong.url && player.src !== currentSong.url) {
+        if (currentSong && currentSong.type === 'url' && player.src !== currentSong.url) {
             player.src = currentSong.url;
             player.muted = isMuted; // Set initial mute state
         }
-
+        
         const handleLoadedMetadata = () => _setDuration(player.duration);
         const handleTimeUpdate = () => {
             if (!isSeeking) _setProgress(player.currentTime);
@@ -239,19 +267,19 @@ const UrlPlayerInternal = () => {
         const player = urlPlayerRef.current;
         if (!player) return;
 
-        if (seekTime !== null) {
-            player.currentTime = seekTime;
-            _clearSeek();
-        }
-        
-        player.muted = isMuted;
-
         if (isPlaying) {
             player.play().catch(e => console.error("Audio playback failed:", e));
         } else {
             player.pause();
         }
-    }, [isPlaying, seekTime, _clearSeek, isMuted]);
+        
+        player.muted = isMuted;
+
+        if (seekTime !== null) {
+            player.currentTime = seekTime;
+            _clearSeek();
+        }
+    }, [isPlaying, isMuted, seekTime, _clearSeek]);
 
     return null;
 };

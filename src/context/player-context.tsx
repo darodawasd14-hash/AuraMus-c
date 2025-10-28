@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit, getDoc, setDoc, addDoc } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -26,13 +26,6 @@ export interface Song {
 
 export type SongDetails = Omit<Song, 'id' | 'timestamp'>;
 
-declare global {
-  interface Window {
-    myGlobalPlayer: any;
-    SC: any;
-  }
-}
-
 type PlayerContextType = {
   playlist: Song[];
   userPlaylists: Playlist[] | null;
@@ -46,7 +39,9 @@ type PlayerContextType = {
   duration: number;
   isSeeking: boolean;
   isMuted: boolean;
+  seekTime: number | null;
   
+  // User "Intentions"
   addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
   deleteSong: (songId: string, playlistId: string) => Promise<void>;
   playSong: (index: number) => void;
@@ -58,14 +53,13 @@ type PlayerContextType = {
   createPlaylist: (name: string) => Promise<void>;
   seekTo: (time: number) => void; 
   toggleMute: () => void;
+  setIsSeeking: (isSeeking: boolean) => void;
   
-  // Player Engine'den gelen durum güncellemeleri
+  // Callbacks from the Player Engine
   _setIsPlaying: (isPlaying: boolean) => void;
   _setProgress: (progress: number) => void;
   _setDuration: (duration: number) => void;
   _clearSeek: () => void;
-  seekTime: number | null;
-  setIsSeeking: (isSeeking: boolean) => void;
   _setIsMuted: (isMuted: boolean) => void;
 };
 
@@ -136,6 +130,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setProgress(0);
       setDuration(0);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlaylistSongs, activePlaylistId]);
 
   const isLoading = isUserLoading || isUserPlaylistsLoading || isSongsLoading;
@@ -315,53 +310,37 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const playSong = (index: number) => {
     if (index >= 0 && index < playlist.length) {
-      setCurrentIndex(index);
-      setIsPlaying(true);
-      const player = (window as any).myGlobalPlayer;
-      if (player && player.getPlayerState && player.isMuted()) {
-          player.unMute();
+      // If the same song is clicked, toggle play/pause
+      if (index === currentIndex) {
+        togglePlayPause();
+      } else {
+        // If a new song is clicked, play it
+        setCurrentIndex(index);
+        setIsPlaying(true);
+        // If the player starts muted by default, unmute it on first play
+        if(isMuted) {
           setIsMuted(false);
+        }
       }
     } else {
+      // If index is invalid, stop playing
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
   };
 
   const togglePlayPause = () => {
-    const player = (window as any).myGlobalPlayer;
-  
-    if (!player || !player.getPlayerState) {
-      console.error("HATA: Global oynatıcı 'window.myGlobalPlayer' bulunamadı!");
-      return;
-    }
-  
-    // Sesi kontrol et ve gerekiyorsa aç
-    if (player.isMuted()) {
-      player.unMute();
+    if (!currentSong) return;
+    // If it's muted, the first action is to unmute.
+    if (isMuted) {
       setIsMuted(false);
     }
-  
-    const playerState = player.getPlayerState();
-  
-    if (playerState === 1) { // Oynatılıyorsa durdur
-      player.pauseVideo();
-    } else { // Duraklatıldıysa veya başka bir durumdaysa oynat
-      player.playVideo();
-    }
+    // Then toggle the playing state.
+    setIsPlaying(prev => !prev);
   };
 
   const toggleMute = () => {
-    const player = (window as any).myGlobalPlayer;
-    if (!player || typeof player.isMuted !== 'function') return;
-
-    if(player.isMuted()) {
-        player.unMute();
-        setIsMuted(false);
-    } else {
-        player.mute();
-        setIsMuted(true);
-    }
+    setIsMuted(prev => !prev);
   };
 
   const playNext = useCallback(() => {
@@ -399,6 +378,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     duration,
     isSeeking,
     isMuted,
+    seekTime,
+    
     addSong,
     deleteSong,
     playSong,
@@ -410,8 +391,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     createPlaylist,
     seekTo,
     toggleMute,
-    seekTime,
     setIsSeeking,
+
     _setIsPlaying: setIsPlaying,
     _setProgress: setProgress,
     _setDuration: setDuration,
