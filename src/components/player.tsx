@@ -1,18 +1,153 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { usePlayer } from '@/context/player-context';
+import YouTube, { YouTubePlayer } from 'react-youtube';
 
 /**
- * The main Player component. It will be responsible for rendering the correct
- * internal player engine based on the current song's type.
- * This component is currently a placeholder and does not render anything.
+ * The main Player component. It renders the correct internal player engine
+ * based on the current song's type. This component is the "Motor" and is
+ * responsible for all direct interactions with the player libraries.
  */
 export function Player() {
-  const { currentSong } = usePlayer();
-  
-  // Player logic is disabled to prevent crashes.
-  // We will rebuild this from scratch.
+  const { currentSong, _setIsPlaying, playNext, _setProgress, _setDuration } = usePlayer();
 
-  return null;
+  // Render the correct player based on song type
+  if (!currentSong) return null;
+
+  switch (currentSong.type) {
+    case 'youtube':
+      return (
+        <YouTubePlayerInternal
+          song={currentSong}
+          onEnd={playNext}
+          onStateChange={(isPlaying) => _setIsPlaying(isPlaying)}
+          onProgress={_setProgress}
+          onDuration={_setDuration}
+        />
+      );
+    // TODO: Add SoundCloud and URL players here in the future
+    case 'soundcloud':
+    case 'url':
+    default:
+      return null; // For now, only YouTube is supported
+  }
+}
+
+// --- Internal Player Engines ---
+
+interface YouTubePlayerInternalProps {
+  song: { videoId?: string };
+  onEnd: () => void;
+  onStateChange: (isPlaying: boolean) => void;
+  onProgress: (progress: number) => void;
+  onDuration: (duration: number) => void;
+}
+
+function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDuration }: YouTubePlayerInternalProps) {
+  const { isPlaying, isMuted, seekTime, _clearSeek } = usePlayer();
+  const playerRef = useRef<YouTubePlayer | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { videoId } = song;
+
+  // Guard clause: If there's no videoId, don't render the player.
+  if (!videoId) return null;
+  
+  const startProgressTracking = (player: YouTubePlayer) => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+    progressIntervalRef.current = setInterval(() => {
+      onProgress(player.getCurrentTime());
+    }, 500);
+  };
+  
+  const stopProgressTracking = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+  };
+
+  const onReady = (event: { target: YouTubePlayer }) => {
+    playerRef.current = event.target;
+    onDuration(event.target.getDuration());
+    // Mute on ready to comply with autoplay policies. Sound will be unmuted on first user play interaction.
+    event.target.mute(); 
+  };
+  
+  const onPlayerStateChange = (event: { data: number; target: YouTubePlayer }) => {
+    // State 1: Playing
+    if (event.data === 1) {
+      onStateChange(true);
+      startProgressTracking(event.target);
+    } 
+    // State 2: Paused
+    else if (event.data === 2) {
+      onStateChange(false);
+      stopProgressTracking();
+    }
+     // State 0: Ended
+    else if (event.data === 0) {
+      onStateChange(false);
+      stopProgressTracking();
+      onEnd();
+    }
+  };
+  
+  // Effect for Play/Pause
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player) return;
+
+    if (isPlaying) {
+      player.playVideo();
+    } else {
+      player.pauseVideo();
+    }
+  }, [isPlaying]);
+
+  // Effect for Mute/Unmute
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    
+    if (isMuted) {
+      player.mute();
+    } else {
+      player.unMute();
+    }
+  }, [isMuted]);
+
+  // Effect for Seeking
+  useEffect(() => {
+    if (seekTime !== null) {
+      const player = playerRef.current;
+      if (player) {
+        player.seekTo(seekTime, true);
+      }
+      _clearSeek(); // Reset seek time after handling it
+    }
+  }, [seekTime, _clearSeek]);
+
+
+  return (
+    <div className="absolute top-[-9999px] left-[-9999px] w-0 h-0">
+      <YouTube
+        videoId={videoId}
+        opts={{
+          height: '0',
+          width: '0',
+          playerVars: {
+            autoplay: 1, // Autoplay is necessary for seamless transitions
+            controls: 0,
+            playsinline: 1,
+          },
+        }}
+        onReady={onReady}
+        onStateChange={onPlayerStateChange}
+        onEnd={onEnd}
+      />
+    </div>
+  );
 }

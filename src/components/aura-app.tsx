@@ -41,7 +41,7 @@ interface UserProfile {
 }
 
 export function AuraApp() {
-  const { currentSong } = usePlayer();
+  const { currentSong, isPlayerOpen } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const { user } = useUser();
@@ -94,7 +94,13 @@ export function AuraApp() {
         )}
       </main>
 
-      {/* Player Bar and Full Player view are removed to prevent crashes. Will be rebuilt. */}
+      {/* --- PLAYER UI --- */}
+      <div className={cn(
+          "fixed bottom-16 left-0 right-0 z-30 transform-gpu transition-transform duration-300 ease-in-out",
+          isPlayerOpen ? "translate-y-0" : "translate-y-full"
+      )}>
+        <PlayerBar />
+      </div>
       
       <BottomNavBar currentView={view} setView={setView} />
       
@@ -567,3 +573,104 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
     </div>
   );
 };
+
+
+function PlayerBar() {
+  const { 
+    currentSong, 
+    isPlaying, 
+    togglePlayPause, 
+    playNext, 
+    playPrev,
+    progress,
+    duration,
+    seekTo,
+    isSeeking,
+    setIsSeeking,
+    isMuted,
+    toggleMute,
+    setIsPlayerOpen
+  } = usePlayer();
+
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const handleProgressChange = (value: number[]) => {
+    if (duration > 0) {
+      seekTo(value[0]);
+    }
+  };
+
+  if (!currentSong) {
+    return null; // Don't render the bar if no song is selected
+  }
+
+  const getThumbnailUrl = (song: Song) => {
+    if (song.type === 'youtube' && song.videoId) {
+      return `https://i.ytimg.com/vi/${song.videoId}/mqdefault.jpg`;
+    }
+    return `https://i.ytimg.com/vi/default/mqdefault.jpg`;
+  }
+
+  return (
+    <div className="h-full bg-secondary/50 border-t border-border backdrop-blur-xl p-4 flex flex-col gap-3">
+      {/* Close button for small screens */}
+      <div className="absolute top-2 right-2 md:hidden">
+         <Button variant="ghost" size="icon" onClick={() => setIsPlayerOpen(false)}>
+           <ChevronDown className="w-5 h-5"/>
+         </Button>
+      </div>
+
+      {/* Song Info & Main Controls */}
+      <div className="flex items-center gap-4">
+        <Image
+          src={getThumbnailUrl(currentSong)}
+          alt={currentSong.title}
+          width={56}
+          height={56}
+          className="rounded-md aspect-square object-cover"
+        />
+        <div className="flex-grow truncate">
+          <p className="font-bold truncate">{currentSong.title}</p>
+          <p className="text-sm text-muted-foreground">{currentSong.type}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={playPrev}>
+            <SkipBack className="w-5 h-5"/>
+          </Button>
+          <Button variant="default" size="icon" className="w-12 h-12" onClick={togglePlayPause}>
+            {isPlaying ? <PauseIcon className="w-6 h-6"/> : <PlayIcon className="w-6 h-6"/>}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={playNext}>
+            <SkipForward className="w-5 h-5"/>
+          </Button>
+        </div>
+      </div>
+
+      {/* Progress Bar & Time */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-mono w-10 text-center">{formatTime(progress)}</span>
+        <Slider
+          min={0}
+          max={duration > 0 ? duration : 100}
+          value={[progress]}
+          onValueChange={handleProgressChange}
+          onPointerDown={() => setIsSeeking(true)}
+          onPointerUp={() => setIsSeeking(false)}
+        />
+        <span className="text-xs font-mono w-10 text-center">{formatTime(duration)}</span>
+      </div>
+
+       {/* Volume Control */}
+       <div className="absolute right-4 bottom-4 hidden md:flex items-center gap-2 w-32">
+          <Button variant="ghost" size="icon" onClick={toggleMute}>
+            {isMuted ? <VolumeX className="w-5 h-5"/> : <Volume2 className="w-5 h-5"/>}
+          </Button>
+          {/* Future volume slider can go here */}
+       </div>
+    </div>
+  );
+}

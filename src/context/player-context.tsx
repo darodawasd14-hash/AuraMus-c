@@ -28,7 +28,7 @@ export type SongDetails = Omit<Song, 'id' | 'timestamp'>;
 
 // This context holds the "state" of the player, but not the player logic itself.
 type PlayerContextType = {
-  // Data
+  // --- Data ---
   playlist: Song[];
   userPlaylists: Playlist[] | null;
   activePlaylistId: string | null;
@@ -36,35 +36,34 @@ type PlayerContextType = {
   currentIndex: number;
   isLoading: boolean;
   
-  // State
+  // --- State ---
   isPlaying: boolean;
-  
-  // User "Intentions" (Functions to change the state)
+  isPlayerOpen: boolean;
+  progress: number; // Current playback time in seconds
+  duration: number; // Total duration of the song in seconds
+  isMuted: boolean;
+  isSeeking: boolean;
+  seekTime: number | null; // The time to seek to
+
+  // --- User "Intentions" (Functions to change the state) ---
   addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
   deleteSong: (songId: string, playlistId: string) => Promise<void>;
   playSong: (index: number) => void;
   togglePlayPause: () => void;
   playNext: () => void;
   playPrev: () => void;
-  setActivePlaylistId: (id: string | null) => void;
-  createPlaylist: (name: string) => Promise<void>;
-
-  // Dummy/Placeholder functions and state to prevent crashes in the UI
-  isPlayerOpen: boolean;
-  setIsPlayerOpen: (isOpen: boolean) => void;
-  progress: number;
-  duration: number;
-  isSeeking: boolean;
-  isMuted: boolean;
-  seekTime: number | null;
   seekTo: (time: number) => void; 
   toggleMute: () => void;
   setIsSeeking: (isSeeking: boolean) => void;
+  setIsPlayerOpen: (isOpen: boolean) => void;
+  setActivePlaylistId: (id: string | null) => void;
+  createPlaylist: (name: string) => Promise<void>;
+
+  // --- Internal-Only Functions (for the "Motor" to report back to the "Brain") ---
   _setIsPlaying: (isPlaying: boolean) => void;
   _setProgress: (progress: number) => void;
   _setDuration: (duration: number) => void;
   _clearSeek: () => void;
-  _setIsMuted: (isMuted: boolean) => void;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -74,12 +73,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
 
+  // --- Data State ---
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
+
+  // --- Player State ---
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isPlayerOpen, setIsPlayerOpen] = useState<boolean>(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(true); // Start muted to comply with autoplay policies
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [seekTime, setSeekTime] = useState<number | null>(null);
   
-  // Fetch user's playlists
+  // --- Data Fetching ---
   const userPlaylistsQuery = useMemoFirebase(() => {
     if (user && firestore) {
       return query(collection(firestore, 'users', user.uid, 'playlists'), orderBy('createdAt', 'asc'));
@@ -116,6 +124,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const newIndex = activePlaylistSongs.findIndex(s => s.id === currentSongId);
       
       if (newIndex === -1 && currentIndex !== -1) {
+         // If current song was deleted, stop playing
          setIsPlaying(false);
          setCurrentIndex(-1);
       } else {
@@ -123,6 +132,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       }
       
     } else if (!activePlaylistId) {
+      // If no active playlist, clear everything
       setPlaylist([]);
       setCurrentIndex(-1);
       setIsPlaying(false);
@@ -132,6 +142,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const isLoading = isUserLoading || isUserPlaylistsLoading || isSongsLoading;
 
+  // --- Playlist/Song Management ---
   const createPlaylist = async (name: string) => {
     if (!firestore || !user) return;
     const playlistsColRef = collection(firestore, 'users', user.uid, 'playlists');
@@ -145,7 +156,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         setActivePlaylistId(docRef.id);
         toast({ title: `Çalma listesi "${name}" oluşturuldu.` });
     }).catch(serverError => {
-        console.error("Error creating playlist: ", serverError);
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: playlistsColRef.path,
             operation: 'create',
@@ -153,56 +163,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         }));
     });
   };
-
-  // Setup initial playlist for new, non-anonymous users.
-  useEffect(() => {
-    if (user && !isUserLoading && !isUserPlaylistsLoading && userPlaylists?.length === 0) {
-      const setupInitialPlaylist = async () => {
-        if (!firestore) return;
-        
-        const defaultPlaylistName = "İlk Çalma Listem";
-        const playlistsColRef = collection(firestore, 'users', user.uid, 'playlists');
-        const newPlaylistData = {
-          name: defaultPlaylistName,
-          userId: user.uid,
-          createdAt: serverTimestamp(),
-        };
-
-        try {
-            const playlistDocRef = await addDoc(playlistsColRef, newPlaylistData);
-            
-            for (const song of initialCatalog.songs) {
-                const videoId = song.url.split('v=')[1];
-                const songDetails: SongDetails = {
-                    url: song.url,
-                    title: song.title,
-                    videoId,
-                    type: 'youtube'
-                };
-                const centralSongRef = doc(collection(firestore, 'songs'), videoId || song.id);
-                await setDoc(centralSongRef, { ...songDetails, id: centralSongRef.id, timestamp: serverTimestamp() }, { merge: true });
-                
-                const userPlaylistSongRef = doc(firestore, 'users', user.uid, 'playlists', playlistDocRef.id, 'songs', centralSongRef.id);
-                await setDoc(userPlaylistSongRef, { ...songDetails, id: centralSongRef.id, timestamp: serverTimestamp() });
-            }
-            toast({ title: "Hoş geldin! Başlangıç için bir çalma listesi ve birkaç şarkı ekledik."});
-        } catch(e: any) {
-             const path = e.customData?.path || playlistsColRef.path;
-             const operation = e.customData?.operation || 'create';
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: path,
-                operation: operation,
-                requestResourceData: newPlaylistData,
-            }));
-             toast({ title: "Başlangıç çalma listesi oluşturulamadı.", description: e.message, variant: "destructive" });
-        }
-      };
-
-      if (!user.isAnonymous) {
-          setupInitialPlaylist();
-      }
-    }
-  }, [user, isUserLoading, isUserPlaylistsLoading, userPlaylists, firestore, toast]);
 
   const addSong = async (songInfo: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string): Promise<Song | null> => {
     if (!firestore || !user || !playlistId) {
@@ -242,11 +202,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         if (querySnapshot.empty) {
             const newSongId = songDetails.videoId || doc(songsCollectionRef).id;
             centralSongRef = doc(songsCollectionRef, newSongId);
-            await setDoc(centralSongRef, {
-                ...songDetails,
-                id: centralSongRef.id,
-                timestamp: serverTimestamp(),
-            });
+            await setDoc(centralSongRef, { ...songDetails, id: centralSongRef.id, timestamp: serverTimestamp() }, { merge: true });
         } else {
             centralSongRef = querySnapshot.docs[0].ref;
         }
@@ -255,57 +211,32 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         const docSnap = await getDoc(userPlaylistSongRef);
 
         if (docSnap.exists()) {
-            toast({
-                title: `"${songDetails.title}" zaten bu listede var.`,
-                variant: 'default',
-            });
+            toast({ title: `"${songDetails.title}" zaten bu listede var.` });
             return null;
         } 
         
-        const songDataForPlaylist = {
-            ...songDetails,
-            id: centralSongRef.id,
-            timestamp: serverTimestamp()
-        };
-
-        await setDoc(userPlaylistSongRef, songDataForPlaylist).catch(serverError => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: userPlaylistSongRef.path,
-                operation: 'create',
-                requestResourceData: songDataForPlaylist,
-            }));
-        });
-
+        const songDataForPlaylist = { ...songDetails, id: centralSongRef.id, timestamp: serverTimestamp() };
+        await setDoc(userPlaylistSongRef, songDataForPlaylist);
         return songDataForPlaylist as Song;
-
-    } catch (serverError: any) {
+    } catch (e: any) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: songsCollectionRef.path,
-            operation: 'write',
+            path: e.customData?.path || songsCollectionRef.path,
+            operation: e.customData?.operation || 'write',
             requestResourceData: songDetails,
         }));
-        toast({ title: 'Şarkı eklenemedi.', description: "İzinler yetersiz olabilir.", variant: 'destructive'});
+        toast({ title: 'Şarkı eklenemedi.', description: "İzinler yetersiz olabilir.", variant: 'destructive' });
         return null;
     }
 };
 
   const deleteSong = async (songId: string, playlistId: string) => {
     if (!firestore || !user || !playlistId) return;
-    
     const songDocRef = doc(firestore, 'users', user.uid, 'playlists', playlistId, 'songs', songId);
-    
-    deleteDoc(songDocRef)
-      .then(() => {
-        toast({ title: "Şarkı listeden silindi." });
-      })
-      .catch(serverError => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: songDocRef.path,
-            operation: 'delete',
-        }));
-      });
+    await deleteDoc(songDocRef);
+    toast({ title: "Şarkı listeden silindi." });
   };
   
+  // --- Player Control "Intentions" ---
   const playSong = (index: number) => {
     if (index >= 0 && index < playlist.length) {
       if (index === currentIndex) {
@@ -313,6 +244,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setCurrentIndex(index);
         setIsPlaying(true);
+        setIsPlayerOpen(true);
       }
     } else {
       setCurrentIndex(-1);
@@ -322,7 +254,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const togglePlayPause = () => {
     if (!currentSong) return;
-    setIsPlaying(prev => !prev);
+    setIsPlaying(prev => {
+        // If user presses play for the first time, unmute
+        if (isMuted && !prev) {
+            setIsMuted(false);
+        }
+        return !prev;
+    });
+    if (!isPlayerOpen) setIsPlayerOpen(true);
   };
 
   const playNext = useCallback(() => {
@@ -338,6 +277,45 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setCurrentIndex(prevIndex);
     setIsPlaying(true);
   };
+  
+  const seekTo = (time: number) => {
+    setSeekTime(time);
+    setProgress(time);
+  };
+
+  const toggleMute = () => {
+      setIsMuted(prev => !prev);
+  };
+  
+  // --- Internal Callbacks for the "Motor" ---
+  const _clearSeek = () => setSeekTime(null);
+  const _setIsPlaying = (playing: boolean) => setIsPlaying(playing);
+  const _setProgress = (p: number) => setProgress(p);
+  const _setDuration = (d: number) => setDuration(d);
+
+  // Setup initial playlist for new, non-anonymous users.
+  useEffect(() => {
+    if (user && !isUserLoading && !isUserPlaylistsLoading && userPlaylists?.length === 0 && !user.isAnonymous) {
+      const setupInitialPlaylist = async () => {
+        if (!firestore) return;
+        const defaultPlaylistName = "İlk Çalma Listem";
+        const playlistDocRef = await addDoc(collection(firestore, 'users', user.uid, 'playlists'), {
+          name: defaultPlaylistName,
+          userId: user.uid,
+          createdAt: serverTimestamp(),
+        });
+        
+        for (const song of initialCatalog.songs) {
+            await addSong(song, user.uid, playlistDocRef.id);
+        }
+        toast({ title: "Hoş geldin! Başlangıç için bir çalma listesi ve birkaç şarkı ekledik."});
+      };
+      setupInitialPlaylist().catch(e => {
+        console.error("Error setting up initial playlist:", e);
+        toast({ title: "Başlangıç çalma listesi oluşturulamadı.", variant: "destructive" });
+      });
+    }
+  }, [user, isUserLoading, isUserPlaylistsLoading, userPlaylists, firestore, toast]);
 
   const value: PlayerContextType = {
     playlist,
@@ -345,8 +323,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     activePlaylistId,
     currentSong,
     currentIndex,
-    isPlaying,
     isLoading,
+    isPlaying,
+    isPlayerOpen,
+    progress,
+    duration,
+    isMuted,
+    isSeeking,
+    seekTime,
     
     addSong,
     deleteSong,
@@ -354,25 +338,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     togglePlayPause,
     playNext,
     playPrev,
+    seekTo,
+    toggleMute,
+    setIsSeeking,
+    setIsPlayerOpen,
     setActivePlaylistId,
     createPlaylist,
 
-    // Placeholder/dummy values to prevent UI from crashing.
-    isPlayerOpen: false,
-    setIsPlayerOpen: () => {},
-    progress: 0,
-    duration: 100,
-    isSeeking: false,
-    isMuted: true,
-    seekTime: null,
-    seekTo: () => {}, 
-    toggleMute: () => {},
-    setIsSeeking: () => {},
-    _setIsPlaying: setIsPlaying,
-    _setProgress: () => {},
-    _setDuration: () => {},
-    _clearSeek: () => {},
-    _setIsMuted: () => {},
+    _setIsPlaying,
+    _setProgress,
+    _setDuration,
+    _clearSeek,
   };
 
   return (
