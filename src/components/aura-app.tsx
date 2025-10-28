@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dialog';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { Slider } from '@/components/ui/slider';
 
 
 interface UserProfile {
@@ -40,7 +41,7 @@ interface UserProfile {
 }
 
 export function AuraApp() {
-  const { currentSong, isPlaying, togglePlayPause, playNext, isPlayerOpen, setIsPlayerOpen } = usePlayer();
+  const { currentSong, isPlaying, togglePlayPause, playNext, isPlayerOpen, setIsPlayerOpen, progress, duration, seekTo } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const { user } = useUser();
@@ -96,7 +97,16 @@ export function AuraApp() {
       </main>
 
        {currentSong && (
-        <PlayerBar song={currentSong} isPlaying={isPlaying} onPlayPause={togglePlayPause} onNext={playNext} onClick={handleTogglePlayer} />
+        <PlayerBar 
+          song={currentSong} 
+          isPlaying={isPlaying} 
+          onPlayPause={togglePlayPause} 
+          onNext={playNext} 
+          onClick={handleTogglePlayer}
+          progress={progress}
+          duration={duration}
+          onSeek={seekTo}
+        />
       )}
       
       <BottomNavBar currentView={view} setView={setView} />
@@ -152,32 +162,76 @@ const BottomNavBar = ({ currentView, setView }: { currentView: string, setView: 
   )
 }
 
-const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick }: { song: Song, isPlaying: boolean, onPlayPause: () => void, onNext: () => void, onClick: () => void}) => {
+const formatTime = (seconds: number) => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+
+const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick, progress, duration, onSeek }: { song: Song, isPlaying: boolean, onPlayPause: () => void, onNext: () => void, onClick: () => void, progress: number, duration: number, onSeek: (time: number) => void}) => {
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [seekValue, setSeekValue] = useState(0);
+
+  const handleSeek = (value: number[]) => {
+    onSeek(value[0]);
+  };
+
+  const handlePointerDown = () => {
+    setIsSeeking(true);
+  }
+  
+  const handlePointerUp = () => {
+    setIsSeeking(false);
+  }
+
+  const handleValueChange = (value: number[]) => {
+    setSeekValue(value[0]);
+  }
+
+  const displayProgress = isSeeking ? seekValue : progress;
+
   return (
-    <div onClick={onClick} className="fixed bottom-16 left-0 right-0 h-16 bg-muted/80 backdrop-blur-lg border-t border-border z-20 flex items-center px-4 cursor-pointer group">
-       <div className="flex items-center gap-4 flex-grow min-w-0">
-        {song.videoId && (
-            <Image 
-                src={`https://i.ytimg.com/vi/${song.videoId}/default.jpg`}
-                alt={song.title}
-                width={48}
-                height={48}
-                className="rounded"
-            />
-        )}
-        <div className="truncate">
-            <p className="font-semibold text-sm truncate">{song.title}</p>
-            <p className="text-xs text-muted-foreground">{song.type}</p>
+    <div className="fixed bottom-16 left-0 right-0 h-20 bg-muted/80 backdrop-blur-lg border-t border-border z-20 flex flex-col justify-center px-4 group">
+      <div className="flex items-center w-full">
+        <div onClick={onClick} className="flex items-center gap-4 flex-grow min-w-0 cursor-pointer">
+          {song.videoId && (
+              <Image 
+                  src={`https://i.ytimg.com/vi/${song.videoId}/default.jpg`}
+                  alt={song.title}
+                  width={48}
+                  height={48}
+                  className="rounded"
+              />
+          )}
+          <div className="truncate">
+              <p className="font-semibold text-sm truncate">{song.title}</p>
+              <p className="text-xs text-muted-foreground">{song.type}</p>
+          </div>
         </div>
-       </div>
-       <div className="flex items-center gap-2 pl-4">
-        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onPlayPause(); }}>
-            {isPlaying ? <PauseIcon className="w-6 h-6"/> : <PlayIcon className="w-6 h-6"/>}
-        </Button>
-         <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onNext(); }}>
-            <SkipForward className="w-6 h-6"/>
-        </Button>
-       </div>
+        <div className="flex items-center gap-2 pl-4">
+          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onPlayPause(); }}>
+              {isPlaying ? <PauseIcon className="w-6 h-6"/> : <PlayIcon className="w-6 h-6"/>}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onNext(); }}>
+              <SkipForward className="w-6 h-6"/>
+          </Button>
+        </div>
+      </div>
+      <div className="w-full flex items-center gap-2 mt-1">
+        <span className="text-xs text-muted-foreground w-10 text-right">{formatTime(displayProgress)}</span>
+        <Slider
+            value={[displayProgress]}
+            max={duration}
+            step={1}
+            onValueChange={handleValueChange}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onValueCommit={handleSeek}
+            className="flex-grow"
+        />
+        <span className="text-xs text-muted-foreground w-10">{formatTime(duration)}</span>
+      </div>
     </div>
   )
 }

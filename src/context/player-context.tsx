@@ -35,6 +35,8 @@ type PlayerContextType = {
   isPlaying: boolean;
   isLoading: boolean;
   isPlayerOpen: boolean;
+  progress: number;
+  duration: number;
   youtubePlayerRef: React.MutableRefObject<any>;
   soundcloudPlayerRef: React.MutableRefObject<any>;
   urlPlayerRef: React.MutableRefObject<HTMLAudioElement | null>;
@@ -44,6 +46,7 @@ type PlayerContextType = {
   togglePlayPause: () => void;
   playNext: () => void;
   playPrev: () => void;
+  seekTo: (time: number) => void;
   setIsPlayerOpen: (isOpen: boolean) => void;
   setActivePlaylistId: (id: string | null) => void;
   createPlaylist: (name: string) => Promise<void>;
@@ -61,10 +64,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const youtubePlayerRef = useRef<any>(null);
   const soundcloudPlayerRef = useRef<any>(null);
   const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
 
   // Fetch user's playlists
   const userPlaylistsQuery = useMemoFirebase(() => {
@@ -92,6 +99,60 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     return null;
   }, [user, firestore, activePlaylistId]);
   const { data: activePlaylistSongs, isLoading: isSongsLoading } = useCollection<Song>(songsQuery);
+  
+  const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
+
+  // Clear interval on unmount
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Song progress tracking
+  useEffect(() => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+
+    if (isPlaying && currentSong) {
+      progressIntervalRef.current = setInterval(async () => {
+        let currentTime = 0;
+        let totalDuration = 0;
+        
+        try {
+            if (currentSong.type === 'youtube' && youtubePlayerRef.current?.getCurrentTime) {
+                currentTime = await youtubePlayerRef.current.getCurrentTime();
+                totalDuration = await youtubePlayerRef.current.getDuration();
+            } else if (currentSong.type === 'soundcloud' && soundcloudPlayerRef.current?.getPosition) {
+                // Soundcloud position is in ms
+                currentTime = (await soundcloudPlayerRef.current.getPosition()) / 1000;
+                totalDuration = (await soundcloudPlayerRef.current.getDuration()) / 1000;
+            } else if (currentSong.type === 'url' && urlPlayerRef.current) {
+                currentTime = urlPlayerRef.current.currentTime;
+                totalDuration = urlPlayerRef.current.duration;
+            }
+        } catch(e) {
+            // Player might not be ready, just ignore
+        }
+        
+        setProgress(currentTime);
+        if (!isNaN(totalDuration) && totalDuration > 0) {
+          setDuration(totalDuration);
+        }
+      }, 1000);
+    }
+
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, [isPlaying, currentSong]);
+
+
 
   // Update local state when Firestore data changes
   useEffect(() => {
@@ -304,6 +365,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setCurrentIndex(index);
       setIsPlaying(true);
       setIsPlayerOpen(true);
+      setProgress(0); // Reset progress on new song
+      setDuration(0); // Reset duration
     } else {
       setCurrentIndex(-1);
       setIsPlaying(false);
@@ -323,27 +386,26 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
       if (!song) return prevIsPlaying;
 
-      if (newIsPlaying) { // Play
-        if (song.type === 'youtube' && youtubePlayerRef.current) {
-          youtubePlayerRef.current.playVideo();
-        } else if (song.type === 'soundcloud' && soundcloudPlayerRef.current) {
-          soundcloudPlayerRef.current.play();
-        } else if (song.type === 'url' && urlPlayerRef.current) {
-          if (urlPlayerRef.current.src !== song.url) {
-            urlPlayerRef.current.src = song.url;
+      try {
+        if (newIsPlaying) { // Play
+            if (song.type === 'youtube' && youtubePlayerRef.current?.playVideo) {
+              youtubePlayerRef.current.playVideo();
+            } else if (song.type === 'soundcloud' && soundcloudPlayerRef.current?.play) {
+              soundcloudPlayerRef.current.play();
+            } else if (song.type === 'url' && urlPlayerRef.current) {
+              urlPlayerRef.current.play().catch(e => console.error("URL audio playback error:", e));
+            }
+          } else { // Pause
+            if (song.type === 'youtube' && youtubePlayerRef.current?.pauseVideo) {
+              youtubePlayerRef.current.pauseVideo();
+            } else if (song.type === 'soundcloud' && soundcloudPlayerRef.current?.pause) {
+              soundcloudPlayerRef.current.pause();
+            } else if (song.type === 'url' && urlPlayerRef.current) {
+              urlPlayerRef.current.pause();
+            }
           }
-          urlPlayerRef.current.play().catch(e => console.error("URL audio playback error:", e));
-        }
-      } else { // Pause
-        if (song.type === 'youtube' && youtubePlayerRef.current) {
-          youtubePlayerRef.current.pauseVideo();
-        } else if (song.type === 'soundcloud' && soundcloudPlayerRef.current) {
-          soundcloudPlayerRef.current.pause();
-        } else if (song.type === 'url' && urlPlayerRef.current) {
-          if (!urlPlayerRef.current.paused) {
-            urlPlayerRef.current.pause();
-          }
-        }
+      } catch (e) {
+          console.error("Play/Pause error:", e);
       }
       
       if (!isPlayerOpen && newIsPlaying) {
@@ -366,7 +428,22 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playSong(prevIndex);
   };
   
-  const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
+  const seekTo = (time: number) => {
+    if (!currentSong) return;
+    try {
+        if (currentSong.type === 'youtube' && youtubePlayerRef.current?.seekTo) {
+          youtubePlayerRef.current.seekTo(time, true);
+        } else if (currentSong.type === 'soundcloud' && soundcloudPlayerRef.current?.seekTo) {
+          soundcloudPlayerRef.current.seekTo(time * 1000); // SoundCloud uses ms
+        } else if (currentSong.type === 'url' && urlPlayerRef.current) {
+          urlPlayerRef.current.currentTime = time;
+        }
+        setProgress(time);
+    } catch(e) {
+        console.error("Seek error:", e);
+    }
+  };
+
 
   const value: PlayerContextType = {
     playlist,
@@ -377,6 +454,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     isPlaying,
     isLoading,
     isPlayerOpen,
+    progress,
+    duration,
     youtubePlayerRef,
     soundcloudPlayerRef,
     urlPlayerRef,
@@ -386,6 +465,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     togglePlayPause,
     playNext,
     playPrev,
+    seekTo,
     setIsPlayerOpen,
     setActivePlaylistId,
     createPlaylist,
