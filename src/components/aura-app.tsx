@@ -42,7 +42,7 @@ export function AuraApp() {
   const { currentSong, isPlaying, togglePlayPause, playNext } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(true); // Varsayılan olarak PC'de açık olsun
   const { user } = useUser();
 
   const handleTogglePlayer = () => {
@@ -50,12 +50,26 @@ export function AuraApp() {
       setIsPlayerOpen(prev => !prev);
     }
   };
+  
+    // Ekran boyutuna göre sohbetin başlangıç durumunu ayarla
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) { // md breakpoint'i
+        setIsChatOpen(false);
+      } else {
+        setIsChatOpen(true);
+      }
+    };
+    handleResize(); // İlk yüklemede çalıştır
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
     <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
       
-      <main className="flex-grow flex md:flex-row flex-col overflow-hidden">
+      <main className="flex-grow flex flex-row overflow-hidden">
         {/* Main Content Area */}
         <div className="flex-grow flex flex-col overflow-y-auto pb-32">
           {view === 'playlist' && <PlaylistView />}
@@ -65,8 +79,8 @@ export function AuraApp() {
         
         {/* Chat Pane - visible on medium screens and up if toggled */}
         <div className={cn(
-          "hidden md:flex flex-col transition-all duration-300 ease-in-out", 
-          isChatOpen ? "w-80 border-l border-border" : "w-0"
+          "hidden md:flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out bg-background/50", 
+          isChatOpen ? "w-80 border-l border-border" : "w-0 border-l-0"
         )}>
            {user && <ChatPane song={currentSong} displayName={user.displayName || user.email || 'Kullanıcı'} />}
         </div>
