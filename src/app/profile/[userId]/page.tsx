@@ -8,7 +8,6 @@ import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home } from 'lucide-rea
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import Link from 'next/link';
-import { AuraApp } from '@/components/aura-app';
 
 type UserProfile = {
   displayName: string | null;
@@ -40,6 +39,8 @@ export default function ProfilePage() {
 
   const isFollowing = useMemo(() => followers?.some(f => f.id === currentUser?.uid), [followers, currentUser]);
   const isLoading = isProfileLoading || isFollowersLoading || isFollowingLoading || isPlaylistsLoading;
+  
+  const isOwnProfile = currentUser && currentUser.uid === profileUserId;
 
   const handleFollow = () => {
     if (!currentUser || !firestore) return;
@@ -82,11 +83,6 @@ export default function ProfilePage() {
         }));
     });
   };
-  
-  // If the user is viewing their own profile, show the main Aura app.
-  if (currentUser && currentUser.uid === profileUserId) {
-    return <AuraApp />;
-  }
 
   if (isLoading) {
     return (
@@ -137,7 +133,7 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          {currentUser && currentUser.uid !== profileUserId && (
+          {currentUser && !isOwnProfile && (
             <div className="mt-4 md:mt-0">
               {isFollowing ? (
                 <Button onClick={handleUnfollow} variant="outline">
