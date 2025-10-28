@@ -5,13 +5,14 @@ import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, Wand2, MessageSquare, X, Plus } from '@/components/icons';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { ChatPane } from '@/components/chat-pane';
 import { searchYoutube, type YouTubeSearchOutput } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { useCollection, useMemoFirebase } from '@/firebase';
 import {
   Select,
   SelectContent,
@@ -307,17 +308,16 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
 const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'search') => void }) => {
   const { addSong, activePlaylistId, userPlaylists } = usePlayer();
   const { user } = useUser();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const [isAdding, setIsAdding] = useState<string | null>(null);
 
-  const songsQuery = useMemo(() => {
-    if (!user) return null;
-    return query(collection(user, 'songs'), orderBy('timestamp', 'desc'), limit(50));
-  }, [user]);
+  const songsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'songs'), orderBy('timestamp', 'desc'), limit(50));
+  }, [firestore]);
 
-  // This part is problematic, we'll fix it later. For now, we mock.
-  const { data: catalogSongs, isLoading, error } = {data: [], isLoading: false, error: null}//useCollection<Song>(songsQuery);
-
+  const { data: catalogSongs, isLoading, error } = useCollection<Song>(songsQuery);
 
   const handleAddFromCatalog = async (song: Omit<Song, 'id'>) => {
     if (!user) {
