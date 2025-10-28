@@ -25,13 +25,6 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
 
     widget.bind((window as any).SC.Widget.Events.READY, onReady);
 
-    // Control via isPlaying state change
-    if (isPlaying) {
-      widget.play();
-    } else {
-      widget.pause();
-    }
-    
     return () => {
       try {
         widget.unbind((window as any).SC.Widget.Events.FINISH);
@@ -41,7 +34,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song.id]); // Only re-run when song changes
+  }, [song.id]);
   
   useEffect(() => {
      if (!soundcloudPlayerRef.current) return;
@@ -51,7 +44,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
      } else {
         widget.pause();
      }
-  }, [isPlaying]);
+  }, [isPlaying, soundcloudPlayerRef]);
 
   return (
     <iframe
@@ -82,7 +75,7 @@ const UrlPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
             }
         };
         player.addEventListener('canplay', handleCanPlay);
-        player.load();
+        player.load(); // Load the new source
 
         return () => {
             player.removeEventListener('canplay', handleCanPlay);
@@ -110,7 +103,7 @@ export function Player({ song }: PlayerProps) {
     youtubePlayerRef.current = event.target;
     // The video will autoplay due to playerVars.
     // We sync the state to reflect this.
-    setIsPlaying(true); 
+    event.target.playVideo();
   };
   
   const onStateChange = (event: any) => {
@@ -137,7 +130,7 @@ export function Player({ song }: PlayerProps) {
   // Clean up the ref when the component unmounts or song changes
   useEffect(() => {
     return () => {
-      if(youtubePlayerRef.current) {
+      if(youtubePlayerRef.current && typeof youtubePlayerRef.current.destroy === 'function') {
         youtubePlayerRef.current.destroy();
         youtubePlayerRef.current = null;
       }
