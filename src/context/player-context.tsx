@@ -101,17 +101,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
-  const stopProgressInterval = () => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
-  };
-
-  // Song progress tracking
+  // Centralized effect for progress tracking
   useEffect(() => {
-    stopProgressInterval();
-
+    const stopProgressInterval = () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+    };
+    
     if (isPlaying && currentSong) {
       progressIntervalRef.current = setInterval(() => {
         let currentTime = 0;
@@ -122,13 +120,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
                 currentTime = youtubePlayerRef.current.getCurrentTime();
                 totalDuration = youtubePlayerRef.current.getDuration();
             } else if (currentSong.type === 'soundcloud' && soundcloudPlayerRef.current && typeof soundcloudPlayerRef.current.getPosition === 'function') {
+                // SoundCloud is async, handle it carefully
                 soundcloudPlayerRef.current.getPosition((ms: number) => {
-                  setProgress(ms / 1000);
+                  if (ms !== undefined) setProgress(ms / 1000);
                 });
                  soundcloudPlayerRef.current.getDuration((ms: number) => {
                    if (!isNaN(ms) && ms > 0) setDuration(ms / 1000);
                 });
-                return; // SoundCloud is async, so we return here
+                return; // Return because SoundCloud updates state asynchronously
             } else if (currentSong.type === 'url' && urlPlayerRef.current) {
                 currentTime = urlPlayerRef.current.currentTime;
                 totalDuration = urlPlayerRef.current.duration;
@@ -147,7 +146,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
     return stopProgressInterval;
   }, [isPlaying, currentSong]);
-
 
 
   // Update local state when Firestore data changes
@@ -481,3 +479,5 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
+
+    

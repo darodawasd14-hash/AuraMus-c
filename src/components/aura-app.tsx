@@ -83,14 +83,14 @@ export function AuraApp() {
           "hidden md:flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out bg-background/50", 
           isChatOpen ? "w-80 border-l border-border" : "w-0 border-l-0"
         )}>
-           {user && <ChatPane song={currentSong} displayName={user.displayName || user.email || 'Kullanıcı'} />}
+           {user && <ChatPane song={currentSong} />}
         </div>
 
         {/* Chat Pane - modal-like on small screens */}
         {isChatOpen && (
              <div className="md:hidden fixed inset-0 bg-black/60 z-30" onClick={() => setIsChatOpen(false)}>
                 <div className="absolute right-0 top-0 h-full w-4/5 max-w-sm bg-background border-l border-border animate-in slide-in-from-right-full duration-300" onClick={e => e.stopPropagation()}>
-                    {user && <ChatPane song={currentSong} displayName={user.displayName || user.email || 'Kullanıcı'} />}
+                    {user && <ChatPane song={currentSong} />}
                 </div>
             </div>
         )}
@@ -701,3 +701,5 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
     </div>
   );
 };
+
+    

@@ -25,7 +25,7 @@ interface Message {
     isAura?: boolean; // Bu mesajın Aura'dan gelip gelmediğini belirtir
 }
 
-export function ChatPane({ song, displayName }: { song: Song | null, displayName?: string }) {
+export function ChatPane({ song }: { song: Song | null }) {
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const { user } = useUser();
@@ -65,8 +65,8 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         const trimmedMessage = message.trim();
         if (!trimmedMessage || !user || !firestore || !song) return;
         
-        // Use a fallback display name for guests or users without one.
-        const senderDisplayName = displayName || (user.isAnonymous ? "Misafir Kullanıcı" : user.email) || "Kullanıcı";
+        // Determine a fallback display name.
+        const senderDisplayName = user.displayName || (user.isAnonymous ? "Misafir Kullanıcı" : user.email) || "Kullanıcı";
 
         setIsSending(true);
         
@@ -206,3 +206,5 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         </aside>
     );
 }
+
+    
