@@ -51,7 +51,7 @@ const youtubeSearchTool = ai.defineTool(
         q: query,
         type: ['video'],
         videoCategoryId: '10', // 10, "Music" kategorisidir
-        maxResults: 16,
+        maxResults: 4,
       });
 
       const videos =
