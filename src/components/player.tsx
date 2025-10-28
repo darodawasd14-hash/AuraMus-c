@@ -21,10 +21,19 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
       widget.bind((window as any).SC.Widget.Events.FINISH, onEnded);
       if (isPlaying) {
         widget.play();
+      } else {
+        widget.pause();
       }
     };
 
     widget.bind((window as any).SC.Widget.Events.READY, onReady);
+    
+    // This effect should re-run if isPlaying changes for the same song
+    if (isPlaying) {
+      widget.play();
+    } else {
+      widget.pause();
+    }
     
     return () => {
       try {
@@ -35,7 +44,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song.id]);
+  }, [song.id, isPlaying]);
   
   return (
     <iframe
@@ -46,7 +55,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
       scrolling="no"
       frameBorder="no"
       allow="autoplay"
-      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=${isPlaying}&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
+      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=false&visual=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&color=%234f46e5`}
     ></iframe>
   );
 };
@@ -64,21 +73,35 @@ const UrlPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
         }
     }, [isPlaying, song.id, urlPlayerRef]);
 
-    return <audio ref={urlPlayerRef} src={song.url} onEnded={onEnded} controls className="w-full"/>;
+    return <audio ref={urlPlayerRef} src={song.url} onEnded={onEnded} className="w-0 h-0"/>;
 }
 
 export function Player({ song }: PlayerProps) {
-  const { playNext, youtubePlayerRef } = usePlayer();
+  const { playNext, youtubePlayerRef, isPlaying } = usePlayer();
 
+  // Assigns the player object to the ref once it's ready.
   const onReady = (event: any) => {
     youtubePlayerRef.current = event.target;
-    event.target.playVideo();
   };
   
+  // Controls playback based on the global isPlaying state.
+  useEffect(() => {
+      if (!youtubePlayerRef.current) return;
+      if (isPlaying) {
+          youtubePlayerRef.current.playVideo();
+      } else {
+          youtubePlayerRef.current.pauseVideo();
+      }
+  }, [isPlaying, song, youtubePlayerRef]);
+
   // Clean up the ref when the component unmounts or song changes
   useEffect(() => {
     return () => {
-      youtubePlayerRef.current = null;
+      if(youtubePlayerRef.current) {
+        // Stop video and nullify ref to prevent memory leaks on song change
+        youtubePlayerRef.current.stopVideo();
+        youtubePlayerRef.current = null;
+      }
     };
   }, [song?.id, youtubePlayerRef]);
 
@@ -88,11 +111,8 @@ export function Player({ song }: PlayerProps) {
   };
 
   if (!song) {
-    return (
-      <div id="player-placeholder" className="w-full h-full text-muted-foreground bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
-        <AuraLogo className="w-2/5 h-2/5" />
-      </div>
-    );
+    // Return null or a placeholder, but don't render any players
+    return null;
   }
 
   const renderPlayer = () => {
@@ -106,8 +126,8 @@ export function Player({ song }: PlayerProps) {
               width: '100%',
               height: '100%',
               playerVars: {
-                autoplay: 1,
-                controls: 1,
+                autoplay: 1, // Autoplay is now controlled by the useEffect above
+                controls: 0, // Controls hidden for our custom UI
                 modestbranding: 1,
                 rel: 0,
               },
@@ -122,14 +142,14 @@ export function Player({ song }: PlayerProps) {
       case 'url':
         return <UrlPlayer song={song} onEnded={onEnd} />;
       default:
-        return (
-          <div className="w-full h-full flex items-center justify-center p-4">Desteklenmeyen şarkı türü.</div>
-        );
+        return null;
     }
   }
 
+  // This wrapper will be hidden (w-0 h-0) in AuraApp, so it won't be visible.
+  // Its only purpose is to keep the player SDKs alive in the DOM.
   return (
-    <div id="player-wrapper" className="w-full h-full aspect-video bg-black rounded-lg shadow-lg overflow-hidden">
+    <div id="persistent-player-wrapper">
       {renderPlayer()}
     </div>
   );

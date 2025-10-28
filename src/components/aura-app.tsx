@@ -68,6 +68,11 @@ export function AuraApp() {
   return (
     <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       
+      {/* The single, persistent, INVISIBLE Player instance */}
+      <div className="w-0 h-0 overflow-hidden">
+          <Player song={currentSong} />
+      </div>
+
       <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
       
       <main className="flex-grow flex flex-row overflow-hidden">
@@ -172,11 +177,9 @@ const formatTime = (seconds: number) => {
 
 
 const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick, progress, duration, onSeek, onSeeking }: { song: Song, isPlaying: boolean, onPlayPause: () => void, onNext: () => void, onClick: () => void, progress: number, duration: number, onSeek: (time: number) => void, onSeeking: (isSeeking: boolean) => void}) => {
-  // Use a state for the slider's value to provide immediate feedback to the user
   const [sliderValue, setSliderValue] = useState(progress);
   const { isSeeking } = usePlayer();
 
-  // When the actual progress updates from the context (and the user is not seeking), update the slider.
   useEffect(() => {
     if (!isSeeking) {
       setSliderValue(progress);
@@ -241,25 +244,72 @@ const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick, progress, du
 }
 
 const FullPlayerView = ({ song, onClose }: { song: Song | null, onClose: () => void }) => {
-    const { isPlaying, togglePlayPause, playNext, playPrev } = usePlayer();
+    const { isPlaying, togglePlayPause, playNext, playPrev, progress, duration, seekTo, setIsSeeking } = usePlayer();
 
     if (!song) return null;
+    
+    // This component now ALSO uses the central slider logic
+    const [sliderValue, setSliderValue] = useState(progress);
+    const { isSeeking } = usePlayer();
+
+    useEffect(() => {
+        if (!isSeeking) {
+            setSliderValue(progress);
+        }
+    }, [progress, isSeeking]);
+
+    const handleSeekCommit = (value: number[]) => {
+        seekTo(value[0]);
+        setIsSeeking(false);
+    };
+    
+    const handlePointerDown = () => {
+        setIsSeeking(true);
+    }
+
+    const handleValueChange = (value: number[]) => {
+        setSliderValue(value[0]);
+    }
+
 
     return (
         <div className="fixed inset-0 bg-background/95 backdrop-blur-2xl z-50 flex flex-col p-4 animate-in fade-in-0 slide-in-from-bottom-10 duration-500">
             <header className="flex-shrink-0 flex items-center justify-between">
                 <Button variant="ghost" size="icon" onClick={onClose}><ChevronDown className="w-8 h-8"/></Button>
                 <span className="text-sm font-bold uppercase text-muted-foreground">Şimdi Oynatılıyor</span>
-                <div></div>
+                <div className="w-10"></div>
             </header>
             <main className="flex-grow flex flex-col items-center justify-center gap-8 text-center">
-                <div className="w-full max-w-md aspect-video">
-                     <Player song={song} />
+                <div className="w-full max-w-md aspect-square rounded-lg shadow-2xl overflow-hidden">
+                     <Image 
+                        src={`https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`}
+                        alt={song.title}
+                        width={640}
+                        height={640}
+                        className="w-full h-full object-cover"
+                     />
                 </div>
                 <div className="w-full max-w-md">
                     <h2 className="text-3xl font-bold tracking-tight truncate">{song.title}</h2>
                     <p className="text-muted-foreground mt-1">{song.type}</p>
                 </div>
+                {/* Progress Bar for Full Player */}
+                <div className="w-full max-w-md px-2">
+                    <Slider
+                        value={[sliderValue]}
+                        max={duration || 1}
+                        step={1}
+                        onValueChange={handleValueChange}
+                        onPointerDown={handlePointerDown}
+                        onValueCommit={handleSeekCommit}
+                        className="flex-grow"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                        <span>{formatTime(sliderValue)}</span>
+                        <span>{formatTime(duration)}</span>
+                    </div>
+                </div>
+
                 <div className="flex items-center justify-center space-x-4">
                     <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground w-16 h-16" onClick={playPrev}>
                       <SkipBack className="w-8 h-8" />
