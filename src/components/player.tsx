@@ -59,10 +59,11 @@ function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDurat
       clearInterval(progressIntervalRef.current);
     }
     progressIntervalRef.current = setInterval(() => {
+      // Only update progress if the user is not actively seeking
       if (!isSeeking) {
          onProgress(player.getCurrentTime());
       }
-    }, 500);
+    }, 500); // Update progress every 500ms
   };
   
   const stopProgressTracking = () => {
@@ -74,18 +75,21 @@ function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDurat
   const onReady = (event: { target: YouTubePlayer }) => {
     playerRef.current = event.target;
     onDuration(event.target.getDuration());
-    event.target.mute(); 
+    event.target.mute(); // Mute by default to comply with autoplay policies
+    startProgressTracking(event.target); // Start tracking as soon as the player is ready
   };
   
   const onPlayerStateChange = (event: { data: number; target: YouTubePlayer }) => {
     // State 1: Playing
     if (event.data === 1) {
       onStateChange(true);
+      // Ensure tracking is running when playing
       startProgressTracking(event.target);
     } 
     // State 2: Paused
     else if (event.data === 2) {
       onStateChange(false);
+      // Stop tracking when paused to save resources
       stopProgressTracking();
     }
      // State 0: Ended
@@ -93,6 +97,9 @@ function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDurat
       onStateChange(false);
       stopProgressTracking();
       onEnd();
+    } else {
+      // For other states like buffering, unstarted, etc.
+      onStateChange(false);
     }
   };
   
@@ -103,6 +110,10 @@ function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDurat
 
     if (isPlaying) {
       player.playVideo();
+      // When user intends to play, ensure we unmute
+      if (player.isMuted()) {
+        player.unMute();
+      }
     } else {
       player.pauseVideo();
     }
