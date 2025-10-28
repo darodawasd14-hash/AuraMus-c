@@ -53,6 +53,8 @@ type PlayerContextType = {
   createPlaylist: (name: string) => Promise<void>;
   setIsSeeking: (isSeeking: boolean) => void;
   setIsPlaying: (isPlaying: boolean) => void;
+  setProgress: (progress: number) => void;
+  setDuration: (duration: number) => void;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -100,54 +102,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const { data: activePlaylistSongs, isLoading: isSongsLoading } = useCollection<Song>(songsQuery);
   
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
-
-  useEffect(() => {
-    let progressInterval: NodeJS.Timeout | null = null;
-    
-    if (isPlaying && currentSong) {
-      progressInterval = setInterval(() => {
-        if (isSeeking) return;
-
-        let currentTime = 0;
-        let totalDuration = 0;
-        
-        try {
-            if (currentSong.type === 'youtube' && youtubePlayerRef.current && typeof youtubePlayerRef.current.getCurrentTime === 'function') {
-                currentTime = youtubePlayerRef.current.getCurrentTime();
-                totalDuration = youtubePlayerRef.current.getDuration();
-            } else if (currentSong.type === 'soundcloud' && soundcloudPlayerRef.current) {
-                 const widget = (window as any).SC.Widget(soundcloudPlayerRef.current);
-                 widget.getPosition((ms: number) => {
-                   if (ms !== undefined && !isSeeking) setProgress(ms / 1000);
-                 });
-                 widget.getDuration((ms: number) => {
-                    if (!isNaN(ms) && ms > 0) setDuration(ms / 1000);
-                 });
-                 return; // SoundCloud is async, so we return here
-            } else if (currentSong.type === 'url' && urlPlayerRef.current) {
-                currentTime = urlPlayerRef.current.currentTime;
-                totalDuration = urlPlayerRef.current.duration;
-            }
-
-            setProgress(currentTime);
-            if (!isNaN(totalDuration) && totalDuration > 0) {
-              setDuration(totalDuration);
-            }
-        } catch(e) {
-            console.error("Error getting player time:", e);
-            if (progressInterval) clearInterval(progressInterval);
-        }
-      }, 1000);
-    }
-
-    return () => {
-      if (progressInterval) {
-        clearInterval(progressInterval);
-      }
-    };
-  }, [isPlaying, currentSong, isSeeking]);
-
-
+  
   useEffect(() => {
     if (activePlaylistSongs) {
       const currentSongId = playlist[currentIndex]?.id;
@@ -347,23 +302,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const togglePlayPause = useCallback(() => {
-    if (!currentSong || !youtubePlayerRef.current) return;
-    
-    const player = youtubePlayerRef.current;
-    if (isPlaying) {
-      player.pauseVideo();
-    } else {
-      player.playVideo();
-    }
-  }, [currentSong, isPlaying]);
+    setIsPlaying(prev => !prev);
+  }, []);
   
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
       if (currentIndex !== index) {
         setCurrentIndex(index);
-        setProgress(0);
-        setDuration(0);
+        setIsPlaying(true);
       } else {
+        // If the same song is clicked, toggle play/pause
         togglePlayPause();
       }
       setIsPlayerOpen(true);
@@ -377,13 +325,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
-    playSong(nextIndex);
-  }, [currentIndex, playlist.length, playSong]);
+    setCurrentIndex(nextIndex);
+    setIsPlaying(true);
+  }, [currentIndex, playlist.length]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
     const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-    playSong(prevIndex);
+    setCurrentIndex(prevIndex);
+    setIsPlaying(true);
   };
   
   const seekTo = (time: number) => {
@@ -431,6 +381,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     createPlaylist,
     setIsSeeking,
     setIsPlaying,
+    setProgress,
+    setDuration,
   };
 
   return (
