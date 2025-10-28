@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, addDoc, getDocs, where, limit, writeBatch, runTransaction, DocumentReference } from 'firebase/firestore';
+import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit, runTransaction, DocumentReference, getDoc } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import initialCatalog from '@/app/lib/catalog.json';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -136,12 +136,26 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
+        // Çalma listesinde aynı isimde şarkı olup olmadığını kontrol et.
+        // Bu kontrol, merkezi şarkı kimliğini bulmak için yapılan transaction'dan önce yapılır.
+        const userPlaylistColRef = collection(firestore, 'users', userId, 'playlist');
+        const duplicateQuery = query(userPlaylistColRef, where("title", "==", songDetails.title), limit(1));
+        const duplicateSnapshot = await getDocs(duplicateQuery);
+
+        if (!duplicateSnapshot.empty) {
+            toast({
+                title: "Bu şarkı zaten listenizde var.",
+                variant: "default",
+            });
+            return null; // Şarkı zaten var, işlemi durdur.
+        }
+
         const songRef = await runTransaction(firestore, async (transaction) => {
             const songsCollectionRef = collection(firestore, 'songs');
             const queryIdentifier = songDetails.videoId || songDetails.url;
             const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
             
-            const querySnapshot = await getDocs(q);
+            const querySnapshot = await transaction.get(q);
             let centralSongRef: DocumentReference;
 
             if (querySnapshot.empty) {
@@ -169,7 +183,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
             }
 
             const songDataForPlaylist = {
-                ...centralSongDoc.data(),
+                ...(centralSongDoc.data() as Song),
                 timestamp: serverTimestamp() // Kullanıcının eklediği zaman
             };
             transaction.set(userPlaylistSongRef, songDataForPlaylist);
@@ -177,9 +191,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
             return centralSongRef;
         });
 
-        const finalSongDoc = await getDocs(query(collection(firestore, 'songs'), where('id', '==', songRef.id)));
-        if(finalSongDoc.docs[0].exists()){
-             return finalSongDoc.docs[0].data() as Song;
+        const finalSongDoc = await getDoc(songRef);
+        if(finalSongDoc.exists()){
+             return finalSongDoc.data() as Song;
         }
         return null;
        
@@ -250,22 +264,20 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
   
+    // Helper to securely pause players
     const pauseAllPlayers = () => {
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
       if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
       if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
     };
   
-    if (!isPlaying) {
+    // If we are not supposed to be playing, or there's no song, pause everything and exit.
+    if (!isPlaying || !song) {
       pauseAllPlayers();
       return;
     }
   
-    if (!song) {
-      pauseAllPlayers();
-      return;
-    }
-  
+    // Play the correct player based on song type
     switch (song.type) {
       case 'youtube':
         if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
@@ -330,5 +342,3 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
-
-    
