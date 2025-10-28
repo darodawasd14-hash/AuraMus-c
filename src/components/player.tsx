@@ -22,7 +22,6 @@ const YouTubePlayerInternal = () => {
   const playerRef = useRef<any>(null);
 
   const onReady = useCallback((event: any) => {
-    console.log("YouTube Player: Ready. Saving reference and starting muted.");
     playerRef.current = event.target;
     // Autoplay muted to comply with browser policies
     playerRef.current.mute();
@@ -81,8 +80,6 @@ const YouTubePlayerInternal = () => {
   }, [isPlaying, isSeeking, _setProgress]);
   
   // This is the MASTER CONTROLLER effect for the YouTube player.
-  // It listens to intentions from the context (isPlaying, isMuted, seekTime)
-  // and applies them directly to the player instance held in playerRef.
   useEffect(() => {
     const player = playerRef.current;
     if (!player || !currentSong) return;
