@@ -26,8 +26,10 @@ const YouTubePlayerInternal = () => {
     // Autoplay muted to comply with browser policies
     playerRef.current.mute();
     _setIsMuted(true);
-    // The playVideo command is now managed by the isPlaying useEffect
-  }, [_setIsMuted]);
+    if (isPlaying) {
+      playerRef.current.playVideo();
+    }
+  }, [_setIsMuted, isPlaying]);
 
   const onStateChange = useCallback((event: any) => {
     const player = playerRef.current;
@@ -192,10 +194,10 @@ const SoundCloudPlayerInternal = () => {
             if (soundcloudPlayerRef.current) {
                 try {
                      widget.unbind((window as any).SC.Widget.Events.READY);
-                     widget.unbind((window as any).SC.Widget.Events.PLAY);
-                     widget.unbind((window as any).SC.Widget.Events.PAUSE);
-                     widget.unbind((window as any).SC.Widget.Events.FINISH);
-                     widget.unbind((window as any).SC.Widget.Events.PLAY_PROGRESS);
+                     widget.unbind((window as any).SC.widget.events.PLAY);
+                     widget.unbind((window as any).SC.widget.events.PAUSE);
+                     widget.unbind((window as any).SC.widget.events.FINISH);
+                     widget.unbind((window as any).SC.widget.events.PLAY_PROGRESS);
                 } catch (e) {}
             }
             if (iframe) iframe.remove();
@@ -238,7 +240,8 @@ const UrlPlayerInternal = () => {
 
         if (currentSong && currentSong.type === 'url' && player.src !== currentSong.url) {
             player.src = currentSong.url;
-            player.muted = isMuted; // Set initial mute state
+            player.muted = true; // Start muted
+            _setIsMuted(true);
         }
         
         const handleLoadedMetadata = () => _setDuration(player.duration);
@@ -266,7 +269,7 @@ const UrlPlayerInternal = () => {
             player.removeEventListener('ended', handleEnded);
             player.removeEventListener('volumechange', handleVolumeChange);
         };
-    }, [currentSong, _setDuration, _setProgress, _setIsPlaying, playNext, isSeeking, _setIsMuted, isMuted]);
+    }, [currentSong, _setDuration, _setProgress, _setIsPlaying, playNext, isSeeking, _setIsMuted]);
 
      useEffect(() => {
         const player = urlPlayerRef.current;
@@ -305,5 +308,3 @@ export function Player() {
       return null;
   }
 }
-
-    
