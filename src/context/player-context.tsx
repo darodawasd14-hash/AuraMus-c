@@ -38,9 +38,6 @@ type PlayerContextType = {
   isSeeking: boolean;
   progress: number;
   duration: number;
-  youtubePlayerRef: React.MutableRefObject<any>;
-  soundcloudPlayerRef: React.MutableRefObject<any>;
-  urlPlayerRef: React.MutableRefObject<HTMLAudioElement | null>;
   addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
   deleteSong: (songId: string, playlistId: string) => Promise<void>;
   playSong: (index: number) => void;
@@ -55,6 +52,7 @@ type PlayerContextType = {
   setIsPlaying: (isPlaying: boolean) => void;
   setProgress: (progress: number) => void;
   setDuration: (duration: number) => void;
+  // Refs are removed from context to be managed locally in Player component
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -72,11 +70,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
+  const [seekTime, setSeekTime] = useState<number | null>(null); // To communicate seek to player
 
-  const youtubePlayerRef = useRef<any>(null);
-  const soundcloudPlayerRef = useRef<any>(null);
-  const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
-  
   const userPlaylistsQuery = useMemoFirebase(() => {
     if (user && firestore) {
       return query(collection(firestore, 'users', user.uid, 'playlists'), orderBy('createdAt', 'asc'));
@@ -109,10 +104,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setPlaylist(activePlaylistSongs);
       const newIndex = activePlaylistSongs.findIndex(s => s.id === currentSongId);
       
-      if (newIndex === -1) {
-         if (currentIndex !== -1) {
-            // Song may have been deleted, do nothing to interrupt playback for now
-         }
+      if (newIndex === -1 && currentIndex !== -1) {
+         // Song was deleted, stop playing
+         setIsPlaying(false);
+         setCurrentIndex(-1);
       } else {
         setCurrentIndex(newIndex);
       }
@@ -222,7 +217,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         songDetails = { ...songInfo, type: 'url' };
     }
 
-
     const songsCollectionRef = collection(firestore, 'songs');
     const queryIdentifier = songDetails.videoId || songDetails.url;
     const queryProperty = songDetails.type === 'youtube' ? "videoId" : "url";
@@ -301,7 +295,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       });
   };
   
-  const playSong = useCallback((index: number) => {
+  const playSong = (index: number) => {
     if (index >= 0 && index < playlist.length) {
       if (index === currentIndex) {
         // If the same song is clicked, toggle play/pause
@@ -315,12 +309,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
-  }, [playlist.length, currentIndex]);
+  };
 
-  const togglePlayPause = useCallback(() => {
+  const togglePlayPause = () => {
     if (!currentSong) return;
     setIsPlaying(prev => !prev);
-  }, [currentSong]);
+  };
 
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
@@ -338,19 +332,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const seekTo = (time: number) => {
     if (!currentSong) return;
-    try {
-        if (currentSong.type === 'youtube' && youtubePlayerRef.current?.seekTo) {
-          youtubePlayerRef.current.seekTo(time, true);
-        } else if (currentSong.type === 'soundcloud' && soundcloudPlayerRef.current) {
-          const widget = (window as any).SC.Widget(soundcloudPlayerRef.current);
-          widget.seekTo(time * 1000);
-        } else if (urlPlayerRef.current) {
-          urlPlayerRef.current.currentTime = time;
-        }
-        setProgress(time);
-    } catch(e) {
-        console.error("Seek error:", e);
-    }
+    // This is now an indirect command.
+    // The Player component will listen for this state change.
+    setSeekTime(time);
+    // After sending the command, reset it to allow subsequent seeks
+    // The player will handle the actual seek and then we can clear it.
+    // A better approach is for the player to clear it after seeking.
+    setTimeout(() => setSeekTime(null), 100);
   };
 
   const value: PlayerContextType = {
@@ -365,16 +353,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     isSeeking,
     progress,
     duration,
-    youtubePlayerRef,
-    soundcloudPlayerRef,
-    urlPlayerRef,
     addSong,
     deleteSong,
     playSong,
     togglePlayPause,
     playNext,
     playPrev,
-    seekTo,
+    seekTo: seekTo,
     setIsPlayerOpen,
     setActivePlaylistId,
     createPlaylist,
