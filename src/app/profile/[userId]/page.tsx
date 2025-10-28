@@ -2,15 +2,14 @@
 import { useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection, query, orderBy, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, collection, setDoc, deleteDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
-import { Loader2, UserPlus, UserMinus, ArrowLeft, Music } from 'lucide-react';
-import Image from 'next/image';
+import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import Link from 'next/link';
+import { AuraApp } from '@/components/aura-app';
 
-// Define types used in the component
 type UserProfile = {
   displayName: string | null;
   email: string | null;
@@ -19,7 +18,6 @@ type UserProfile = {
 type Playlist = {
   id: string;
   name: string;
-  songCount: number; // Add a song count for display
 };
 
 export default function ProfilePage() {
@@ -30,13 +28,11 @@ export default function ProfilePage() {
   const { user: currentUser } = useUser();
   const firestore = useFirestore();
 
-  // Memoize Firestore references
   const profileUserRef = useMemoFirebase(() => firestore ? doc(firestore, 'users', profileUserId) : null, [firestore, profileUserId]);
   const followersRef = useMemoFirebase(() => firestore ? collection(firestore, 'users', profileUserId, 'followers') : null, [firestore, profileUserId]);
   const followingRef = useMemoFirebase(() => firestore ? collection(firestore, 'users', profileUserId, 'following') : null, [firestore, profileUserId]);
   const playlistsRef = useMemoFirebase(() => firestore ? collection(firestore, 'users', profileUserId, 'playlists') : null, [firestore, profileUserId]);
 
-  // Fetch data using hooks
   const { data: profileUser, isLoading: isProfileLoading } = useDoc<UserProfile>(profileUserRef);
   const { data: followers, isLoading: isFollowersLoading } = useCollection(followersRef);
   const { data: following, isLoading: isFollowingLoading } = useCollection(followingRef);
@@ -48,20 +44,25 @@ export default function ProfilePage() {
   const handleFollow = async () => {
     if (!currentUser || !firestore) return;
     const followerRef = doc(firestore, 'users', profileUserId, 'followers', currentUser.uid);
-    const followingRef = doc(firestore, 'users', currentUser.uid, 'following', profileUserId);
+    const followingRefDoc = doc(firestore, 'users', currentUser.uid, 'following', profileUserId);
     
     await setDoc(followerRef, { uid: currentUser.uid });
-    await setDoc(followingRef, { uid: profileUserId });
+    await setDoc(followingRefDoc, { uid: profileUserId });
   };
 
   const handleUnfollow = async () => {
     if (!currentUser || !firestore) return;
     const followerRef = doc(firestore, 'users', profileUserId, 'followers', currentUser.uid);
-    const followingRef = doc(firestore, 'users', currentUser.uid, 'following', profileUserId);
+    const followingRefDoc = doc(firestore, 'users', currentUser.uid, 'following', profileUserId);
     
     await deleteDoc(followerRef);
-    await deleteDoc(followingRef);
+    await deleteDoc(followingRefDoc);
   };
+  
+  // If the user is viewing their own profile, show the main Aura app.
+  if (currentUser && currentUser.uid === profileUserId) {
+    return <AuraApp />;
+  }
 
   if (isLoading) {
     return (
@@ -75,7 +76,9 @@ export default function ProfilePage() {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
         <p>Kullanıcı bulunamadı.</p>
-        <Button onClick={() => router.push('/')} variant="outline">Ana Sayfaya Dön</Button>
+        <Button onClick={() => router.push('/')} variant="outline">
+           <Home className="mr-2 h-4 w-4" /> Ana Sayfaya Dön
+        </Button>
       </div>
     );
   }
@@ -84,15 +87,13 @@ export default function ProfilePage() {
   const displayEmail = profileUser.email || 'E-posta yok';
   const fallbackAvatar = displayName.charAt(0).toUpperCase() || 'U';
 
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto p-4 md:p-8">
-        <Button onClick={() => router.back()} variant="ghost" className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Geri
+        <Button onClick={() => router.push('/')} variant="ghost" className="mb-4">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Ana Sayfa
         </Button>
 
-        {/* Profile Header */}
         <header className="flex flex-col items-center gap-6 rounded-lg border border-border bg-secondary/50 p-8 text-center md:flex-row md:text-left">
           <Avatar className="h-24 w-24 border-4 border-primary">
             <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${profileUserId}`} alt={displayName} />
@@ -127,24 +128,20 @@ export default function ProfilePage() {
           )}
         </header>
 
-        {/* Playlists Section */}
         <main className="mt-8">
           <h2 className="mb-4 text-2xl font-semibold">Herkese Açık Çalma Listeleri</h2>
           {playlists && playlists.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {playlists.map(playlist => (
                 <Card key={playlist.id} className="overflow-hidden transition-shadow hover:shadow-lg">
-                  <Link href={`/playlist/${profileUserId}/${playlist.id}`}>
-                    <div className="flex cursor-pointer flex-col">
+                   <div className="flex cursor-default flex-col">
                       <div className="relative flex h-32 items-center justify-center bg-gradient-to-br from-primary/20 to-accent/20">
                         <Music className="h-12 w-12 text-muted-foreground" />
                       </div>
                       <div className="p-4">
                         <p className="font-semibold truncate">{playlist.name}</p>
-                        {/* <p className="text-sm text-muted-foreground">{playlist.songCount ?? 0} şarkı</p> */}
                       </div>
                     </div>
-                  </Link>
                 </Card>
               ))}
             </div>

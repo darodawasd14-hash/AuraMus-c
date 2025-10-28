@@ -12,22 +12,30 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // If there's a user, they should be in the main app view.
-    // If they land on a profile page, the /[...slug] structure will handle it.
-  }, [user, router]);
-
+    // If there's a user and we are on the root page, redirect to their profile.
+    if (user && !isUserLoading) {
+      router.push(`/profile/${user.uid}`);
+    }
+  }, [user, isUserLoading, router]);
 
   if (isUserLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gray-900">
-        <Loader2 className="h-12 w-12 animate-spin text-blue-500" />
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
 
+  // If there's no user, show the authentication page.
   if (!user) {
     return <AuthPage />;
   }
-
-  return <AuraApp />;
+  
+  // This part will be shown briefly while redirecting, or if the redirect fails.
+  // We can show a loader here as well.
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-background">
+      <Loader2 className="h-12 w-12 animate-spin text-primary" />
+    </div>
+  );
 }
