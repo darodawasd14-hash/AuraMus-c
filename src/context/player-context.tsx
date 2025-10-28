@@ -34,12 +34,17 @@ type PlayerContextType = {
   currentIndex: number;
   isPlaying: boolean;
   isLoading: boolean;
+  isPlayerOpen: boolean;
+  youtubePlayer: any;
+  soundcloudPlayer: any;
+  urlPlayer: HTMLAudioElement | null;
   addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
   deleteSong: (songId: string, playlistId: string) => Promise<void>;
   playSong: (index: number) => void;
   togglePlayPause: () => void;
   playNext: () => void;
   playPrev: () => void;
+  setIsPlayerOpen: (isOpen: boolean) => void;
   setYoutubePlayer: (player: any) => void;
   setSoundcloudPlayer: (player: any) => void;
   setUrlPlayer: (player: HTMLAudioElement | null) => void;
@@ -58,10 +63,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
+  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
 
-  const youtubePlayerRef = useRef<any>(null);
-  const soundcloudPlayerRef = useRef<any>(null);
-  const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const [youtubePlayer, setYoutubePlayer] = useState<any>(null);
+  const [soundcloudPlayer, setSoundcloudPlayer] = useState<any>(null);
+  const [urlPlayer, setUrlPlayer] = useState<HTMLAudioElement | null>(null);
+
 
   // Fetch user's playlists
   const userPlaylistsQuery = useMemoFirebase(() => {
@@ -298,9 +305,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (index >= 0 && index < playlist.length) {
       setCurrentIndex(index);
       setIsPlaying(true);
+      setIsPlayerOpen(true);
     } else {
       setCurrentIndex(-1);
       setIsPlaying(false);
+      setIsPlayerOpen(false);
     }
   }, [playlist.length]);
 
@@ -309,6 +318,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       playSong(0);
     } else if (playlist.length > 0) {
       setIsPlaying(prev => !prev);
+      if (!isPlayerOpen) setIsPlayerOpen(true);
     }
   };
 
@@ -326,9 +336,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   useEffect(() => {
     const song = playlist[currentIndex];
-    const youtubePlayer = youtubePlayerRef.current;
-    const soundcloudPlayer = soundcloudPlayerRef.current;
-    const urlPlayer = urlPlayerRef.current;
   
     const pauseAllPlayers = () => {
         if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function' && typeof youtubePlayer.getPlayerState === 'function') {
@@ -374,7 +381,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       default:
         pauseAllPlayers();
     }
-  }, [isPlaying, currentIndex, playlist]);
+  }, [isPlaying, currentIndex, playlist, youtubePlayer, soundcloudPlayer, urlPlayer]);
 
 
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
@@ -387,15 +394,20 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     currentIndex,
     isPlaying,
     isLoading,
+    isPlayerOpen,
+    youtubePlayer,
+    soundcloudPlayer,
+    urlPlayer,
     addSong,
     deleteSong,
     playSong,
     togglePlayPause,
     playNext,
     playPrev,
-    setYoutubePlayer: (player: any) => { youtubePlayerRef.current = player; },
-    setSoundcloudPlayer: (player: any) => { soundcloudPlayerRef.current = player; },
-    setUrlPlayer: (player: HTMLAudioElement | null) => { urlPlayerRef.current = player; },
+    setIsPlayerOpen,
+    setYoutubePlayer,
+    setSoundcloudPlayer,
+    setUrlPlayer,
     setActivePlaylistId,
     createPlaylist,
   };

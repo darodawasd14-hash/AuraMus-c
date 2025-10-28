@@ -38,7 +38,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
       setSoundcloudPlayer(null);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song.id]);
+  }, [song.id, setSoundcloudPlayer]);
   
   return (
     <iframe
@@ -84,23 +84,26 @@ export function Player({ song }: PlayerProps) {
   const { playNext, setYoutubePlayer } = usePlayer();
 
   useEffect(() => {
+    // This is important to clear the player reference when the song changes or unmounts.
     return () => {
       setYoutubePlayer(null);
     };
   }, [song?.id, setYoutubePlayer]);
 
   const onReady = (event: any) => {
+    // The player is ready.
     setYoutubePlayer(event.target);
   };
 
   const onEnd = () => {
+    // The song has ended, play the next one.
     playNext();
   };
 
   if (!song) {
     return (
-      <div id="player-placeholder" className="text-muted-foreground flex flex-col items-center gap-4">
-        <AuraLogo className="w-20 h-20" />
+      <div id="player-placeholder" className="w-full h-full text-muted-foreground bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
+        <AuraLogo className="w-2/5 h-2/5" />
       </div>
     );
   }
@@ -126,20 +129,20 @@ export function Player({ song }: PlayerProps) {
             onEnd={onEnd}
             className="w-full h-full"
           />
-        ) : <div className="text-destructive-foreground p-4">Geçersiz YouTube ID</div>;
+        ) : <div className="w-full h-full flex items-center justify-center bg-black text-destructive-foreground p-4">Geçersiz YouTube ID</div>;
       case 'soundcloud':
         return <SoundCloudPlayer song={song} onEnded={onEnd} />;
       case 'url':
         return <UrlPlayer song={song} onEnded={onEnd} />;
       default:
         return (
-          <div className="p-4">Desteklenmeyen şarkı türü.</div>
+          <div className="w-full h-full flex items-center justify-center p-4">Desteklenmeyen şarkı türü.</div>
         );
     }
   }
 
   return (
-    <div id="player-wrapper">
+    <div id="player-wrapper" className="w-full h-full aspect-video bg-black rounded-lg shadow-lg overflow-hidden">
       {renderPlayer()}
     </div>
   );
