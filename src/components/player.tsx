@@ -10,6 +10,13 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
 
   useEffect(() => {
     if (!song.url) return;
+    
+    // Ensure the SC object is available
+    if (!(window as any).SC) {
+      console.error("SoundCloud API script not loaded yet.");
+      return;
+    }
+
     const widget = (window as any).SC.Widget(soundcloudPlayerRef.current);
     widgetRef.current = widget;
     
@@ -37,7 +44,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
           widgetRef.current.unbind((window as any).SC.Widget.Events.PLAY_PROGRESS);
         }
       } catch (e) {
-        // Hata bastırma
+        // Suppress errors on cleanup
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,54 +78,51 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
 const UrlPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
     const { urlPlayerRef, isPlaying, setProgress, setDuration, isSeeking } = usePlayer();
 
+    // This single useEffect handles all logic for the audio element.
     useEffect(() => {
         const player = urlPlayerRef.current;
-        if (player && song.url) {
+        // 1. Exit early if the player element itself doesn't exist.
+        if (!player) {
+            return;
+        }
+
+        // 2. Set the source only if it has changed.
+        if (player.src !== song.url) {
             player.src = song.url;
         }
-    }, [song.url, urlPlayerRef]);
 
-    useEffect(() => {
-        const player = urlPlayerRef.current;
-        if (!player) return;
-
+        // 3. Handle play/pause based on the isPlaying state.
         if (isPlaying) {
             player.play().catch(e => console.error("URL audio playback error:", e));
         } else {
             player.pause();
         }
-    }, [isPlaying, urlPlayerRef]);
 
-
-    useEffect(() => {
-        const player = urlPlayerRef.current;
-        if (!player) return;
-
+        // 4. Set up event listeners.
         const handleTimeUpdate = () => {
             if (!isSeeking) {
                 setProgress(player.currentTime);
             }
         };
         const handleDurationChange = () => {
-            setDuration(player.duration);
+            if (player.duration && isFinite(player.duration)) {
+                setDuration(player.duration);
+            }
         };
 
         player.addEventListener('timeupdate', handleTimeUpdate);
         player.addEventListener('durationchange', handleDurationChange);
-        player.addEventListener('canplay', handleDurationChange);
         player.addEventListener('loadedmetadata', handleDurationChange);
         player.addEventListener('ended', onEnded);
 
-
+        // 5. Cleanup function to remove listeners.
         return () => {
             player.removeEventListener('timeupdate', handleTimeUpdate);
             player.removeEventListener('durationchange', handleDurationChange);
-            player.removeEventListener('canplay', handleDurationChange);
             player.removeEventListener('loadedmetadata', handleDurationChange);
             player.removeEventListener('ended', onEnded);
         };
-    }, [urlPlayerRef, setProgress, setDuration, isSeeking, onEnded]);
-
+    }, [song.url, isPlaying, isSeeking, onEnded, setDuration, setProgress, urlPlayerRef]);
 
     return <audio ref={urlPlayerRef} className="w-0 h-0"/>;
 }
@@ -144,20 +148,8 @@ export function Player({ song }: { song: Song | null }) {
       }
   };
 
-  useEffect(() => {
-    const player = youtubePlayerRef.current;
-    if (player && typeof player.playVideo === 'function') {
-      if (isPlaying) {
-        player.playVideo();
-      } else {
-        player.pauseVideo();
-      }
-    }
-  }, [isPlaying, youtubePlayerRef]);
-
   const onReady = (event: any) => {
     youtubePlayerRef.current = event.target;
-    // When the player is ready, check if we should be playing and play.
     if (isPlaying) {
       event.target.playVideo();
     }
@@ -167,7 +159,6 @@ export function Player({ song }: { song: Song | null }) {
     const player = youtubePlayerRef.current;
     cleanupProgressInterval();
 
-    // -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (video cued)
     if (event.data === 1) { // Playing
       if(!isPlaying) setIsPlaying(true);
       setDuration(player.getDuration());
@@ -180,15 +171,12 @@ export function Player({ song }: { song: Song | null }) {
 
     } else if (event.data === 0) { // Ended
       playNext();
-    } else { // Paused, Buffering, etc.
-      // Make sure we only set isPlaying to false if it was previously true
-      // This prevents issues on initial load
+    } else { 
       if(isPlaying) setIsPlaying(false);
     }
   };
 
   useEffect(() => {
-    // Cleanup interval on component unmount
     return () => {
       cleanupProgressInterval();
     };
@@ -210,7 +198,7 @@ export function Player({ song }: { song: Song | null }) {
               width: '0',
               height: '0',
               playerVars: {
-                autoplay: 1, // Let YouTube handle autoplay, sync state with onStateChange
+                autoplay: 1, 
                 controls: 0,
                 modestbranding: 1,
                 rel: 0,
