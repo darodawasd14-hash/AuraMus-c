@@ -36,25 +36,11 @@
         "thumbnailUrl": "https://i.ytimg.com/vi/bpOSxM0rNPM/hqdefault.jpg"
     },
     {
-        "id": "cat-006",
-        "title": "Manifest - RÜYA (Slowed + Reverb)",
-        "artist": "Manifest",
-        "url": "https://www.youtube.com/watch?v=WEAS-pp8-iM",
-        "thumbnailUrl": "https://i.ytimg.com/vi/WEAS-pp8-iM/hqdefault.jpg"
-    },
-    {
         "id": "cat-007",
         "title": "Glass Animals - Heat Waves",
         "artist": "Glass Animals",
         "url": "https://www.youtube.com/watch?v=mRD0-GxqHVo",
         "thumbnailUrl": "https://i.ytimg.com/vi/mRD0-GxqHVo/hqdefault.jpg"
-    },
-    {
-        "id": "cat-008",
-        "title": "Phoenix - Lisztomania",
-        "artist": "Phoenix",
-        "url": "https://www.youtube.com/watch?v=uF3re6_B_nQ",
-        "thumbnailUrl": "https://i.ytimg.com/vi/uF3re6_B_nQ/hqdefault.jpg"
     }
   ]
 }

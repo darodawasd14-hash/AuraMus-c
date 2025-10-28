@@ -373,7 +373,8 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
     if (song.type === 'youtube' && song.videoId) {
       return `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
     }
-    return `https://i.ytimg.com/vi/default/hqdefault.jpg`;
+    // Fallback to a guaranteed-to-exist video thumbnail
+    return `https://i.ytimg.com/vi/bpOSxM0rNPM/hqdefault.jpg`;
   }
 
   return (
@@ -582,7 +583,8 @@ function MiniPlayer() {
         if (song.type === 'youtube' && song.videoId) {
             return `https://i.ytimg.com/vi/${song.videoId}/mqdefault.jpg`;
         }
-        return `https://i.ytimg.com/vi/default/mqdefault.jpg`;
+        // Fallback to a guaranteed-to-exist video thumbnail
+        return `https://i.ytimg.com/vi/bpOSxM0rNPM/mqdefault.jpg`;
     };
 
     return (
@@ -654,7 +656,8 @@ function FullPlayerView() {
     if (song.type === 'youtube' && song.videoId) {
       return `https://i.ytimg.com/vi/${song.videoId}/maxresdefault.jpg`;
     }
-    return `https://i.ytimg.com/vi/default/maxresdefault.jpg`;
+    // Fallback to a guaranteed-to-exist video thumbnail
+    return `https://i.ytimg.com/vi/bpOSxM0rNPM/maxresdefault.jpg`;
   }
   
   if (!currentSong) return null;
