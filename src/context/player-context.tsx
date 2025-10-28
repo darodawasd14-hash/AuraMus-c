@@ -337,9 +337,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const song = playlist[currentIndex];
     
-    // --- ÇÖZÜM BURASI ---
-    // Eğer şarkı yoksa (null ise), hiçbir şey yapmadan fonksiyondan çık.
     if (!song) {
+        // Stop all players if there's no song
+        if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
+        if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
+        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
         return;
     }
 
@@ -365,6 +367,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
         if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
         if (urlPlayer) {
+          // Only change src if it's a different song
           if (urlPlayer.src !== song.url) {
             urlPlayer.src = song.url;
           }
@@ -372,6 +375,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         }
         break;
       default:
+        // Stop all players if song type is unknown
         if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
         if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
         if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
