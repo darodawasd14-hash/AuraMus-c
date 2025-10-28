@@ -19,43 +19,6 @@ export default {
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
       },
-      typography: (theme) => ({
-        DEFAULT: {
-          css: {
-            color: theme('colors.foreground'),
-            a: {
-              color: theme('colors.primary.DEFAULT'),
-              '&:hover': {
-                color: theme('colors.primary.DEFAULT'),
-              },
-            },
-            strong: {
-              color: theme('colors.foreground'),
-            },
-            h1: {
-              color: theme('colors.foreground'),
-            },
-            h2: {
-              color: theme('colors.foreground'),
-            },
-            h3: {
-              color: theme('colors.foreground'),
-            },
-            h4: {
-              color: theme('colors.foreground'),
-            },
-             code: {
-              color: theme('colors.accent.foreground'),
-              backgroundColor: theme('colors.accent.DEFAULT'),
-              padding: '2px 4px',
-              borderRadius: '4px',
-            },
-            pre: {
-              backgroundColor: theme('colors.secondary.DEFAULT'),
-            }
-          },
-        },
-      }),
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',

@@ -56,14 +56,25 @@ export function AuraApp() {
       <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
       
       <main className="flex-grow flex flex-row overflow-hidden">
-        <div className={cn("flex-grow flex flex-col transition-all duration-300 ease-in-out", isChatOpen ? "w-[calc(100%-20rem)]" : "w-full")}>
-           <div className="flex-grow overflow-y-auto pb-32"> {/* Padding-bottom to avoid overlap */}
-              {view === 'playlist' && <PlaylistView />}
-              {view === 'catalog' && <CatalogView setView={setView} />}
-              {view === 'search' && <SearchView setView={setView} />}
-           </div>
+        {/* Main Content Area */}
+        <div className="flex-grow flex flex-col overflow-y-auto pb-32">
+          {view === 'playlist' && <PlaylistView />}
+          {view === 'catalog' && <CatalogView setView={setView} />}
+          {view === 'search' && <SearchView setView={setView} />}
         </div>
-        {isChatOpen && user && <ChatPane song={currentSong} displayName={user.displayName || user.email || 'Kullanıcı'} />}
+        
+        {/* Chat Pane - visible on medium screens and up if toggled */}
+        <div className={cn("hidden md:flex flex-col", isChatOpen ? "w-80" : "w-0")}>
+           {user && <ChatPane song={currentSong} displayName={user.displayName || user.email || 'Kullanıcı'} />}
+        </div>
+         {/* Chat Pane - modal-like on small screens */}
+        {isChatOpen && (
+             <div className="md:hidden fixed inset-0 bg-black/60 z-30" onClick={() => setIsChatOpen(false)}>
+                <div className="absolute right-0 top-0 bottom-0 w-80 bg-background" onClick={e => e.stopPropagation()}>
+                    {user && <ChatPane song={currentSong} displayName={user.displayName || user.email || 'Kullanıcı'} />}
+                </div>
+            </div>
+        )}
       </main>
 
        {currentSong && (
@@ -447,7 +458,7 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
         )}
 
         {!isLoading && !error && catalogSongs && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {catalogSongs.map((song) => (
               <div key={song.id} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3">
                 <Image
@@ -591,7 +602,7 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
         )}
 
         {searchResults && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {searchResults.songs.map((song) => (
               <div key={song.videoId} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3">
                 <Image

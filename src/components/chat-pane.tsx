@@ -51,8 +51,10 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         // Firestore'dan gelen mesajları lokal duruma aktar
         if (firestoreMessages) {
             setLocalMessages(firestoreMessages);
+        } else if (!song) {
+            setLocalMessages([]);
         }
-    }, [firestoreMessages]);
+    }, [firestoreMessages, song]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -141,48 +143,50 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         setIsSending(false);
     };
 
-    if (!song) {
-        return (
-            <aside className="w-80 bg-background/50 border-l border-border flex flex-col p-4 justify-center items-center text-center">
-                <p className="text-muted-foreground">Sohbeti görmek için bir şarkı seçin.</p>
-            </aside>
-        );
-    }
-    
     return (
-        <aside className="w-80 bg-background/50 border-l border-border flex flex-col">
+        <aside className="h-full w-full bg-background/50 border-l border-border flex flex-col">
             <div className="p-4 border-b border-border">
-                <h3 className="font-semibold truncate">{song.title}</h3>
-                <p className="text-sm text-muted-foreground mt-1">Canlı Sohbet</p>
+                {song ? (
+                    <>
+                        <h3 className="font-semibold truncate">{song.title}</h3>
+                        <p className="text-sm text-muted-foreground mt-1">Canlı Sohbet</p>
+                    </>
+                ) : (
+                     <h3 className="font-semibold truncate">Sohbet</h3>
+                )}
             </div>
 
             <div className="flex-grow p-4 overflow-y-auto space-y-4">
-                {isLoading && localMessages.length === 0 && (
+                 {!song ? (
+                    <div className="flex flex-col justify-center items-center h-full text-center">
+                        <p className="text-muted-foreground">Sohbeti görmek için bir şarkı çalın.</p>
+                    </div>
+                ) : isLoading && localMessages.length === 0 ? (
                     <div className="flex justify-center items-center h-full">
                         <Loader2 className="animate-spin text-primary" />
                     </div>
-                )}
-                {!isLoading && localMessages.length === 0 && (
+                ) : !isLoading && localMessages.length === 0 ? (
                     <div className="flex flex-col justify-center items-center h-full text-center">
                         <p className="text-muted-foreground text-sm">İlk mesajı sen gönder!</p>
                         <p className="text-muted-foreground text-xs mt-2">Aura'ya sormak için: <code className="bg-muted px-1 py-0.5 rounded-sm">@aura soru</code></p>
                     </div>
-                )}
-                {localMessages.map(msg => (
-                    <div key={msg.id} className={`flex gap-3 ${msg.sender.uid === user?.uid ? 'justify-end' : 'justify-start'}`}>
-                         {msg.isAura && (
-                            <AuraLogo className="w-6 h-6 flex-shrink-0 mt-1" />
-                        )}
-                        <div className={`flex flex-col ${msg.sender.uid === user?.uid ? 'items-end' : 'items-start'}`}>
-                           <div className={`p-2 rounded-lg max-w-xs ${msg.sender.uid === user?.uid ? 'bg-primary/90 text-primary-foreground' : msg.isAura ? 'bg-muted' : 'bg-secondary'}`}>
-                                <p className={`text-xs font-bold mb-1 ${msg.isAura ? 'text-accent' : 'text-muted-foreground'}`}>{msg.sender.displayName}</p>
-                                <div className="text-sm break-words prose prose-sm prose-invert">
-                                    <ReactMarkdown>{msg.text}</ReactMarkdown>
+                ) : (
+                    localMessages.map(msg => (
+                        <div key={msg.id} className={`flex gap-3 ${msg.sender.uid === user?.uid ? 'justify-end' : 'justify-start'}`}>
+                             {msg.isAura && (
+                                <AuraLogo className="w-6 h-6 flex-shrink-0 mt-1" />
+                            )}
+                            <div className={`flex flex-col ${msg.sender.uid === user?.uid ? 'items-end' : 'items-start'}`}>
+                               <div className={`p-2 rounded-lg max-w-xs ${msg.sender.uid === user?.uid ? 'bg-primary/90 text-primary-foreground' : msg.isAura ? 'bg-muted' : 'bg-secondary'}`}>
+                                    <p className={`text-xs font-bold mb-1 ${msg.isAura ? 'text-accent' : 'text-muted-foreground'}`}>{msg.sender.displayName}</p>
+                                    <div className="text-sm break-words prose prose-sm prose-invert">
+                                        <ReactMarkdown>{msg.text}</ReactMarkdown>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                ))}
+                    ))
+                )}
                  <div ref={messagesEndRef} />
             </div>
 
@@ -193,10 +197,10 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
                         placeholder="@aura sor veya sohbet et..."
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
-                        disabled={!user || isSending || isLoading}
+                        disabled={!user || isSending || isLoading || !song}
                         className="flex-grow"
                     />
-                    <Button type="submit" size="icon" disabled={!user || isSending || !message.trim() || isLoading}>
+                    <Button type="submit" size="icon" disabled={!user || isSending || !message.trim() || isLoading || !song}>
                         {isSending ? <Loader2 className="animate-spin" /> : <Send />}
                     </Button>
                 </form>
