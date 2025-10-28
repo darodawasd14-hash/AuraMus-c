@@ -46,13 +46,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
   const playSong = (song: Song, index: number) => {
-    // If it's the same song, just toggle
-    if (currentIndex === index) {
-      togglePlayPause();
-    } else {
-      // It's a new song
+    // If it's a new song, always start playing.
+    if (currentIndex !== index) {
       setCurrentIndex(index);
       setIsPlaying(true);
+    } else {
+      // If it's the same song, just toggle.
+      togglePlayPause();
     }
   };
 
