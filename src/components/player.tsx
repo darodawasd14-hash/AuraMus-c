@@ -69,6 +69,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
 const UrlPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
     const { urlPlayerRef, isPlaying, setProgress, setDuration, isSeeking } = usePlayer();
 
+    // Effect for attaching event listeners
     useEffect(() => {
         const player = urlPlayerRef.current;
         if (!player) return;
@@ -84,7 +85,7 @@ const UrlPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
 
         player.addEventListener('timeupdate', handleTimeUpdate);
         player.addEventListener('durationchange', handleDurationChange);
-        player.addEventListener('canplay', handleDurationChange); // For browsers that need it
+        player.addEventListener('canplay', handleDurationChange);
         player.addEventListener('loadedmetadata', handleDurationChange);
 
         return () => {
@@ -92,21 +93,35 @@ const UrlPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
             player.removeEventListener('durationchange', handleDurationChange);
             player.removeEventListener('canplay', handleDurationChange);
             player.removeEventListener('loadedmetadata', handleDurationChange);
-        }
+        };
     }, [urlPlayerRef, setProgress, setDuration, isSeeking]);
 
-
+    // Effect for setting the source URL
     useEffect(() => {
-        if (!urlPlayerRef.current) return;
-        if (isPlaying) {
-            urlPlayerRef.current.play().catch(e => console.error("URL audio playback error:", e));
-        } else {
-            urlPlayerRef.current.pause();
+        const player = urlPlayerRef.current;
+        if (player && song.url) {
+            player.src = song.url;
+            if (isPlaying) {
+                player.play().catch(e => console.error("URL audio playback error:", e));
+            }
         }
-    }, [isPlaying, urlPlayerRef, song.id]);
+    }, [song.url, urlPlayerRef, isPlaying]);
 
 
-    return <audio ref={urlPlayerRef} src={song.url} onEnded={onEnded} className="w-0 h-0"/>;
+    // Effect for controlling play/pause state
+    useEffect(() => {
+        const player = urlPlayerRef.current;
+        if (!player) return;
+
+        if (isPlaying) {
+            player.play().catch(e => console.error("URL audio playback error:", e));
+        } else {
+            player.pause();
+        }
+    }, [isPlaying, urlPlayerRef]);
+
+
+    return <audio ref={urlPlayerRef} onEnded={onEnded} className="w-0 h-0"/>;
 }
 
 export function Player({ song }: { song: Song | null }) {
@@ -145,9 +160,7 @@ export function Player({ song }: { song: Song | null }) {
 
   const onReady = (event: any) => {
     youtubePlayerRef.current = event.target;
-    if (isPlaying) {
-      event.target.playVideo();
-    }
+    // Don't auto-play here, let the useEffect handle it based on isPlaying state
   };
   
   const onStateChange = (event: any) => {
@@ -168,6 +181,8 @@ export function Player({ song }: { song: Song | null }) {
     } else if (event.data === 0) { // Ended
       playNext();
     } else { // Paused, Buffering, etc.
+      // Make sure we only set isPlaying to false if it was previously true
+      // This prevents issues on initial load
       if(isPlaying) setIsPlaying(false);
     }
   };
@@ -195,7 +210,7 @@ export function Player({ song }: { song: Song | null }) {
               width: '0',
               height: '0',
               playerVars: {
-                autoplay: 0, // We control play/pause manually
+                autoplay: 1, // Let YouTube handle autoplay, sync state with onStateChange
                 controls: 0,
                 modestbranding: 1,
                 rel: 0,
