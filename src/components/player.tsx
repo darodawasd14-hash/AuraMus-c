@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import YouTube from 'react-youtube';
 import { usePlayer, type Song } from '@/context/player-context';
 import { AuraLogo } from './icons';
@@ -10,18 +10,16 @@ type PlayerProps = {
 };
 
 const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const { setSoundcloudPlayer, isPlaying } = usePlayer();
+  const { soundcloudPlayerRef, isPlaying } = usePlayer();
 
   useEffect(() => {
-    if (!iframeRef.current) return;
+    if (!soundcloudPlayerRef.current) return;
 
-    const widget = (window as any).SC.Widget(iframeRef.current);
-    setSoundcloudPlayer(widget);
-
+    const widget = (window as any).SC.Widget(soundcloudPlayerRef.current);
+    
     const onReady = () => {
       widget.bind((window as any).SC.Widget.Events.FINISH, onEnded);
-      if(isPlaying) {
+      if (isPlaying) {
         widget.play();
       }
     };
@@ -29,20 +27,19 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
     widget.bind((window as any).SC.Widget.Events.READY, onReady);
     
     return () => {
-        try {
-            widget.unbind((window as any).SC.Widget.Events.FINISH);
-            widget.unbind((window as any).SC.Widget.Events.READY);
-          } catch (e) {
-            // Hata bastırma
-          }
-      setSoundcloudPlayer(null);
+      try {
+        widget.unbind((window as any).SC.Widget.Events.FINISH);
+        widget.unbind((window as any).SC.Widget.Events.READY);
+      } catch (e) {
+        // Hata bastırma
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song.id, setSoundcloudPlayer]);
+  }, [song.id]);
   
   return (
     <iframe
-      ref={iframeRef}
+      ref={soundcloudPlayerRef}
       key={song.id}
       width="100%"
       height="100%"
@@ -56,47 +53,37 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
 
 
 const UrlPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
-    const audioRef = useRef<HTMLAudioElement>(null);
-    const { setUrlPlayer, isPlaying } = usePlayer();
+    const { urlPlayerRef, isPlaying } = usePlayer();
 
     useEffect(() => {
-        if(audioRef.current){
-            setUrlPlayer(audioRef.current)
-        }
-        return () => {
-            setUrlPlayer(null)
-        }
-    },[song.id, setUrlPlayer])
-    
-    useEffect(() => {
-        if(!audioRef.current) return;
-        if(isPlaying){
-            audioRef.current.play().catch(e => console.error("URL audio playback error:", e));
+        if (!urlPlayerRef.current) return;
+        if (isPlaying) {
+            urlPlayerRef.current.play().catch(e => console.error("URL audio playback error:", e));
         } else {
-            audioRef.current.pause()
+            urlPlayerRef.current.pause();
         }
-    }, [isPlaying, song.id])
+    }, [isPlaying, song.id, urlPlayerRef]);
 
-    return <audio ref={audioRef} src={song.url} onEnded={onEnded} controls className="w-full"/>
+    return <audio ref={urlPlayerRef} src={song.url} onEnded={onEnded} controls className="w-full"/>;
 }
 
 export function Player({ song }: PlayerProps) {
-  const { playNext, setYoutubePlayer } = usePlayer();
-
-  useEffect(() => {
-    // This is important to clear the player reference when the song changes or unmounts.
-    return () => {
-      setYoutubePlayer(null);
-    };
-  }, [song?.id, setYoutubePlayer]);
+  const { playNext, youtubePlayerRef } = usePlayer();
 
   const onReady = (event: any) => {
-    // The player is ready.
-    setYoutubePlayer(event.target);
+    youtubePlayerRef.current = event.target;
+    event.target.playVideo();
   };
+  
+  // Clean up the ref when the component unmounts or song changes
+  useEffect(() => {
+    return () => {
+      youtubePlayerRef.current = null;
+    };
+  }, [song?.id, youtubePlayerRef]);
+
 
   const onEnd = () => {
-    // The song has ended, play the next one.
     playNext();
   };
 
@@ -120,7 +107,7 @@ export function Player({ song }: PlayerProps) {
               height: '100%',
               playerVars: {
                 autoplay: 1,
-                controls: 1, // Show controls for volume, etc.
+                controls: 1,
                 modestbranding: 1,
                 rel: 0,
               },

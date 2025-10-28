@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, FormEvent, useMemo } from 'react';
-import { usePlayer, type Song } from '@/context/player-context';
+import { usePlayer } from '@/context/player-context';
+import type { Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +10,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { ChatPane } from '@/components/chat-pane';
-import { searchYoutube, type YouTubeSearchOutput } from '@/ai/flows/youtube-search-flow';
+import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { useCollection, useMemoFirebase } from '@/firebase';
@@ -520,7 +521,7 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
   const { toast } = useToast();
   const { user } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<YouTubeSearchOutput | null>(null);
+  const [searchResults, setSearchResults] = useState<{ songs: { videoId: string; title: string; thumbnailUrl: string; }[] } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isAdding, setIsAdding] = useState<string | null>(null);
 

@@ -16,7 +16,7 @@ const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 const YouTubeSearchInputSchema = z.object({
   query: z.string().describe('YouTube için arama sorgusu.'),
 });
-export type YouTubeSearchInput = z.infer<typeof YouTubeSearchInputSchema>;
+
 
 const SongSuggestionSchema = z.object({
   videoId: z
@@ -33,7 +33,7 @@ const YouTubeSearchOutputSchema = z.object({
     .array(SongSuggestionSchema)
     .describe('YouTube\'dan gelen şarkı önerilerinin bir listesi.'),
 });
-export type YouTubeSearchOutput = z.infer<typeof YouTubeSearchOutputSchema>;
+
 
 // Kendi YouTube arama aracımızı tanımlıyoruz
 const youtubeSearchTool = ai.defineTool(
@@ -124,7 +124,7 @@ const youtubeSearchFlow = ai.defineFlow(
 );
 
 export async function searchYoutube(
-  input: YouTubeSearchInput
-): Promise<YouTubeSearchOutput> {
+  input: z.infer<typeof YouTubeSearchInputSchema>
+): Promise<z.infer<typeof YouTubeSearchOutputSchema>> {
   return youtubeSearchFlow(input);
 }

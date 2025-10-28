@@ -13,12 +13,12 @@ const SongQuestionInputSchema = z.object({
   songTitle: z.string().describe('Kullanıcının hakkında soru sorduğu şarkının adı.'),
   question: z.string().describe('Kullanıcının şarkı hakkındaki sorusu.'),
 });
-type SongQuestionInput = z.infer<typeof SongQuestionInputSchema>;
+
 
 const SongQuestionOutputSchema = z.object({
   answer: z.string().describe('Kullanıcının sorusuna verilen cevap.'),
 });
-type SongQuestionOutput = z.infer<typeof SongQuestionOutputSchema>;
+
 
 const songQuestionFlow = ai.defineFlow(
   {
@@ -48,7 +48,7 @@ Lütfen bu soruya internetten veya kendi bilginden yararlanarak bilgilendirici v
 );
 
 export async function answerSongQuestion(
-  input: SongQuestionInput
-): Promise<SongQuestionOutput> {
+  input: z.infer<typeof SongQuestionInputSchema>
+): Promise<z.infer<typeof SongQuestionOutputSchema>> {
   return songQuestionFlow(input);
 }

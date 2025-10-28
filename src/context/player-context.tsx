@@ -35,9 +35,9 @@ type PlayerContextType = {
   isPlaying: boolean;
   isLoading: boolean;
   isPlayerOpen: boolean;
-  youtubePlayer: any;
-  soundcloudPlayer: any;
-  urlPlayer: HTMLAudioElement | null;
+  youtubePlayerRef: React.MutableRefObject<any>;
+  soundcloudPlayerRef: React.MutableRefObject<any>;
+  urlPlayerRef: React.MutableRefObject<HTMLAudioElement | null>;
   addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
   deleteSong: (songId: string, playlistId: string) => Promise<void>;
   playSong: (index: number) => void;
@@ -45,9 +45,6 @@ type PlayerContextType = {
   playNext: () => void;
   playPrev: () => void;
   setIsPlayerOpen: (isOpen: boolean) => void;
-  setYoutubePlayer: (player: any) => void;
-  setSoundcloudPlayer: (player: any) => void;
-  setUrlPlayer: (player: HTMLAudioElement | null) => void;
   setActivePlaylistId: (id: string | null) => void;
   createPlaylist: (name: string) => Promise<void>;
 };
@@ -65,10 +62,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
 
-  const [youtubePlayer, setYoutubePlayer] = useState<any>(null);
-  const [soundcloudPlayer, setSoundcloudPlayer] = useState<any>(null);
-  const [urlPlayer, setUrlPlayer] = useState<HTMLAudioElement | null>(null);
-
+  const youtubePlayerRef = useRef<any>(null);
+  const soundcloudPlayerRef = useRef<any>(null);
+  const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   // Fetch user's playlists
   const userPlaylistsQuery = useMemoFirebase(() => {
@@ -325,27 +321,27 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const newIsPlaying = !prevIsPlaying;
       const song = playlist[currentIndex];
   
-      if (!song) return prevIsPlaying; // No song, do nothing
+      if (!song) return prevIsPlaying;
 
-      if (newIsPlaying) {
-        if (song.type === 'youtube' && youtubePlayer) {
-          youtubePlayer.playVideo();
-        } else if (song.type === 'soundcloud' && soundcloudPlayer) {
-          soundcloudPlayer.play();
-        } else if (song.type === 'url' && urlPlayer) {
-          if (urlPlayer.src !== song.url) {
-            urlPlayer.src = song.url;
+      if (newIsPlaying) { // Play
+        if (song.type === 'youtube' && youtubePlayerRef.current) {
+          youtubePlayerRef.current.playVideo();
+        } else if (song.type === 'soundcloud' && soundcloudPlayerRef.current) {
+          soundcloudPlayerRef.current.play();
+        } else if (song.type === 'url' && urlPlayerRef.current) {
+          if (urlPlayerRef.current.src !== song.url) {
+            urlPlayerRef.current.src = song.url;
           }
-          urlPlayer.play().catch(e => console.error("URL audio playback error:", e));
+          urlPlayerRef.current.play().catch(e => console.error("URL audio playback error:", e));
         }
-      } else { // Pausing
-        if (song.type === 'youtube' && youtubePlayer) {
-          youtubePlayer.pauseVideo();
-        } else if (song.type === 'soundcloud' && soundcloudPlayer) {
-          soundcloudPlayer.pause();
-        } else if (song.type === 'url' && urlPlayer) {
-          if (!urlPlayer.paused) {
-            urlPlayer.pause();
+      } else { // Pause
+        if (song.type === 'youtube' && youtubePlayerRef.current) {
+          youtubePlayerRef.current.pauseVideo();
+        } else if (song.type === 'soundcloud' && soundcloudPlayerRef.current) {
+          soundcloudPlayerRef.current.pause();
+        } else if (song.type === 'url' && urlPlayerRef.current) {
+          if (!urlPlayerRef.current.paused) {
+            urlPlayerRef.current.pause();
           }
         }
       }
@@ -381,9 +377,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     isPlaying,
     isLoading,
     isPlayerOpen,
-    youtubePlayer,
-    soundcloudPlayer,
-    urlPlayer,
+    youtubePlayerRef,
+    soundcloudPlayerRef,
+    urlPlayerRef,
     addSong,
     deleteSong,
     playSong,
@@ -391,9 +387,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playNext,
     playPrev,
     setIsPlayerOpen,
-    setYoutubePlayer,
-    setSoundcloudPlayer,
-    setUrlPlayer,
     setActivePlaylistId,
     createPlaylist,
   };

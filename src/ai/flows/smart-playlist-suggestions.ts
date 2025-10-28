@@ -20,13 +20,13 @@ const SmartPlaylistInputSchema = z.object({
     .default(10)
     .describe('The desired number of songs in the generated playlist.'),
 });
-export type SmartPlaylistInput = z.infer<typeof SmartPlaylistInputSchema>;
+
 
 const SmartPlaylistOutputSchema = z.object({
   playlistName: z.string().describe('The name of the generated playlist.'),
   songList: z.array(z.string()).describe('A list of song suggestions for the playlist.'),
 });
-export type SmartPlaylistOutput = z.infer<typeof SmartPlaylistOutputSchema>;
+
 
 const prompt = ai.definePrompt({
   name: 'smartPlaylistPrompt',
@@ -55,7 +55,7 @@ const smartPlaylistFlow = ai.defineFlow(
 
 
 export async function suggestSmartPlaylist(
-  input: SmartPlaylistInput
-): Promise<SmartPlaylistOutput> {
+  input: z.infer<typeof SmartPlaylistInputSchema>
+): Promise<z.infer<typeof SmartPlaylistOutputSchema>> {
   return smartPlaylistFlow(input);
 }
