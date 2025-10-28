@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, addDoc, getDocs, where, limit, writeBatch } from 'firebase/firestore';
+import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, addDoc, getDocs, where, limit, writeBatch, runTransaction, DocumentReference } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import initialCatalog from '@/app/lib/catalog.json';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -131,60 +131,68 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const addSong = async (songDetails: SongDetails, userId: string): Promise<Song | null> => {
     if (!firestore || !user) {
-      toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
-      return null;
-    }
-
-    const songsCollectionRef = collection(firestore, 'songs');
-    const userPlaylistRef = collection(firestore, 'users', user.uid, 'playlist');
-
-    try {
-        // 1. Şarkının globalde var olup olmadığını kontrol et (videoId veya url ile)
-        const queryIdentifier = songDetails.videoId || songDetails.url;
-        const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
-        const querySnapshot = await getDocs(q);
-
-        let songId: string;
-        let finalSongData: Song;
-
-        if (querySnapshot.empty) {
-            // 2a. Şarkı globalde yoksa, oluştur
-            const newSongDocRef = doc(songsCollectionRef);
-            songId = newSongDocRef.id;
-            finalSongData = {
-                id: songId,
-                ...songDetails,
-                userId: userId, // ilk ekleyen
-                timestamp: serverTimestamp(),
-            };
-            await addDoc(songsCollectionRef, finalSongData);
-
-        } else {
-            // 2b. Şarkı globalde varsa, ID'sini ve verisini al
-            const existingDoc = querySnapshot.docs[0];
-            songId = existingDoc.id;
-            finalSongData = { id: songId, ...existingDoc.data() } as Song;
-        }
-
-        // 3. Şarkıyı kullanıcının çalma listesine (playlist) ekle (eğer zaten yoksa)
-        const userSongDocRef = doc(userPlaylistRef, songId);
-        // Kullanıcının listesine de tüm şarkı bilgisini ekliyoruz ki UI hızlıca güncellensin.
-        // Bu, sohbet için kullanılacak 'id'nin merkezi ID olmasını sağlar.
-        const userSongData = {
-            ...finalSongData, // merkezi şarkının tüm bilgileri
-            id: songId,       // merkezi şarkının ID'si
-            timestamp: serverTimestamp(), // kullanıcının kendi listesine ekleme zamanı
-        };
-        
-        await addDoc(collection(firestore, 'users', user.uid, 'playlist'), userSongData);
-
-        return finalSongData;
-    } catch (error) {
-        console.error("addSong hatası:", error);
-        toast({ title: "Şarkı eklenirken bir hata oluştu.", variant: 'destructive' });
+        toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
         return null;
     }
-  };
+
+    try {
+        const songRef = await runTransaction(firestore, async (transaction) => {
+            const songsCollectionRef = collection(firestore, 'songs');
+            const queryIdentifier = songDetails.videoId || songDetails.url;
+            const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
+            
+            const querySnapshot = await getDocs(q);
+            let centralSongRef: DocumentReference;
+
+            if (querySnapshot.empty) {
+                // Şarkı merkezi koleksiyonda yok, yeni bir tane oluştur.
+                centralSongRef = doc(songsCollectionRef); // Yeni bir doküman referansı al.
+                const newSongData = {
+                    ...songDetails,
+                    id: centralSongRef.id,
+                    userId: userId, // İlk ekleyen kullanıcı
+                    timestamp: serverTimestamp(),
+                };
+                transaction.set(centralSongRef, newSongData);
+            } else {
+                // Şarkı zaten var, mevcut referansı kullan.
+                centralSongRef = querySnapshot.docs[0].ref;
+            }
+
+            // Şimdi şarkıyı kullanıcının kişisel çalma listesine ekle.
+            // ID olarak merkezi şarkının ID'sini kullanıyoruz.
+            const userPlaylistSongRef = doc(firestore, 'users', userId, 'playlist', centralSongRef.id);
+            const centralSongDoc = await transaction.get(centralSongRef);
+            
+            if (!centralSongDoc.exists()) {
+                throw new Error("Merkezi şarkı dokümanı bulunamadı!");
+            }
+
+            const songDataForPlaylist = {
+                ...centralSongDoc.data(),
+                timestamp: serverTimestamp() // Kullanıcının eklediği zaman
+            };
+            transaction.set(userPlaylistSongRef, songDataForPlaylist);
+            
+            return centralSongRef;
+        });
+
+        const finalSongDoc = await getDocs(query(collection(firestore, 'songs'), where('id', '==', songRef.id)));
+        if(finalSongDoc.docs[0].exists()){
+             return finalSongDoc.docs[0].data() as Song;
+        }
+        return null;
+       
+    } catch (error) {
+        console.error("Şarkı ekleme işlemi sırasında hata (transaction failed): ", error);
+        toast({
+            title: "Şarkı eklenemedi",
+            description: "İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.",
+            variant: "destructive"
+        });
+        return null;
+    }
+};
 
 
   const deleteSong = async (songId: string) => {
@@ -242,71 +250,49 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
   
-    // Herhangi bir oynatıcıyı kontrol etmeden önce varlıklarından emin ol
-    const safelyPauseYoutube = () => {
-      if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
-        youtubePlayer.pauseVideo();
-      }
-    };
-  
-    const safelyPauseSoundcloud = () => {
-      if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
-        soundcloudPlayer.pause();
-      }
-    };
-  
-    const safelyPauseUrl = () => {
-      if (urlPlayer && !urlPlayer.paused) {
-        urlPlayer.pause();
-      }
+    const pauseAllPlayers = () => {
+      if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
+      if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
+      if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
     };
   
     if (!isPlaying) {
-      safelyPauseYoutube();
-      safelyPauseSoundcloud();
-      safelyPauseUrl();
+      pauseAllPlayers();
       return;
     }
   
     if (!song) {
-      // Çalacak şarkı yoksa tüm oynatıcıları durdur
-      safelyPauseYoutube();
-      safelyPauseSoundcloud();
-      safelyPauseUrl();
+      pauseAllPlayers();
       return;
     }
   
-    // Şarkı türüne göre doğru oynatıcıyı çalıştır ve diğerlerini durdur
     switch (song.type) {
       case 'youtube':
-        safelyPauseSoundcloud();
-        safelyPauseUrl();
+        if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
+        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
         if (youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
           youtubePlayer.playVideo();
         }
         break;
       case 'soundcloud':
-        safelyPauseYoutube();
-        safelyPauseUrl();
+        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
+        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
         if (soundcloudPlayer && typeof soundcloudPlayer.play === 'function') {
           soundcloudPlayer.play();
         }
         break;
       case 'url':
-        safelyPauseYoutube();
-        safelyPauseSoundcloud();
+        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
+        if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
         if (urlPlayer) {
           if (urlPlayer.src !== song.url) {
             urlPlayer.src = song.url;
           }
-          urlPlayer.play().catch(e => console.error("URL ses oynatma hatası:", e));
+          urlPlayer.play().catch(e => console.error("URL audio playback error:", e));
         }
         break;
       default:
-        // Bilinmeyen tür, hepsini durdur
-        safelyPauseYoutube();
-        safelyPauseSoundcloud();
-        safelyPauseUrl();
+        pauseAllPlayers();
     }
   }, [isPlaying, currentIndex, playlist]);
 
@@ -344,3 +330,5 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
+
+    
