@@ -645,7 +645,7 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
         {searchResults && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {searchResults.songs.map((song) => (
-              <div key={song.videoId} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3">
+              <div key={song.videoId} className="p-4 bg-secondary/so50 rounded-lg shadow-lg border border-border flex flex-col gap-3">
                 <Image
                   src={song.thumbnailUrl}
                   alt={song.title}

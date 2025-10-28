@@ -4,8 +4,6 @@
  * @fileOverview A flow for generating smart playlist suggestions based on user listening history.
  *
  * - suggestSmartPlaylist - A function that generates a smart playlist based on user listening history.
- * - SmartPlaylistInput - The input type for the suggestSmartPlaylist function.
- * - SmartPlaylistOutput - The return type for the suggestSmartPlaylist function.
  */
 
 import {ai} from '@/ai/genkit';
@@ -29,12 +27,6 @@ const SmartPlaylistOutputSchema = z.object({
   songList: z.array(z.string()).describe('A list of song suggestions for the playlist.'),
 });
 export type SmartPlaylistOutput = z.infer<typeof SmartPlaylistOutputSchema>;
-
-export async function suggestSmartPlaylist(
-  input: SmartPlaylistInput
-): Promise<SmartPlaylistOutput> {
-  return smartPlaylistFlow(input);
-}
 
 const prompt = ai.definePrompt({
   name: 'smartPlaylistPrompt',
@@ -60,3 +52,10 @@ const smartPlaylistFlow = ai.defineFlow(
     return output!;
   }
 );
+
+
+export async function suggestSmartPlaylist(
+  input: SmartPlaylistInput
+): Promise<SmartPlaylistOutput> {
+  return smartPlaylistFlow(input);
+}

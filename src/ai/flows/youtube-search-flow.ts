@@ -4,8 +4,6 @@
  * @fileOverview YouTube'da şarkı aramak için bir akış.
  *
  * - searchYoutube - YouTube'da şarkı arayan bir fonksiyon.
- * - YouTubeSearchInput - searchYoutube fonksiyonunun giriş tipi.
- * - YouTubeSearchOutput - searchYoutube fonksiyonunun dönüş tipi.
  */
 
 import { ai } from '@/ai/genkit';
@@ -14,6 +12,28 @@ import { google } from 'googleapis';
 
 // API anahtarını ortam değişkenlerinden alıyoruz.
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
+
+const YouTubeSearchInputSchema = z.object({
+  query: z.string().describe('YouTube için arama sorgusu.'),
+});
+export type YouTubeSearchInput = z.infer<typeof YouTubeSearchInputSchema>;
+
+const SongSuggestionSchema = z.object({
+  videoId: z
+    .string()
+    .describe(
+      "YouTube video ID'si. Bu geçerli bir YouTube video ID'si olmalıdır."
+    ),
+  title: z.string().describe('Şarkının başlığı.'),
+  thumbnailUrl: z.string().url().describe('Video küçük resminin URL\'si.'),
+});
+
+const YouTubeSearchOutputSchema = z.object({
+  songs: z
+    .array(SongSuggestionSchema)
+    .describe('YouTube\'dan gelen şarkı önerilerinin bir listesi.'),
+});
+export type YouTubeSearchOutput = z.infer<typeof YouTubeSearchOutputSchema>;
 
 // Kendi YouTube arama aracımızı tanımlıyoruz
 const youtubeSearchTool = ai.defineTool(
@@ -35,7 +55,7 @@ const youtubeSearchTool = ai.defineTool(
     // GÜVENLİK KİLİDİ: API anahtarı boşsa veya geçersizse, istek gönderme ve hata fırlat.
     if (!YOUTUBE_API_KEY) {
       console.error("YOUTUBE_API_KEY ortam değişkeni ayarlanmamış. Arama aracı atlanıyor.");
-      throw new Error("YouTube API anahtarı yapılandırılmamış. Lütfen .env dosyanızı kontrol edin.");
+      throw new Error("YouTube API anahtarı yapılandırılmamış. Lütfen .env dosyanızı kontrol edip sunucuyu yeniden başlatın.");
     }
     
     // YouTube API'sini başlatma
@@ -66,41 +86,14 @@ const youtubeSearchTool = ai.defineTool(
     } catch (error: any) {
       console.error("YouTube API Hatası:", error.message);
       // API'den bir hata geldiğinde (örneğin kota aşımı), bunu kullanıcıya net bir şekilde bildir.
-      if (error.code === 403 || error.message.includes('quota')) {
-          throw new Error('YouTube arama kotası aşıldı veya API anahtarı geçersiz. Lütfen daha sonra tekrar deneyin.');
+      if (error.code === 403 || (error.message && error.message.includes('quota'))) {
+          throw new Error('YouTube arama kotası aşıldı veya API anahtarınız geçersiz. Lütfen daha sonra tekrar deneyin.');
       }
-      throw new Error(`YouTube API hatası: ${error.message}. Lütfen API anahtarınızı veya YouTube Data API kotanızı kontrol edin.`);
+      throw new Error(`YouTube API hatası oluştu. Lütfen API anahtarınızı ve YouTube Data API kotanızı kontrol edin.`);
     }
   }
 );
 
-const YouTubeSearchInputSchema = z.object({
-  query: z.string().describe('YouTube için arama sorgusu.'),
-});
-export type YouTubeSearchInput = z.infer<typeof YouTubeSearchInputSchema>;
-
-const SongSuggestionSchema = z.object({
-  videoId: z
-    .string()
-    .describe(
-      "YouTube video ID'si. Bu geçerli bir YouTube video ID'si olmalıdır."
-    ),
-  title: z.string().describe('Şarkının başlığı.'),
-  thumbnailUrl: z.string().url().describe('Video küçük resminin URL\'si.'),
-});
-
-const YouTubeSearchOutputSchema = z.object({
-  songs: z
-    .array(SongSuggestionSchema)
-    .describe('YouTube\'dan gelen şarkı önerilerinin bir listesi.'),
-});
-export type YouTubeSearchOutput = z.infer<typeof YouTubeSearchOutputSchema>;
-
-export async function searchYoutube(
-  input: YouTubeSearchInput
-): Promise<YouTubeSearchOutput> {
-  return youtubeSearchFlow(input);
-}
 
 const youtubeSearchFlow = ai.defineFlow(
   {
@@ -129,3 +122,9 @@ const youtubeSearchFlow = ai.defineFlow(
     }
   }
 );
+
+export async function searchYoutube(
+  input: YouTubeSearchInput
+): Promise<YouTubeSearchOutput> {
+  return youtubeSearchFlow(input);
+}

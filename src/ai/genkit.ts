@@ -1,3 +1,4 @@
+''
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 
@@ -5,7 +6,7 @@ import {googleAI} from '@genkit-ai/google-genai';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 if (!GEMINI_API_KEY) {
-  console.warn("GEMINI_API_KEY ortam değişkeni ayarlanmamış. Genkit düzgün çalışmayabilir.");
+  console.warn("GEMINI_API_KEY ortam değişkeni ayarlanmamış. Genkit düzgün çalışmayabilir. Lütfen .env dosyanızı kontrol edin ve geliştirme sunucusunu yeniden başlatın.");
 }
 
 // Bu dosya artık 'use server' içermiyor.

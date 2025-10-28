@@ -4,8 +4,6 @@
  * @fileOverview Kullanıcının geçerli şarkı hakkındaki sorularını yanıtlayan bir AI akışı.
  *
  * - answerSongQuestion - Bir şarkı hakkındaki soruyu yanıtlayan fonksiyon.
- * - SongQuestionInput - answerSongQuestion fonksiyonunun giriş tipi.
- * - SongQuestionOutput - answerSongQuestion fonksiyonunun dönüş tipi.
  */
 
 import { ai } from '@/ai/genkit';
@@ -21,12 +19,6 @@ const SongQuestionOutputSchema = z.object({
   answer: z.string().describe('Kullanıcının sorusuna verilen cevap.'),
 });
 type SongQuestionOutput = z.infer<typeof SongQuestionOutputSchema>;
-
-export async function answerSongQuestion(
-  input: SongQuestionInput
-): Promise<SongQuestionOutput> {
-  return songQuestionFlow(input);
-}
 
 const songQuestionFlow = ai.defineFlow(
   {
@@ -54,3 +46,9 @@ Lütfen bu soruya internetten veya kendi bilginden yararlanarak bilgilendirici v
     };
   }
 );
+
+export async function answerSongQuestion(
+  input: SongQuestionInput
+): Promise<SongQuestionOutput> {
+  return songQuestionFlow(input);
+}
