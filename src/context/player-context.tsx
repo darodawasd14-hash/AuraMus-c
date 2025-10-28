@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit, getDoc, setDoc, addDoc } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -44,6 +44,12 @@ type PlayerContextType = {
   duration: number;
   seekTime: number | null; 
 
+  // REFS for player instances
+  youtubePlayerRef: React.MutableRefObject<any>;
+  soundcloudPlayerRef: React.MutableRefObject<any>;
+  urlPlayerRef: React.MutableRefObject<HTMLAudioElement | null>;
+
+
   // INTENT FUNCTIONS (called by UI)
   addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
   deleteSong: (songId: string, playlistId: string) => Promise<void>;
@@ -81,6 +87,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekTime, setSeekTime] = useState<number | null>(null);
+
+  const youtubePlayerRef = useRef<any>(null);
+  const soundcloudPlayerRef = useRef<any>(null);
+  const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   const userPlaylistsQuery = useMemoFirebase(() => {
     if (user && firestore) {
@@ -335,7 +345,28 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const togglePlayPause = () => {
     if (!currentSong) return;
-    setIsPlaying(prev => !prev);
+
+    if (currentSong.type === 'youtube') {
+      const player = youtubePlayerRef.current;
+      if (!player || typeof player.getPlayerState !== 'function') {
+        console.error("YouTube player ref not ready.");
+        return;
+      }
+      
+      // Unmute on first user interaction
+      if (player.isMuted()) {
+        player.unMute();
+      }
+
+      const playerState = player.getPlayerState();
+      if (playerState === 1) { // playing
+        player.pauseVideo();
+      } else { // paused, cued, ended etc.
+        player.playVideo();
+      }
+    } else if (currentSong.type === 'url' || currentSong.type === 'soundcloud') {
+      setIsPlaying(prev => !prev);
+    }
   };
 
   const playNext = useCallback(() => {
@@ -373,6 +404,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     progress,
     duration,
     seekTime,
+    youtubePlayerRef,
+    soundcloudPlayerRef,
+    urlPlayerRef,
     addSong,
     deleteSong,
     playSong,
