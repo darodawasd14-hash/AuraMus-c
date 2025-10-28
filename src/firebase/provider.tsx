@@ -84,11 +84,11 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     const unsubscribe = onAuthStateChanged(
       auth,
       (firebaseUser) => { // Auth state determined
-        if (firebaseUser && firestore) {
-            // Write user data to Firestore
+        if (firebaseUser && firestore && !firebaseUser.isAnonymous) {
+            // Write user data to Firestore, but only for non-anonymous users
             const userRef = doc(firestore, "users", firebaseUser.uid);
             setDoc(userRef, {
-                displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Anonymous',
+                displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Kullanıcı',
                 email: firebaseUser.email,
                 photoURL: firebaseUser.photoURL,
                 uid: firebaseUser.uid

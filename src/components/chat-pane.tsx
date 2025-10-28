@@ -65,10 +65,8 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
         const trimmedMessage = message.trim();
         if (!trimmedMessage || !user || !firestore || !song) return;
         
-        if (!displayName) {
-            toast({ title: 'Sohbet etmek için profilinizde bir görünen ad belirlemelisiniz.', variant: 'destructive'});
-            return;
-        }
+        // Use a fallback display name for guests or users without one.
+        const senderDisplayName = displayName || (user.isAnonymous ? "Misafir Kullanıcı" : user.email) || "Kullanıcı";
 
         setIsSending(true);
         
@@ -124,7 +122,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
                 text: trimmedMessage,
                 sender: {
                     uid: user.uid,
-                    displayName: displayName,
+                    displayName: senderDisplayName,
                 },
                 timestamp: serverTimestamp(),
             };
