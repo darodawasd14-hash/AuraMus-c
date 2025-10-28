@@ -337,7 +337,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const song = playlist[currentIndex];
   
-    // This is a "guard clause" to prevent running the effect if there's no song or it's paused.
     if (!isPlaying || !song) {
       if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
       if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
@@ -359,7 +358,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       case 'url':
         if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
         if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
-        if (urlPlayer) { // Null check for urlPlayer
+        if (urlPlayer) {
           if (urlPlayer.src !== song.url) {
             urlPlayer.src = song.url;
           }
@@ -367,7 +366,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         }
         break;
       default:
-        // Pause all players if song type is unknown
         if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
         if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
         if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
