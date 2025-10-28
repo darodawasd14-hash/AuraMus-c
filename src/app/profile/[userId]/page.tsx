@@ -25,7 +25,7 @@ export default function ProfilePage() {
   const params = useParams();
   const profileUserId = params.userId as string;
 
-  const { user: currentUser } = useUser();
+  const { user: currentUser, isUserLoading: isAuthLoading } = useUser();
   const firestore = useFirestore();
   const auth = useAuth();
 
@@ -40,9 +40,17 @@ export default function ProfilePage() {
   const { data: playlists, isLoading: isPlaylistsLoading } = useCollection<Playlist>(playlistsRef);
 
   const isFollowing = useMemo(() => followers?.some(f => f.id === currentUser?.uid), [followers, currentUser]);
-  const isLoading = isProfileLoading || isFollowersLoading || isFollowingLoading || isPlaylistsLoading;
   
   const isOwnProfile = currentUser && currentUser.uid === profileUserId;
+  const isLoading = isAuthLoading || isProfileLoading || isFollowersLoading || isFollowingLoading || isPlaylistsLoading;
+
+
+  useEffect(() => {
+    // Redirect if auth check is complete and there's no logged-in user
+    if (!isAuthLoading && !currentUser) {
+      router.push('/');
+    }
+  }, [isAuthLoading, currentUser, router]);
 
   const handleFollow = () => {
     if (!currentUser || !firestore) return;
