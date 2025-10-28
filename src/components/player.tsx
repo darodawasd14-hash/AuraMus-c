@@ -59,13 +59,15 @@ const YouTubePlayerInternal = () => {
 
   // This effect handles the progress bar updates
   useEffect(() => {
+    const player = playerRef.current;
+    // GUARD CLAUSE: Ensure player exists before setting up interval
+    if (!player) return;
+    
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
     }
-    
-    const player = playerRef.current;
 
-    if (isPlaying && player && typeof player.getCurrentTime === 'function') {
+    if (isPlaying && typeof player.getCurrentTime === 'function') {
       progressIntervalRef.current = setInterval(() => {
         if (!isSeeking) {
            const progress = player.getCurrentTime();
@@ -84,6 +86,7 @@ const YouTubePlayerInternal = () => {
   // This is the MASTER CONTROLLER effect for the YouTube player.
   useEffect(() => {
     const player = playerRef.current;
+    // GUARD CLAUSE: Ensure player and current song exist
     if (!player || !currentSong) return;
 
     // Sync Play/Pause state
@@ -97,6 +100,7 @@ const YouTubePlayerInternal = () => {
 
   useEffect(() => {
     const player = playerRef.current;
+    // GUARD CLAUSE: Ensure player exists
     if (!player) return;
      // Sync Mute state
     if (isMuted && !player.isMuted()) {
@@ -108,6 +112,7 @@ const YouTubePlayerInternal = () => {
 
   useEffect(() => {
     const player = playerRef.current;
+    // GUARD CLAUSE: Ensure player exists
     if (!player) return;
     // Sync Seek Time
     if (seekTime !== null) {
@@ -148,6 +153,7 @@ const SoundCloudPlayerInternal = () => {
     const soundcloudPlayerRef = useRef<any>(null);
 
     useEffect(() => {
+        // GUARD CLAUSE: Wait for song and SoundCloud API
         if (!currentSong || currentSong.type !== 'soundcloud' || !(window as any).SC) return;
 
         const iframeId = `soundcloud-player-${currentSong.id}`;
@@ -208,6 +214,7 @@ const SoundCloudPlayerInternal = () => {
     // Master controller for SoundCloud
     useEffect(() => {
         const widget = soundcloudPlayerRef.current;
+        // GUARD CLAUSE: Wait for widget
         if (!widget) return;
         
         widget.isPaused((paused: boolean) => {
@@ -238,6 +245,7 @@ const UrlPlayerInternal = () => {
             urlPlayerRef.current = player;
         }
 
+        // GUARD CLAUSE: Wait for song of correct type
         if (currentSong && currentSong.type === 'url' && player.src !== currentSong.url) {
             player.src = currentSong.url;
             player.muted = true; // Start muted
@@ -273,6 +281,7 @@ const UrlPlayerInternal = () => {
 
      useEffect(() => {
         const player = urlPlayerRef.current;
+        // GUARD CLAUSE: Wait for player
         if (!player) return;
 
         if (isPlaying) {
