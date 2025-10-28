@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useRef } from 'react';
 
 export interface Song {
   id: string;
@@ -27,13 +27,19 @@ interface PlayerContextType {
   playNext: () => void;
   playPrev: () => void;
   setIsPlayerOpen: (isOpen: boolean) => void;
+  seekTo: (time: number) => void; // Allow UI to request a seek
 
-  _setIsPlaying: (playing: boolean) => void;
-  _setProgress: (progress: number) => void;
-  _setDuration: (duration: number) => void;
+  // Callbacks for the Player component
+  _playerSetIsPlaying: (playing: boolean) => void;
+  _playerSetProgress: (progress: number) => void;
+  _playerSetDuration: (duration: number) => void;
+  _playerOnEnd: () => void;
 }
 
 export const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
+
+// This type is for the reference to the function that the player will expose
+type SeekFunction = (time: number) => void;
 
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [playlist, setPlaylist] = useState<Song[]>([]);
@@ -42,6 +48,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isPlayerOpen, setIsPlayerOpen] = useState<boolean>(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  const seekRef = useRef<SeekFunction | null>(null);
 
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
@@ -74,11 +82,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setCurrentIndex(prevIndex);
     setIsPlaying(true);
   };
+  
+  const seekTo = (time: number) => {
+    // This is a "request" to seek. The actual seek happens in the Player component.
+    // We'll use a ref to pass this function down to the Player.
+    // For now, we can update the local progress for a snappy UI response.
+    setProgress(time);
+    seekRef.current?.(time);
+  }
 
-  // Internal setters for the player component to report back
-  const _setIsPlaying = (playing: boolean) => setIsPlaying(playing);
-  const _setProgress = (p: number) => setProgress(p);
-  const _setDuration = (d: number) => setDuration(d);
+  // Callbacks for the Player component to update the context
+  const _playerSetIsPlaying = (playing: boolean) => setIsPlaying(playing);
+  const _playerSetProgress = (p: number) => setProgress(p);
+  const _playerSetDuration = (d: number) => setDuration(d);
+  const _playerOnEnd = () => playNext();
+
 
   const value = {
     playlist,
@@ -94,9 +112,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playNext,
     playPrev,
     setIsPlayerOpen,
-    _setIsPlaying,
-    _setProgress,
-    _setDuration,
+    seekTo, // Expose the seek function
+    // Pass internal setters to the context
+    _playerSetIsPlaying,
+    _playerSetProgress,
+    _playerSetDuration,
+    _playerOnEnd,
   };
 
   return (
@@ -114,3 +135,5 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
+
+    

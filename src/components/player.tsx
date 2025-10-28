@@ -1,109 +1,154 @@
 'use client';
-import React, { useEffect, useRef } from 'react';
-import YouTube, { YouTubePlayer } from 'react-youtube';
+import React, { useEffect, useRef, useCallback } from 'react';
+import YouTube, { YouTubePlayer, Options as YouTubeOptions } from 'react-youtube';
+import ReactPlayer from 'react-player';
 import { usePlayer } from '@/context/player-context';
 
-let playerRef: YouTubePlayer | null = null;
-let progressIntervalRef: NodeJS.Timeout | null = null;
 
 export const Player = () => {
   const { 
     currentSong, 
-    isPlaying, 
-    playNext,
-    _setIsPlaying,
-    _setProgress,
-    _setDuration
+    isPlaying,
+    seekTo,
+    _playerSetIsPlaying,
+    _playerSetProgress,
+    _playerSetDuration,
+    _playerOnEnd,
   } = usePlayer();
   
-  const isSeeking = useRef(false); // Use ref to avoid re-renders on seek
+  const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
+  const reactPlayerRef = useRef<ReactPlayer | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const stopProgressTracking = () => {
-    if (progressIntervalRef) {
-      clearInterval(progressIntervalRef);
-      progressIntervalRef = null;
+  const stopProgressTracking = useCallback(() => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
     }
-  };
-
-  const startProgressTracking = (player: YouTubePlayer) => {
-    stopProgressTracking(); // Stop any existing tracker
-    progressIntervalRef = setInterval(() => {
-      if (player && typeof player.getCurrentTime === 'function' && !isSeeking.current) {
-        _setProgress(player.getCurrentTime());
-        _setDuration(player.getDuration());
-      }
-    }, 500);
-  };
-
-  const handleOnReady = (event: { target: YouTubePlayer }) => {
-    playerRef = event.target;
-    playerRef.setVolume(75); // Set a default volume
-    if (currentSong && isPlaying) {
-        playerRef.playVideo();
-    }
-  };
+  },[]);
   
-  const handleOnStateChange = (event: { data: number }) => {
-    const playerState = event.data;
-    if (playerState === YouTube.PlayerState.PLAYING) {
-      _setIsPlaying(true);
-      startProgressTracking(event.target);
-    } else if (playerState === YouTube.PlayerState.PAUSED) {
-      _setIsPlaying(false);
-      stopProgressTracking();
-    } else if (playerState === YouTube.PlayerState.ENDED) {
-      playNext();
-    }
-  }
+  const startYoutubeProgressTracking = useCallback(() => {
+    stopProgressTracking();
+    progressIntervalRef.current = setInterval(() => {
+        if (youtubePlayerRef.current) {
+            const player = youtubePlayerRef.current;
+            if (typeof player.getCurrentTime === 'function') {
+                _playerSetProgress(player.getCurrentTime());
+                _playerSetDuration(player.getDuration());
+            }
+        }
+    }, 500);
+  }, [_playerSetProgress, _playerSetDuration, stopProgressTracking]);
 
+
+  // Effect to control playback (play/pause)
   useEffect(() => {
-    if (!playerRef) return;
-
-    if (isPlaying) {
-      playerRef.playVideo();
-    } else {
-      if (playerRef && typeof playerRef.pauseVideo === 'function') {
-        playerRef.pauseVideo();
-      }
-    }
-  }, [isPlaying]);
-
-  useEffect(() => {
-    if (currentSong && playerRef && currentSong.videoId) {
-      playerRef.loadVideoById(currentSong.videoId);
+    if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
+      const player = youtubePlayerRef.current;
       if (isPlaying) {
-        playerRef.playVideo();
+        player.playVideo();
+        startYoutubeProgressTracking();
+      } else {
+        player.pauseVideo();
+        stopProgressTracking();
       }
     }
+    // SoundCloud is controlled via the 'playing' prop, so no effect needed here for it.
+  }, [isPlaying, currentSong, startYoutubeProgressTracking, stopProgressTracking]);
+
+  // Effect to load a new song
+  useEffect(() => {
+    if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
+      youtubePlayerRef.current.loadVideoById(currentSong.videoId);
+    }
+    // SoundCloud/URL is handled by the URL prop change
      return () => {
       stopProgressTracking();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSong]);
+  }, [currentSong, stopProgressTracking]);
 
-  if (!currentSong || currentSong.type !== 'youtube' || !currentSong.videoId) {
+  const handleYoutubeReady = (event: { target: YouTubePlayer }) => {
+    youtubePlayerRef.current = event.target;
+    youtubePlayerRef.current.setVolume(75);
+    if(isPlaying) {
+      youtubePlayerRef.current.playVideo();
+    }
+  };
+  
+  const handleYoutubeStateChange = (event: { data: number }) => {
+    if (event.data === YouTube.PlayerState.PLAYING) {
+      _playerSetIsPlaying(true);
+      startYoutubeProgressTracking();
+    } else if (event.data === YouTube.PlayerState.PAUSED) {
+      _playerSetIsPlaying(false);
+      stopProgressTracking();
+    } else if (event.data === YouTube.PlayerState.ENDED) {
+      _playerOnEnd();
+    }
+  }
+
+  const handleReactPlayerReady = (player: ReactPlayer) => {
+    reactPlayerRef.current = player;
+  }
+
+  const handleReactPlayerProgress = (state: { played: number, playedSeconds: number, loaded: number, loadedSeconds: number }) => {
+      _playerSetProgress(state.playedSeconds);
+      if(reactPlayerRef.current) {
+        _playerSetDuration(reactPlayerRef.current.getDuration());
+      }
+  }
+
+
+  if (!currentSong) {
     return null;
   }
 
-  const opts = {
+  const youtubeOpts: YouTubeOptions = {
     height: '0',
     width: '0',
     playerVars: {
-      autoplay: 1, // Let's try to autoplay, browser might block it
+      autoplay: 1, 
       controls: 0,
       playsinline: 1
     },
   };
+  
+  const renderPlayer = () => {
+    switch(currentSong.type) {
+        case 'youtube':
+            return (
+                <YouTube
+                    videoId={currentSong.videoId}
+                    opts={youtubeOpts}
+                    onReady={handleYoutubeReady}
+                    onStateChange={handleYoutubeStateChange}
+                    onEnd={_playerOnEnd}
+                    onError={(e) => console.error('YouTube Player Error:', e)}
+                    className="absolute top-[-9999px] left-[-9999px]"
+                />
+            );
+        case 'soundcloud':
+        case 'url':
+            return (
+                <ReactPlayer
+                    ref={reactPlayerRef}
+                    url={currentSong.url}
+                    playing={isPlaying}
+                    onPlay={() => _playerSetIsPlaying(true)}
+                    onPause={() => _playerSetIsPlaying(false)}
+                    onEnded={_playerOnEnd}
+                    onProgress={handleReactPlayerProgress}
+                    onDuration={_playerSetDuration}
+                    onReady={handleReactPlayerReady}
+                    width="0"
+                    height="0"
+                    style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}
+                />
+            );
+        default:
+            return null;
+    }
+  }
 
-  return (
-      <YouTube
-        videoId={currentSong.videoId}
-        opts={opts}
-        onReady={handleOnReady}
-        onStateChange={handleOnStateChange}
-        onEnd={playNext}
-        onError={(e) => console.error('YouTube Player Error:', e)}
-        className="absolute top-[-9999px] left-[-9999px] w-0 h-0"
-      />
-  );
+  return renderPlayer();
 };

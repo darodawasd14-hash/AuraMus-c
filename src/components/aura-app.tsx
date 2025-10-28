@@ -158,20 +158,36 @@ const PlaylistView = () => {
         e.preventDefault();
         if (!songUrl || !user || !firestore) return;
         setIsAdding(true);
-    
-        let songDetails;
+
+        let songDetails: Song;
         if (songUrl.includes('youtube.com') || songUrl.includes('youtu.be')) {
             const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
             const match = songUrl.match(regex);
             const videoId = match ? match[1] : undefined;
+
             if (!videoId) {
                 toast({ title: "Geçersiz YouTube linki", variant: 'destructive' });
                 setIsAdding(false);
                 return;
             }
-            songDetails = { id: videoId, videoId, url: songUrl, title: songUrl, type: 'youtube' as const, timestamp: serverTimestamp() };
+            songDetails = { 
+                id: videoId, 
+                videoId, 
+                url: songUrl, 
+                title: songUrl, 
+                type: 'youtube' as const, 
+                timestamp: serverTimestamp() 
+            };
         } else {
-             songDetails = { id: songUrl, url: songUrl, title: songUrl, type: 'url' as const, timestamp: serverTimestamp() };
+             // For SoundCloud or other URLs, use a Base64 encoded URL as the ID
+             const safeId = typeof window !== "undefined" ? window.btoa(songUrl) : Buffer.from(songUrl).toString('base64');
+             songDetails = { 
+                id: safeId, 
+                url: songUrl, 
+                title: songUrl, 
+                type: 'url' as const, 
+                timestamp: serverTimestamp() 
+            };
         }
 
         const newPlaylist = [...playlist, songDetails];
@@ -196,7 +212,7 @@ const PlaylistView = () => {
                 <Input
                 type="url"
                 id="song-url-input"
-                placeholder="YouTube linki..."
+                placeholder="YouTube veya SoundCloud linki..."
                 required
                 value={songUrl}
                 onChange={(e) => setSongUrl(e.target.value)}
@@ -292,7 +308,8 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
     if (song.type === 'youtube' && song.videoId) {
       return `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
     }
-    return `https://i.ytimg.com/vi/bpOSxM0rNPM/hqdefault.jpg`;
+    // Fallback for non-youtube songs
+    return `https://picsum.photos/seed/${song.id}/168/94`;
   }
 
   return (
@@ -463,7 +480,7 @@ function MiniPlayer() {
         if (song.type === 'youtube' && song.videoId) {
             return `https://i.ytimg.com/vi/${song.videoId}/mqdefault.jpg`;
         }
-        return `https://i.ytimg.com/vi/bpOSxM0rNPM/mqdefault.jpg`;
+        return `https://picsum.photos/seed/${song.id}/96/96`;
     };
 
     return (
@@ -510,6 +527,7 @@ function FullPlayerView() {
     playPrev,
     progress,
     duration,
+    seekTo,
   } = usePlayer();
 
   const [isSeeking, setIsSeeking] = useState(false);
@@ -523,6 +541,7 @@ function FullPlayerView() {
 
 
   const formatTime = (seconds: number) => {
+    if (isNaN(seconds) || seconds < 0) return '0:00';
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
@@ -533,8 +552,7 @@ function FullPlayerView() {
   };
 
   const handleSeekCommit = (value: number[]) => {
-    // In a real scenario, you'd call a seek function from the context here
-    // seekTo(value[0]);
+    seekTo(value[0]);
     setIsSeeking(false);
   };
   
@@ -542,7 +560,7 @@ function FullPlayerView() {
     if (song.type === 'youtube' && song.videoId) {
       return `https://i.ytimg.com/vi/${song.videoId}/maxresdefault.jpg`;
     }
-    return `https://i.ytimg.com/vi/bpOSxM0rNPM/maxresdefault.jpg`;
+    return `https://picsum.photos/seed/${song.id}/640/640`;
   }
   
   if (!currentSong) return null;
@@ -581,7 +599,7 @@ function FullPlayerView() {
                         value={[localProgress]}
                         onValueChange={handleProgressChange}
                         onPointerDown={() => setIsSeeking(true)}
-                        onPointerUp={handleSeekCommit}
+                        onValueChangeCommit={handleSeekCommit}
                     />
                     <span className="text-xs font-mono w-10 text-center">{formatTime(duration)}</span>
                 </div>
@@ -614,3 +632,5 @@ function FullPlayerView() {
     </div>
   )
 }
+
+    
