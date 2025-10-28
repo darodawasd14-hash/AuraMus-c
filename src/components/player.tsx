@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { usePlayer } from '@/context/player-context';
-import YouTube, { YouTubePlayer } from 'react-youtube';
+import YouTube, { YouTubePlayer, Options } from 'react-youtube';
 
 /**
  * The main Player component. It renders the correct internal player engine
@@ -21,7 +21,7 @@ export function Player() {
         <YouTubePlayerInternal
           song={currentSong}
           onEnd={playNext}
-          onStateChange={(isPlaying) => _setIsPlaying(isPlaying)}
+          onStateChange={_setIsPlaying}
           onProgress={_setProgress}
           onDuration={_setDuration}
         />
@@ -30,7 +30,7 @@ export function Player() {
     case 'soundcloud':
     case 'url':
     default:
-      return null; // For now, only YouTube is supported
+      return null;
   }
 }
 
@@ -45,7 +45,7 @@ interface YouTubePlayerInternalProps {
 }
 
 function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDuration }: YouTubePlayerInternalProps) {
-  const { isPlaying, isMuted, seekTime, _clearSeek } = usePlayer();
+  const { isPlaying, isMuted, volume, seekTime, _clearSeek, isSeeking } = usePlayer();
   const playerRef = useRef<YouTubePlayer | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -59,7 +59,9 @@ function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDurat
       clearInterval(progressIntervalRef.current);
     }
     progressIntervalRef.current = setInterval(() => {
-      onProgress(player.getCurrentTime());
+      if (!isSeeking) {
+         onProgress(player.getCurrentTime());
+      }
     }, 500);
   };
   
@@ -72,7 +74,6 @@ function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDurat
   const onReady = (event: { target: YouTubePlayer }) => {
     playerRef.current = event.target;
     onDuration(event.target.getDuration());
-    // Mute on ready to comply with autoplay policies. Sound will be unmuted on first user play interaction.
     event.target.mute(); 
   };
   
@@ -107,7 +108,7 @@ function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDurat
     }
   }, [isPlaying]);
 
-  // Effect for Mute/Unmute
+  // Effect for Mute/Unmute & Volume
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
@@ -116,8 +117,10 @@ function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDurat
       player.mute();
     } else {
       player.unMute();
+      // Volume is 0-100 for YouTube API
+      player.setVolume(volume * 100);
     }
-  }, [isMuted]);
+  }, [isMuted, volume]);
 
   // Effect for Seeking
   useEffect(() => {
@@ -130,20 +133,23 @@ function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDurat
     }
   }, [seekTime, _clearSeek]);
 
+  const opts: Options = {
+      height: '0',
+      width: '0',
+      playerVars: {
+        autoplay: 1, 
+        controls: 0,
+        playsinline: 1,
+        // modestbranding: 1,
+        // rel: 0, 
+      },
+    }
 
   return (
     <div className="absolute top-[-9999px] left-[-9999px] w-0 h-0">
       <YouTube
         videoId={videoId}
-        opts={{
-          height: '0',
-          width: '0',
-          playerVars: {
-            autoplay: 1, // Autoplay is necessary for seamless transitions
-            controls: 0,
-            playsinline: 1,
-          },
-        }}
+        opts={opts}
         onReady={onReady}
         onStateChange={onPlayerStateChange}
         onEnd={onEnd}

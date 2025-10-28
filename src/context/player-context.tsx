@@ -42,6 +42,7 @@ type PlayerContextType = {
   progress: number; // Current playback time in seconds
   duration: number; // Total duration of the song in seconds
   isMuted: boolean;
+  volume: number;
   isSeeking: boolean;
   seekTime: number | null; // The time to seek to
 
@@ -54,6 +55,7 @@ type PlayerContextType = {
   playPrev: () => void;
   seekTo: (time: number) => void; 
   toggleMute: () => void;
+  setVolume: (volume: number) => void;
   setIsSeeking: (isSeeking: boolean) => void;
   setIsPlayerOpen: (isOpen: boolean) => void;
   setActivePlaylistId: (id: string | null) => void;
@@ -84,6 +86,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(true); // Start muted to comply with autoplay policies
+  const [volume, setVolumeState] = useState(0.75); // Volume from 0 to 1
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekTime, setSeekTime] = useState<number | null>(null);
   
@@ -244,7 +247,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setCurrentIndex(index);
         setIsPlaying(true);
-        setIsPlayerOpen(true);
       }
     } else {
       setCurrentIndex(-1);
@@ -261,7 +263,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         }
         return !prev;
     });
-    if (!isPlayerOpen) setIsPlayerOpen(true);
   };
 
   const playNext = useCallback(() => {
@@ -286,11 +287,24 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const toggleMute = () => {
       setIsMuted(prev => !prev);
   };
+
+  const setVolume = (vol: number) => {
+    setVolumeState(vol);
+    if(vol > 0 && isMuted) {
+      setIsMuted(false);
+    } else if (vol === 0 && !isMuted) {
+      setIsMuted(true);
+    }
+  }
   
   // --- Internal Callbacks for the "Motor" ---
   const _clearSeek = () => setSeekTime(null);
   const _setIsPlaying = (playing: boolean) => setIsPlaying(playing);
-  const _setProgress = (p: number) => setProgress(p);
+  const _setProgress = (p: number) => {
+    if (!isSeeking) {
+      setProgress(p);
+    }
+  };
   const _setDuration = (d: number) => setDuration(d);
 
   // Setup initial playlist for new, non-anonymous users.
@@ -329,6 +343,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     progress,
     duration,
     isMuted,
+    volume,
     isSeeking,
     seekTime,
     
@@ -340,6 +355,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playPrev,
     seekTo,
     toggleMute,
+    setVolume,
     setIsSeeking,
     setIsPlayerOpen,
     setActivePlaylistId,

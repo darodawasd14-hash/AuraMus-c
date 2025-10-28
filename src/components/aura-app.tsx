@@ -5,7 +5,7 @@ import type { Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, MessageSquare, X, Plus, ChevronDown, Volume2, VolumeX } from '@/components/icons';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, MessageSquare, X, Plus, ChevronDown, Volume2, VolumeX, Maximize2 } from '@/components/icons';
 import { useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -94,13 +94,9 @@ export function AuraApp() {
         )}
       </main>
 
-      {/* --- PLAYER UI --- */}
-      <div className={cn(
-          "fixed bottom-16 left-0 right-0 z-30 transform-gpu transition-transform duration-300 ease-in-out",
-          isPlayerOpen ? "translate-y-0" : "translate-y-full"
-      )}>
-        <PlayerBar />
-      </div>
+      {/* --- MINI PLAYER & FULL PLAYER --- */}
+       <MiniPlayer />
+       <FullPlayerView />
       
       <BottomNavBar currentView={view} setView={setView} />
       
@@ -575,9 +571,58 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
 };
 
 
-function PlayerBar() {
+function MiniPlayer() {
+    const { currentSong, isPlaying, togglePlayPause, playNext, setIsPlayerOpen } = usePlayer();
+
+    if (!currentSong) {
+        return null;
+    }
+    
+    const getThumbnailUrl = (song: Song) => {
+        if (song.type === 'youtube' && song.videoId) {
+            return `https://i.ytimg.com/vi/${song.videoId}/mqdefault.jpg`;
+        }
+        return `https://i.ytimg.com/vi/default/mqdefault.jpg`;
+    };
+
+    return (
+        <div 
+            className={cn(
+                "fixed bottom-20 right-4 z-40 flex items-center gap-3 rounded-lg bg-secondary/80 p-3 shadow-2xl backdrop-blur-lg border border-border/50 transition-all duration-300 ease-in-out",
+                currentSong ? "translate-x-0 opacity-100" : "translate-x-full opacity-0",
+            )}
+        >
+            <Image
+                src={getThumbnailUrl(currentSong)}
+                alt={currentSong.title}
+                width={48}
+                height={48}
+                className="rounded-md aspect-square object-cover"
+            />
+            <div className="flex-grow truncate w-36">
+                <p className="font-bold truncate text-sm">{currentSong.title}</p>
+                <p className="text-xs text-muted-foreground">{currentSong.type}</p>
+            </div>
+            <div className="flex items-center">
+                <Button variant="ghost" size="icon" onClick={togglePlayPause}>
+                    {isPlaying ? <PauseIcon className="w-5 h-5"/> : <PlayIcon className="w-5 h-5"/>}
+                </Button>
+                <Button variant="ghost" size="icon" onClick={playNext}>
+                    <SkipForward className="w-5 h-5"/>
+                </Button>
+                 <Button variant="ghost" size="icon" onClick={() => setIsPlayerOpen(true)}>
+                    <Maximize2 className="w-5 h-5"/>
+                </Button>
+            </div>
+        </div>
+    );
+}
+
+function FullPlayerView() {
   const { 
     currentSong, 
+    isPlayerOpen,
+    setIsPlayerOpen,
     isPlaying, 
     togglePlayPause, 
     playNext, 
@@ -589,7 +634,8 @@ function PlayerBar() {
     setIsSeeking,
     isMuted,
     toggleMute,
-    setIsPlayerOpen
+    volume,
+    setVolume
   } = usePlayer();
 
   const formatTime = (seconds: number) => {
@@ -604,73 +650,88 @@ function PlayerBar() {
     }
   };
 
-  if (!currentSong) {
-    return null; // Don't render the bar if no song is selected
-  }
-
   const getThumbnailUrl = (song: Song) => {
     if (song.type === 'youtube' && song.videoId) {
-      return `https://i.ytimg.com/vi/${song.videoId}/mqdefault.jpg`;
+      return `https://i.ytimg.com/vi/${song.videoId}/maxresdefault.jpg`;
     }
-    return `https://i.ytimg.com/vi/default/mqdefault.jpg`;
+    return `https://i.ytimg.com/vi/default/maxresdefault.jpg`;
   }
+  
+  if (!currentSong) return null;
 
   return (
-    <div className="h-full bg-secondary/50 border-t border-border backdrop-blur-xl p-4 flex flex-col gap-3">
-      {/* Close button for small screens */}
-      <div className="absolute top-2 right-2 md:hidden">
-         <Button variant="ghost" size="icon" onClick={() => setIsPlayerOpen(false)}>
-           <ChevronDown className="w-5 h-5"/>
-         </Button>
-      </div>
-
-      {/* Song Info & Main Controls */}
-      <div className="flex items-center gap-4">
-        <Image
-          src={getThumbnailUrl(currentSong)}
-          alt={currentSong.title}
-          width={56}
-          height={56}
-          className="rounded-md aspect-square object-cover"
-        />
-        <div className="flex-grow truncate">
-          <p className="font-bold truncate">{currentSong.title}</p>
-          <p className="text-sm text-muted-foreground">{currentSong.type}</p>
+    <div className={cn(
+        "fixed inset-0 bg-background/90 backdrop-blur-2xl z-50 transform-gpu transition-transform duration-500 ease-in-out flex flex-col",
+        isPlayerOpen ? "translate-y-0" : "translate-y-full"
+    )}>
+        {/* Header */}
+         <div className="flex-shrink-0 p-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Şimdi Oynatılıyor</h2>
+            <Button variant="ghost" size="icon" onClick={() => setIsPlayerOpen(false)}>
+                <ChevronDown className="w-6 h-6"/>
+            </Button>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={playPrev}>
-            <SkipBack className="w-5 h-5"/>
-          </Button>
-          <Button variant="default" size="icon" className="w-12 h-12" onClick={togglePlayPause}>
-            {isPlaying ? <PauseIcon className="w-6 h-6"/> : <PlayIcon className="w-6 h-6"/>}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={playNext}>
-            <SkipForward className="w-5 h-5"/>
-          </Button>
+
+        {/* Main Content */}
+        <div className="flex-grow flex flex-col items-center justify-center p-8 gap-8">
+            {/* Album Art */}
+            <div className="relative w-full max-w-md aspect-square shadow-2xl rounded-lg overflow-hidden">
+                 <Image
+                    src={getThumbnailUrl(currentSong)}
+                    alt={currentSong.title}
+                    fill
+                    className="object-cover"
+                />
+            </div>
+           
+
+            {/* Song Info & Controls */}
+            <div className="w-full max-w-md text-center">
+                 <h1 className="text-2xl font-bold">{currentSong.title}</h1>
+                 <p className="text-muted-foreground">{currentSong.type}</p>
+                 
+                 {/* Progress Bar */}
+                 <div className="flex items-center gap-2 mt-6">
+                    <span className="text-xs font-mono w-10 text-center">{formatTime(progress)}</span>
+                    <Slider
+                        min={0}
+                        max={duration > 0 ? duration : 100}
+                        value={[progress]}
+                        onValueChange={handleProgressChange}
+                        onPointerDown={() => setIsSeeking(true)}
+                        onPointerUp={() => setIsSeeking(false)}
+                    />
+                    <span className="text-xs font-mono w-10 text-center">{formatTime(duration)}</span>
+                </div>
+
+                {/* Main Controls */}
+                <div className="flex items-center justify-center gap-4 mt-4">
+                    <Button variant="ghost" size="icon" className="w-14 h-14" onClick={playPrev}>
+                        <SkipBack className="w-8 h-8"/>
+                    </Button>
+                    <Button variant="default" size="icon" className="w-20 h-20" onClick={togglePlayPause}>
+                        {isPlaying ? <PauseIcon className="w-10 h-10"/> : <PlayIcon className="w-10 h-10"/>}
+                    </Button>
+                    <Button variant="ghost" size="icon" className="w-14 h-14" onClick={playNext}>
+                        <SkipForward className="w-8 h-8"/>
+                    </Button>
+                </div>
+            </div>
+             {/* Volume Control */}
+           <div className="w-full max-w-xs flex items-center gap-2">
+                <Button variant="ghost" size="icon" onClick={toggleMute}>
+                    {isMuted || volume === 0 ? <VolumeX className="w-5 h-5"/> : <Volume2 className="w-5 h-5"/>}
+                </Button>
+                <Slider
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={[isMuted ? 0 : volume]}
+                    onValueChange={(value) => setVolume(value[0])}
+                />
+           </div>
         </div>
-      </div>
 
-      {/* Progress Bar & Time */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-mono w-10 text-center">{formatTime(progress)}</span>
-        <Slider
-          min={0}
-          max={duration > 0 ? duration : 100}
-          value={[progress]}
-          onValueChange={handleProgressChange}
-          onPointerDown={() => setIsSeeking(true)}
-          onPointerUp={() => setIsSeeking(false)}
-        />
-        <span className="text-xs font-mono w-10 text-center">{formatTime(duration)}</span>
-      </div>
-
-       {/* Volume Control */}
-       <div className="absolute right-4 bottom-4 hidden md:flex items-center gap-2 w-32">
-          <Button variant="ghost" size="icon" onClick={toggleMute}>
-            {isMuted ? <VolumeX className="w-5 h-5"/> : <Volume2 className="w-5 h-5"/>}
-          </Button>
-          {/* Future volume slider can go here */}
-       </div>
     </div>
-  );
+  )
 }
