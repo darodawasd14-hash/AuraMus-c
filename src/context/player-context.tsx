@@ -26,7 +26,7 @@ export interface Song {
 
 export type SongDetails = Omit<Song, 'id' | 'timestamp'>;
 
-// This context holds the "state" and "intentions" of the player, but not the player logic itself.
+// This context holds the "state" of the player, but not the player logic itself.
 type PlayerContextType = {
   // Data
   playlist: Song[];
@@ -38,12 +38,6 @@ type PlayerContextType = {
   
   // State
   isPlaying: boolean;
-  isPlayerOpen: boolean;
-  progress: number;
-  duration: number;
-  isSeeking: boolean;
-  isMuted: boolean;
-  seekTime: number | null;
   
   // User "Intentions" (Functions to change the state)
   addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
@@ -52,14 +46,20 @@ type PlayerContextType = {
   togglePlayPause: () => void;
   playNext: () => void;
   playPrev: () => void;
-  setIsPlayerOpen: (isOpen: boolean) => void;
   setActivePlaylistId: (id: string | null) => void;
   createPlaylist: (name: string) => Promise<void>;
+
+  // Dummy/Placeholder functions and state to prevent crashes in the UI
+  isPlayerOpen: boolean;
+  setIsPlayerOpen: (isOpen: boolean) => void;
+  progress: number;
+  duration: number;
+  isSeeking: boolean;
+  isMuted: boolean;
+  seekTime: number | null;
   seekTo: (time: number) => void; 
   toggleMute: () => void;
   setIsSeeking: (isSeeking: boolean) => void;
-  
-  // Callbacks from the Player Engine (for internal use by the player component)
   _setIsPlaying: (isPlaying: boolean) => void;
   _setProgress: (progress: number) => void;
   _setDuration: (duration: number) => void;
@@ -78,13 +78,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
-  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
-  
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [seekTime, setSeekTime] = useState<number | null>(null);
-  const [isSeeking, setIsSeeking] = useState<boolean>(false);
-  const [isMuted, setIsMuted] = useState(true);
   
   // Fetch user's playlists
   const userPlaylistsQuery = useMemoFirebase(() => {
@@ -122,23 +115,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setPlaylist(activePlaylistSongs);
       const newIndex = activePlaylistSongs.findIndex(s => s.id === currentSongId);
       
-      // If the currently playing song was removed from the list, stop playing.
       if (newIndex === -1 && currentIndex !== -1) {
          setIsPlaying(false);
          setCurrentIndex(-1);
-         setProgress(0); 
-         setDuration(0); 
       } else {
         setCurrentIndex(newIndex);
       }
       
     } else if (!activePlaylistId) {
-      // If no playlist is active, clear the local playlist and reset state.
       setPlaylist([]);
       setCurrentIndex(-1);
       setIsPlaying(false);
-      setProgress(0);
-      setDuration(0);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlaylistSongs, activePlaylistId]);
@@ -321,20 +308,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const playSong = (index: number) => {
     if (index >= 0 && index < playlist.length) {
-      // If the same song is clicked, toggle play/pause
       if (index === currentIndex) {
         togglePlayPause();
       } else {
-        // If a new song is clicked, play it
         setCurrentIndex(index);
         setIsPlaying(true);
-        // Unmute on first intentional play action
-        if(isMuted) {
-          setIsMuted(false);
-        }
       }
     } else {
-      // If index is invalid, stop playing
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
@@ -342,15 +322,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const togglePlayPause = () => {
     if (!currentSong) return;
-    // The first user intention to play should always unmute.
-    if (isMuted) {
-      setIsMuted(false);
-    }
     setIsPlaying(prev => !prev);
-  };
-
-  const toggleMute = () => {
-    setIsMuted(prev => !prev);
   };
 
   const playNext = useCallback(() => {
@@ -366,14 +338,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setCurrentIndex(prevIndex);
     setIsPlaying(true);
   };
-  
-  const seekTo = (time: number) => {
-    setSeekTime(time);
-  };
-  
-  const _clearSeek = () => {
-      setSeekTime(null);
-  }
 
   const value: PlayerContextType = {
     playlist,
@@ -383,12 +347,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     currentIndex,
     isPlaying,
     isLoading,
-    isPlayerOpen,
-    progress,
-    duration,
-    isSeeking,
-    isMuted,
-    seekTime,
     
     addSong,
     deleteSong,
@@ -396,19 +354,25 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     togglePlayPause,
     playNext,
     playPrev,
-    setIsPlayerOpen,
     setActivePlaylistId,
     createPlaylist,
-    seekTo,
-    toggleMute,
-    setIsSeeking,
 
-    // Callbacks for the "Motor"
+    // Placeholder/dummy values to prevent UI from crashing.
+    isPlayerOpen: false,
+    setIsPlayerOpen: () => {},
+    progress: 0,
+    duration: 100,
+    isSeeking: false,
+    isMuted: true,
+    seekTime: null,
+    seekTo: () => {}, 
+    toggleMute: () => {},
+    setIsSeeking: () => {},
     _setIsPlaying: setIsPlaying,
-    _setProgress: setProgress,
-    _setDuration: setDuration,
-    _clearSeek,
-    _setIsMuted: setIsMuted,
+    _setProgress: () => {},
+    _setDuration: () => {},
+    _clearSeek: () => {},
+    _setIsMuted: () => {},
   };
 
   return (

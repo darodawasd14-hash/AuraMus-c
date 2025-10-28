@@ -41,16 +41,11 @@ interface UserProfile {
 }
 
 export function AuraApp() {
-  const { currentSong, isPlaying, togglePlayPause, playNext, playPrev, isPlayerOpen, setIsPlayerOpen, progress, duration, seekTo, setIsSeeking, isMuted, toggleMute } = usePlayer();
+  const { currentSong } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const { user } = useUser();
 
-  const handleTogglePlayer = () => {
-    if (currentSong) {
-      setIsPlayerOpen(prev => !prev);
-    }
-  };
   
   useEffect(() => {
     const handleResize = () => {
@@ -99,28 +94,10 @@ export function AuraApp() {
         )}
       </main>
 
-       {currentSong && (
-        <PlayerBar 
-          song={currentSong} 
-          isPlaying={isPlaying} 
-          onPlayPause={togglePlayPause} 
-          onNext={playNext}
-          onPrev={playPrev}
-          onClick={handleTogglePlayer}
-          progress={progress}
-          duration={duration}
-          onSeek={seekTo}
-          onSeeking={setIsSeeking}
-          isMuted={isMuted}
-          onMuteToggle={toggleMute}
-        />
-      )}
+      {/* Player Bar and Full Player view are removed to prevent crashes. Will be rebuilt. */}
       
       <BottomNavBar currentView={view} setView={setView} />
       
-      {isPlayerOpen && (
-        <FullPlayerView song={currentSong} onClose={() => setIsPlayerOpen(false)} />
-      )}
     </div>
   );
 }
@@ -167,171 +144,6 @@ const BottomNavBar = ({ currentView, setView }: { currentView: string, setView: 
       </button>
     </nav>
   )
-}
-
-const formatTime = (seconds: number) => {
-  if (isNaN(seconds) || seconds < 0) return '0:00';
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.floor(seconds % 60);
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-};
-
-
-const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onPrev, onClick, progress, duration, onSeek, onSeeking, isMuted, onMuteToggle }: { song: Song, isPlaying: boolean, onPlayPause: () => void, onNext: () => void, onPrev: () => void, onClick: () => void, progress: number, duration: number, onSeek: (time: number) => void, onSeeking: (isSeeking: boolean) => void, isMuted: boolean, onMuteToggle: () => void }) => {
-  const [sliderValue, setSliderValue] = useState(progress);
-  const { isSeeking } = usePlayer();
-
-  useEffect(() => {
-    if (!isSeeking) {
-      setSliderValue(progress);
-    }
-  }, [progress, isSeeking]);
-
-  const handleSeekCommit = (value: number[]) => {
-    onSeek(value[0]);
-    onSeeking(false);
-  };
-  
-  const handlePointerDown = () => {
-    onSeeking(true);
-  }
-
-  const handleValueChange = (value: number[]) => {
-    setSliderValue(value[0]);
-  }
-
-  return (
-    <div className="fixed bottom-16 left-0 right-0 h-20 bg-muted/80 backdrop-blur-lg border-t border-border z-20 flex flex-col justify-center px-4 group">
-      <div className="flex items-center w-full">
-        <div onClick={onClick} className="flex items-center gap-4 flex-grow min-w-0 cursor-pointer">
-          {song.videoId && (
-              <Image 
-                  src={`https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`}
-                  alt={song.title}
-                  width={48}
-                  height={48}
-                  className="rounded"
-              />
-          )}
-          <div className="truncate">
-              <p className="font-semibold text-sm truncate">{song.title}</p>
-              <p className="text-xs text-muted-foreground">{song.type}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 pl-4">
-           <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onMuteToggle(); }}>
-              {isMuted ? <VolumeX className="w-6 h-6"/> : <Volume2 className="w-6 h-6"/>}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onPrev(); }}>
-              <SkipBack className="w-6 h-6"/>
-          </Button>
-          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onPlayPause(); }}>
-              {isPlaying ? <PauseIcon className="w-6 h-6"/> : <PlayIcon className="w-6 h-6"/>}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onNext(); }}>
-              <SkipForward className="w-6 h-6"/>
-          </Button>
-        </div>
-      </div>
-      <div className="w-full flex items-center gap-2 mt-1">
-        <span className="text-xs text-muted-foreground w-10 text-right">{formatTime(sliderValue)}</span>
-        <Slider
-            value={[sliderValue]}
-            max={duration || 1}
-            step={1}
-            onValueChange={handleValueChange}
-            onPointerDown={handlePointerDown}
-            onValueCommit={handleSeekCommit}
-            className="flex-grow"
-        />
-        <span className="text-xs text-muted-foreground w-10">{formatTime(duration)}</span>
-      </div>
-    </div>
-  )
-}
-
-const FullPlayerView = ({ song, onClose }: { song: Song | null, onClose: () => void }) => {
-    const { isPlaying, togglePlayPause, playNext, playPrev, progress, duration, seekTo, setIsSeeking, isMuted, toggleMute } = usePlayer();
-
-    if (!song) return null;
-    
-    const [sliderValue, setSliderValue] = useState(progress);
-    const { isSeeking } = usePlayer();
-
-    useEffect(() => {
-        if (!isSeeking) {
-            setSliderValue(progress);
-        }
-    }, [progress, isSeeking]);
-
-    const handleSeekCommit = (value: number[]) => {
-        seekTo(value[0]);
-        setIsSeeking(false);
-    };
-    
-    const handlePointerDown = () => {
-        setIsSeeking(true);
-    }
-
-    const handleValueChange = (value: number[]) => {
-        setSliderValue(value[0]);
-    }
-
-
-    return (
-        <div className="fixed inset-0 bg-background/95 backdrop-blur-2xl z-50 flex flex-col p-4 animate-in fade-in-0 slide-in-from-bottom-10 duration-500">
-            <header className="flex-shrink-0 flex items-center justify-between">
-                <Button variant="ghost" size="icon" onClick={onClose}><ChevronDown className="w-8 h-8"/></Button>
-                <span className="text-sm font-bold uppercase text-muted-foreground">Şimdi Oynatılıyor</span>
-                 <Button variant="ghost" size="icon" onClick={toggleMute}>
-                    {isMuted ? <VolumeX className="w-6 h-6"/> : <Volume2 className="w-6 h-6"/>}
-                </Button>
-            </header>
-            <main className="flex-grow flex flex-col items-center justify-center gap-8 text-center">
-                <div className="w-full max-w-md aspect-square rounded-lg shadow-2xl overflow-hidden">
-                     <Image 
-                        src={`https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`}
-                        alt={song.title}
-                        width={640}
-                        height={640}
-                        className="w-full h-full object-cover"
-                     />
-                </div>
-                <div className="w-full max-w-md">
-                    <h2 className="text-3xl font-bold tracking-tight truncate">{song.title}</h2>
-                    <p className="text-muted-foreground mt-1">{song.type}</p>
-                </div>
-                {/* Progress Bar for Full Player */}
-                <div className="w-full max-w-md px-2">
-                    <Slider
-                        value={[sliderValue]}
-                        max={duration || 1}
-                        step={1}
-                        onValueChange={handleValueChange}
-                        onPointerDown={handlePointerDown}
-                        onValueCommit={handleSeekCommit}
-                        className="flex-grow"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                        <span>{formatTime(sliderValue)}</span>
-                        <span>{formatTime(duration)}</span>
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-center space-x-4">
-                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground w-16 h-16" onClick={playPrev}>
-                      <SkipBack className="w-8 h-8" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="bg-primary/20 text-primary-foreground rounded-full w-20 h-20 hover:bg-primary/30" onClick={togglePlayPause}>
-                      {isPlaying ? <PauseIcon className="w-10 h-10" /> : <PlayIcon className="w-10 h-10" />}
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground w-16 h-16" onClick={playNext}>
-                      <SkipForward className="w-8 h-8" />
-                    </Button>
-                  </div>
-            </main>
-        </div>
-    )
 }
 
 const PlaylistView = () => {
