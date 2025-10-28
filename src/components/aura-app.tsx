@@ -139,11 +139,6 @@ const BottomNavBar = ({ currentView, setView }: { currentView: string, setView: 
   )
 }
 
-// ---- DUMMY Playlist Management ----
-// In a real app, this would come from a global context or API
-let userPlaylists = [{id: '1', name: 'Favorilerim'}, {id: '2', name: 'Sabah Modu'}];
-// ------------------------------------
-
 const PlaylistView = () => {
     const { playlist, currentIndex, playSong, setPlaylist } = usePlayer();
     const [isLoading, setIsLoading] = useState(false);
@@ -161,8 +156,9 @@ const PlaylistView = () => {
 
         let songDetails: Song;
         if (songUrl.includes('youtube.com') || songUrl.includes('youtu.be')) {
-            const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
-            const match = songUrl.match(regex);
+            // Regex to find YouTube video ID from various URL formats
+            const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
+            const match = songUrl.match(youtubeRegex);
             const videoId = match ? match[1] : undefined;
 
             if (!videoId) {
@@ -170,11 +166,24 @@ const PlaylistView = () => {
                 setIsAdding(false);
                 return;
             }
+
+            // Fetch video title from YouTube's oEmbed API
+            let videoTitle = 'Bilinmeyen YouTube Videosu';
+            try {
+                const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=http://www.youtube.com/watch?v=${videoId}&format=json`);
+                if (oembedResponse.ok) {
+                    const oembedData = await oembedResponse.json();
+                    videoTitle = oembedData.title;
+                }
+            } catch (error) {
+                console.error("Could not fetch YouTube video title:", error);
+            }
+
             songDetails = { 
                 id: videoId, 
                 videoId, 
                 url: songUrl, 
-                title: songUrl, 
+                title: videoTitle, 
                 type: 'youtube' as const, 
                 timestamp: serverTimestamp() 
             };
@@ -632,5 +641,3 @@ function FullPlayerView() {
     </div>
   )
 }
-
-    
