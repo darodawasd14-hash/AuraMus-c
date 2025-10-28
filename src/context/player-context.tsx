@@ -243,12 +243,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playSong = (index: number) => {
     if (index >= 0 && index < playlist.length) {
       if (index === currentIndex) {
+        // If it's the same song, just toggle play/pause
         togglePlayPause();
       } else {
+        // If it's a new song, set it and ensure it plays
         setCurrentIndex(index);
-        setIsPlaying(true); // Always set to play when a new song is selected
+        setIsPlaying(true);
       }
     } else {
+      // If index is invalid, stop playing
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
@@ -257,11 +260,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const togglePlayPause = () => {
     if (!currentSong) return;
     setIsPlaying(prev => {
-        // If user presses play for the first time or from a paused state, unmute.
-        if (isMuted && !prev) {
+        const newIsPlaying = !prev;
+        // If user presses play, also intend to unmute.
+        if (newIsPlaying) {
             setIsMuted(false);
         }
-        return !prev;
+        return newIsPlaying;
     });
   };
 
