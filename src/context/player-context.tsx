@@ -39,12 +39,10 @@ type PlayerContextType = {
   isPlaying: boolean;
   isLoading: boolean;
   isPlayerOpen: boolean;
-  isSeeking: boolean;
   progress: number;
   duration: number;
-  seekTime: number | null; 
-
-  // REFS for player instances
+  
+  // REFS for player instances - This allows the UI to access the player "remote"
   youtubePlayerRef: React.MutableRefObject<any>;
   soundcloudPlayerRef: React.MutableRefObject<any>;
   urlPlayerRef: React.MutableRefObject<HTMLAudioElement | null>;
@@ -66,8 +64,6 @@ type PlayerContextType = {
   _setIsPlaying: (isPlaying: boolean) => void;
   _setProgress: (progress: number) => void;
   _setDuration: (duration: number) => void;
-  setIsSeeking: (isSeeking: boolean) => void;
-  _clearSeek: () => void;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -85,9 +81,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [isSeeking, setIsSeeking] = useState(false);
-  const [seekTime, setSeekTime] = useState<number | null>(null);
-
+  
+  // Create refs here to hold the player instances ("remotes")
   const youtubePlayerRef = useRef<any>(null);
   const soundcloudPlayerRef = useRef<any>(null);
   const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
@@ -348,24 +343,36 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
     if (currentSong.type === 'youtube') {
       const player = youtubePlayerRef.current;
-      if (!player || typeof player.getPlayerState !== 'function') {
-        console.error("YouTube player ref not ready.");
-        return;
-      }
-      
-      // Unmute on first user interaction
-      if (player.isMuted()) {
-        player.unMute();
+      // 1. Ref'i kontrol et
+      if (!player || !player.unMute) {
+          console.error("HATA: Oynatıcı (playerRef) bulunamadı veya 'unMute' fonksiyonu yok!");
+          return;
       }
 
-      const playerState = player.getPlayerState();
-      if (playerState === 1) { // playing
-        player.pauseVideo();
-      } else { // paused, cued, ended etc.
-        player.playVideo();
-      }
+      console.log("Butona tıklandı. 'unMute()' komutu deneniyor...");
+      
+      // 2. Sesi açmayı zorla
+      player.unMute();
+      
+      // 3. Sesi %100 yapmayı da zorla (garanti olsun)
+      player.setVolume(100); 
+
+      console.log("playVideo() komutu gönderiliyor...");
+      
+      // 4. Oynat
+      player.playVideo();
+
+      // 5. Son durumu kontrol et:
+      // Sesi açtıktan hemen sonra tekrar kontrol ediyoruz.
+      setTimeout(() => {
+          console.log("Komutlardan 1 saniye sonra durum (Hala sessiz mi?):", player.isMuted());
+      }, 1000);
+
     } else if (currentSong.type === 'url' || currentSong.type === 'soundcloud') {
-      setIsPlaying(prev => !prev);
+        const player = currentSong.type === 'url' ? urlPlayerRef.current : soundcloudPlayerRef.current;
+         if (player) {
+            setIsPlaying(prev => !prev);
+        }
     }
   };
 
@@ -384,12 +391,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const seekTo = (time: number) => {
-      setSeekTime(time);
+      if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
+          youtubePlayerRef.current.seekTo(time, true);
+      } else if (currentSong?.type === 'soundcloud' && soundcloudPlayerRef.current) {
+          soundcloudPlayerRef.current.seekTo(time * 1000);
+      } else if (currentSong?.type === 'url' && urlPlayerRef.current) {
+          urlPlayerRef.current.currentTime = time;
+      }
+      _setProgress(time);
   };
-  
-  const _clearSeek = () => {
-      setSeekTime(null);
-  }
 
   const value: PlayerContextType = {
     playlist,
@@ -400,10 +410,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     isPlaying,
     isLoading,
     isPlayerOpen,
-    isSeeking,
     progress,
     duration,
-    seekTime,
     youtubePlayerRef,
     soundcloudPlayerRef,
     urlPlayerRef,
@@ -417,11 +425,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setActivePlaylistId,
     createPlaylist,
     seekTo,
-    _clearSeek,
     _setIsPlaying: setIsPlaying,
     _setProgress: setProgress,
     _setDuration: setDuration,
-    setIsSeeking: setIsSeeking,
   };
 
   return (
