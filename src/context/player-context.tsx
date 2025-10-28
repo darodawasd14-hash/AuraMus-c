@@ -123,14 +123,18 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       userId: user.uid,
       createdAt: serverTimestamp(),
     };
-    try {
-      const docRef = await addDoc(playlistsColRef, newPlaylist);
-      setActivePlaylistId(docRef.id);
-      toast({ title: `Çalma listesi "${name}" oluşturuldu.` });
-    } catch (error) {
-      console.error("Error creating playlist: ", error);
-      toast({ title: "Çalma listesi oluşturulamadı.", variant: "destructive" });
-    }
+    
+    addDoc(playlistsColRef, newPlaylist).then(docRef => {
+        setActivePlaylistId(docRef.id);
+        toast({ title: `Çalma listesi "${name}" oluşturuldu.` });
+    }).catch(serverError => {
+        console.error("Error creating playlist: ", serverError);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: playlistsColRef.path,
+            operation: 'create',
+            requestResourceData: newPlaylist,
+        }));
+    });
   };
 
   // Create default playlist and add initial songs if no playlists exist
@@ -147,20 +151,28 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           createdAt: serverTimestamp(),
         };
 
-        const playlistDocRef = await addDoc(playlistsColRef, newPlaylistData);
-        
-        for (const song of initialCatalog.songs) {
-            const videoId = song.url.split('v=')[1];
-            const songDetails: SongDetails = {
-                url: song.url,
-                title: song.title,
-                videoId,
-                type: 'youtube'
-            };
-            await addSong(songDetails, user.uid, playlistDocRef.id);
+        try {
+            const playlistDocRef = await addDoc(playlistsColRef, newPlaylistData);
+            
+            for (const song of initialCatalog.songs) {
+                const videoId = song.url.split('v=')[1];
+                const songDetails: SongDetails = {
+                    url: song.url,
+                    title: song.title,
+                    videoId,
+                    type: 'youtube'
+                };
+                await addSong(songDetails, user.uid, playlistDocRef.id);
+            }
+            toast({ title: "Hoş geldin! Başlangıç için bir çalma listesi ve birkaç şarkı ekledik."});
+            setActivePlaylistId(playlistDocRef.id);
+        } catch(e) {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: playlistsColRef.path,
+                operation: 'create',
+                requestResourceData: newPlaylistData,
+            }));
         }
-        toast({ title: "Hoş geldin! Başlangıç için bir çalma listesi ve birkaç şarkı ekledik."});
-        setActivePlaylistId(playlistDocRef.id);
       };
 
       setupInitialPlaylist();
@@ -174,63 +186,61 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         return null;
     }
 
-    try {
-        const songsCollectionRef = collection(firestore, 'songs');
-        const queryIdentifier = songDetails.videoId || songDetails.url;
-        const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
-        
-        const querySnapshot = await getDocs(q); 
-        let centralSongRef: DocumentReference;
-        let centralSongData: Song;
+    const songsCollectionRef = collection(firestore, 'songs');
+    const queryIdentifier = songDetails.videoId || songDetails.url;
+    const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
+    
+    const querySnapshot = await getDocs(q); 
+    let centralSongRef: DocumentReference;
+    let centralSongData: Song;
 
-        if (querySnapshot.empty) {
-            centralSongRef = doc(songsCollectionRef);
-            centralSongData = {
-                ...songDetails,
-                id: centralSongRef.id,
-                timestamp: serverTimestamp(),
-            };
-            await setDoc(centralSongRef, centralSongData);
-        } else {
-            centralSongRef = querySnapshot.docs[0].ref;
-            centralSongData = querySnapshot.docs[0].data() as Song;
-        }
+    if (querySnapshot.empty) {
+        centralSongRef = doc(songsCollectionRef);
+        centralSongData = {
+            ...songDetails,
+            id: centralSongRef.id,
+            timestamp: serverTimestamp(),
+        };
+        await setDoc(centralSongRef, centralSongData).catch(serverError => {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: centralSongRef.path,
+                operation: 'create',
+                requestResourceData: centralSongData
+            }));
+            throw serverError; // Re-throw to be caught by the outer catch block
+        });
+    } else {
+        centralSongRef = querySnapshot.docs[0].ref;
+        centralSongData = querySnapshot.docs[0].data() as Song;
+    }
 
-        const userPlaylistSongRef = doc(firestore, 'users', userId, 'playlists', playlistId, 'songs', centralSongRef.id);
-        const docSnap = await getDoc(userPlaylistSongRef);
+    const userPlaylistSongRef = doc(firestore, 'users', userId, 'playlists', playlistId, 'songs', centralSongRef.id);
+    const docSnap = await getDoc(userPlaylistSongRef);
 
-        if (docSnap.exists()) {
-            toast({
-                title: `"${songDetails.title}" zaten bu listede var.`,
-                variant: 'default',
-            });
-            return null;
-        } else {
-            const songDataForPlaylist = {
-                ...centralSongData, 
-                timestamp: serverTimestamp()
-            };
-            await setDoc(userPlaylistSongRef, songDataForPlaylist);
-
-            toast({ title: `"${songDetails.title}" listenize eklendi.` });
-            
-            return songDataForPlaylist;
-        }
-       
-    } catch (error: any) {
-        console.error("Şarkı ekleme sırasında hata: ", error);
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `users/${userId}/playlists/${playlistId}/songs`,
-            operation: 'create',
-            requestResourceData: songDetails
-        }));
+    if (docSnap.exists()) {
         toast({
-            title: "Şarkı eklenemedi",
-            description: "İşlem sırasında bir hata oluştu.",
-            variant: "destructive"
+            title: `"${songDetails.title}" zaten bu listede var.`,
+            variant: 'default',
         });
         return null;
-    }
+    } 
+
+    const songDataForPlaylist = {
+        ...centralSongData, 
+        timestamp: serverTimestamp()
+    };
+    
+    await setDoc(userPlaylistSongRef, songDataForPlaylist).catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: userPlaylistSongRef.path,
+            operation: 'create',
+            requestResourceData: songDataForPlaylist
+        }));
+        throw serverError;
+    });
+
+    toast({ title: `"${songDetails.title}" listenize eklendi.` });
+    return songDataForPlaylist;
 };
 
   const deleteSong = async (songId: string, playlistId: string) => {
