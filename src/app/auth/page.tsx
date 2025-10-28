@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useAuth } from '@/firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuraLogo } from '@/components/icons';
@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 
 export default function AuthPage() {
   const [email, setEmail] = useState('');
@@ -17,6 +18,7 @@ export default function AuthPage() {
   const [registerPassword, setRegisterPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
   
   const auth = useAuth();
   const { toast } = useToast();
@@ -30,6 +32,20 @@ export default function AuthPage() {
     e.preventDefault();
     await handleAuth(createUserWithEmailAndPassword, registerEmail, registerPassword, "Başarıyla kayıt olundu!");
   }
+  
+  const handleAnonymousSignIn = async () => {
+    setError(null);
+    setIsGuestLoading(true);
+    try {
+      await signInAnonymously(auth);
+      toast({ title: "Misafir olarak giriş yapıldı!" });
+    } catch (err: any) {
+      setError("Misafir girişi sırasında bir hata oluştu.");
+      console.error(err);
+    } finally {
+      setIsGuestLoading(false);
+    }
+  };
 
   const handleAuth = async (authFn: Function, emailParam: string, passwordParam: string, successMessage: string) => {
     setError(null);
@@ -53,7 +69,6 @@ export default function AuthPage() {
       
       setError(friendlyMessage);
       
-      // Sadece beklenen kullanıcı hataları dışında konsola yazdır
       const expectedErrors = ['auth/invalid-credential', 'auth/user-not-found', 'auth/wrong-password', 'auth/email-already-in-use'];
       if (!expectedErrors.includes(err.code)) {
         console.error(err);
@@ -111,6 +126,15 @@ export default function AuthPage() {
                 </Button>
               </form>
             </TabsContent>
+            
+            <div className="relative my-4">
+              <Separator />
+              <span className="absolute left-1/2 -translate-x-1/2 -top-2.5 bg-card px-2 text-xs text-muted-foreground">VEYA</span>
+            </div>
+
+             <Button onClick={handleAnonymousSignIn} variant="outline" className="w-full" disabled={isGuestLoading || isLoading}>
+               {isGuestLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : 'Misafir Olarak Devam Et'}
+             </Button>
           </CardContent>
         </Card>
       </Tabs>
