@@ -42,6 +42,7 @@ type PlayerContextType = {
   playPrev: () => void;
   setYoutubePlayer: (player: any) => void;
   setSoundcloudPlayer: (player: any) => void;
+  setUrlPlayer: (player: HTMLAudioElement | null) => void;
   setActivePlaylistId: (id: string | null) => void;
   createPlaylist: (name: string) => Promise<void>;
 };
@@ -139,7 +140,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   // Create default playlist and add initial songs if no playlists exist
   useEffect(() => {
-    // Only run if auth is complete, we have a user, playlists are loaded, and there are none.
     if (user && !isUserLoading && !isUserPlaylistsLoading && userPlaylists?.length === 0) {
       const setupInitialPlaylist = async () => {
         if (!firestore) return;
@@ -163,7 +163,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
                     videoId,
                     type: 'youtube'
                 };
-                // We use addDoc directly here for the initial setup to avoid toast notifications for each song.
                 const centralSongRef = doc(collection(firestore, 'songs'), videoId || song.id);
                 await setDoc(centralSongRef, { ...songDetails, id: centralSongRef.id, timestamp: serverTimestamp() }, { merge: true });
                 const userPlaylistSongRef = doc(firestore, 'users', user.uid, 'playlists', playlistDocRef.id, 'songs', centralSongRef.id);
@@ -203,7 +202,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         let centralSongData: Song;
 
         if (querySnapshot.empty) {
-            // Use videoId for YouTube songs as a more stable ID, otherwise create a new one.
             const newSongId = songDetails.videoId || doc(songsCollectionRef).id;
             centralSongRef = doc(songsCollectionRef, newSongId);
             centralSongData = {
@@ -372,13 +370,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playPrev,
     setYoutubePlayer: (player: any) => { youtubePlayerRef.current = player; },
     setSoundcloudPlayer: (player: any) => { soundcloudPlayerRef.current = player; },
+    setUrlPlayer: (player: HTMLAudioElement | null) => { urlPlayerRef.current = player; },
     setActivePlaylistId,
     createPlaylist,
   };
 
   return (
     <PlayerContext.Provider value={value}>
-      <audio ref={urlPlayerRef} onEnded={playNext} style={{ display: 'none' }} />
       {children}
     </PlayerContext.Provider>
   );

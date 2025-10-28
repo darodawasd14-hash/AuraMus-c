@@ -42,7 +42,7 @@ export function AuraApp() {
   const { currentSong, isPlaying, togglePlayPause, playNext } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(true); // Varsayılan olarak PC'de açık olsun
+  const [isChatOpen, setIsChatOpen] = useState(true);
   const { user } = useUser();
 
   const handleTogglePlayer = () => {
@@ -51,22 +51,26 @@ export function AuraApp() {
     }
   };
   
-    // Ekran boyutuna göre sohbetin başlangıç durumunu ayarla
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth < 768) { // md breakpoint'i
+      if (window.innerWidth < 768) {
         setIsChatOpen(false);
       } else {
         setIsChatOpen(true);
       }
     };
-    handleResize(); // İlk yüklemede çalıştır
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   return (
     <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
+      {/* Player component is now always rendered but hidden, to allow background playback */}
+      <div className="absolute -z-10 w-0 h-0 overflow-hidden">
+        <Player song={currentSong} />
+      </div>
+
       <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
       
       <main className="flex-grow flex flex-row overflow-hidden">
@@ -187,6 +191,25 @@ const FullPlayerView = ({ song, onClose }: { song: Song | null, onClose: () => v
 
     if (!song) return null;
 
+    // This component now only renders the visual part of the player.
+    // The actual player logic is handled by the persistent <Player> component.
+    const renderVisuals = () => {
+        if (song.type === 'youtube' && song.videoId) {
+            return (
+                 <div id="player-wrapper" className="aspect-video bg-black rounded-lg shadow-lg overflow-hidden w-full h-full">
+                    {/* The actual YouTube IFrame is now controlled by the hidden Player component */}
+                 </div>
+            )
+        } else {
+             return (
+                <div className="w-full max-w-md aspect-square bg-secondary/50 rounded-lg shadow-lg flex items-center justify-center border border-border">
+                    <AuraLogo className="w-2/5 h-2/5" />
+                </div>
+            )
+        }
+    }
+
+
     return (
         <div className="fixed inset-0 bg-background/95 backdrop-blur-2xl z-50 flex flex-col p-4 animate-in fade-in-0 slide-in-from-bottom-10 duration-500">
             <header className="flex-shrink-0 flex items-center justify-between">
@@ -195,8 +218,8 @@ const FullPlayerView = ({ song, onClose }: { song: Song | null, onClose: () => v
                 <div></div>
             </header>
             <main className="flex-grow flex flex-col items-center justify-center gap-8 text-center">
-                <div className="w-full max-w-md aspect-square">
-                    <Player song={song} />
+                <div className="w-full max-w-md aspect-video">
+                     {renderVisuals()}
                 </div>
                 <div className="w-full max-w-md">
                     <h2 className="text-3xl font-bold tracking-tight truncate">{song.title}</h2>
