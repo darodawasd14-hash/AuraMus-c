@@ -156,39 +156,38 @@ const PlaylistView = () => {
 
         let songDetails: Song;
         if (songUrl.includes('youtube.com') || songUrl.includes('youtu.be')) {
-            // Regex to find YouTube video ID from various URL formats
             const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
             const match = songUrl.match(youtubeRegex);
             const videoId = match ? match[1] : undefined;
 
             if (!videoId) {
-                toast({ title: "Geçersiz YouTube linki", variant: 'destructive' });
+                toast({ title: "Geçersiz YouTube linki", description: "Video ID'si bulunamadı.", variant: 'destructive' });
                 setIsAdding(false);
                 return;
             }
-
-            // Fetch video title from YouTube's oEmbed API
-            let videoTitle = 'Bilinmeyen YouTube Videosu';
+            
+            let videoTitle = `YouTube Video: ${videoId}`; // Fallback title
             try {
-                const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=http://www.youtube.com/watch?v=${videoId}&format=json`);
+                // Use a CORS proxy if running into CORS issues in development
+                const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
                 if (oembedResponse.ok) {
                     const oembedData = await oembedResponse.json();
                     videoTitle = oembedData.title;
                 }
             } catch (error) {
                 console.error("Could not fetch YouTube video title:", error);
+                toast({ title: "Video başlığı alınamadı", variant: 'destructive' });
             }
 
             songDetails = { 
                 id: videoId, 
                 videoId, 
-                url: songUrl, 
+                url: `https://www.youtube.com/watch?v=${videoId}`, 
                 title: videoTitle, 
                 type: 'youtube' as const, 
                 timestamp: serverTimestamp() 
             };
         } else {
-             // For SoundCloud or other URLs, use a Base64 encoded URL as the ID
              const safeId = typeof window !== "undefined" ? window.btoa(songUrl).replace(/\//g, '-') : Buffer.from(songUrl).toString('base64').replace(/\//g, '-');
              songDetails = { 
                 id: safeId, 
@@ -202,7 +201,7 @@ const PlaylistView = () => {
         const newPlaylist = [...playlist, songDetails];
         setPlaylist(newPlaylist);
 
-        toast({ title: `Şarkı eklendi.` });
+        toast({ title: `"${songDetails.title}" eklendi.` });
         setSongUrl('');
         setIsAdding(false);
     };
@@ -238,7 +237,7 @@ const PlaylistView = () => {
                 <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-8">
                     <Music className="w-16 h-16 mb-4"/>
                     <p className="font-semibold">Çalma listeniz boş</p>
-                    <p className="text-sm">Yukarıdaki alandan şarkı ekleyin.</p>
+                    <p className="text-sm">Yukarıdaki alandan veya katalogdan şarkı ekleyin.</p>
                 </div>
                 ) : (
                 playlist.map((song, index) => (
@@ -497,6 +496,7 @@ function MiniPlayer() {
             className={cn(
                 "fixed bottom-20 right-4 z-40 flex items-center gap-3 rounded-lg bg-secondary/80 p-3 shadow-2xl backdrop-blur-lg border border-border/50 transition-all duration-300 ease-in-out",
                 currentSong ? "translate-x-0 opacity-100" : "translate-x-full opacity-0",
+                "md:hidden" // Hide on medium screens and up
             )}
         >
             <Image
@@ -505,8 +505,9 @@ function MiniPlayer() {
                 width={48}
                 height={48}
                 className="rounded-md aspect-square object-cover"
+                onClick={() => setIsPlayerOpen(true)}
             />
-            <div className="flex-grow truncate w-36">
+            <div className="flex-grow truncate w-36" onClick={() => setIsPlayerOpen(true)}>
                 <p className="font-bold truncate text-sm">{currentSong.title}</p>
                 <p className="text-xs text-muted-foreground">{currentSong.type}</p>
             </div>
@@ -570,6 +571,70 @@ function FullPlayerView() {
       return `https://i.ytimg.com/vi/${song.videoId}/maxresdefault.jpg`;
     }
     return `https://picsum.photos/seed/${song.id}/640/640`;
+  }
+  
+  if (!isPlayerOpen && currentSong) {
+     return (
+        <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-20 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 justify-between items-center px-6">
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+                <Image
+                    src={getThumbnailUrl(currentSong)}
+                    alt={currentSong.title}
+                    width={56}
+                    height={56}
+                    className="rounded-md aspect-square object-cover"
+                />
+                <div className="truncate">
+                    <p className="font-bold truncate text-sm">{currentSong.title}</p>
+                    <p className="text-xs text-muted-foreground">{currentSong.type}</p>
+                </div>
+            </div>
+            
+            <div className="flex flex-col items-center justify-center flex-1 max-w-xl">
+                 <div className="flex items-center justify-center gap-4">
+                    <Button variant="ghost" size="icon" className="w-10 h-10" onClick={playPrev}>
+                        <SkipBack className="w-5 h-5"/>
+                    </Button>
+                    <Button variant="default" size="icon" className="w-12 h-12" onClick={togglePlayPause}>
+                        {isPlaying ? <PauseIcon className="w-6 h-6"/> : <PlayIcon className="w-6 h-6"/>}
+                    </Button>
+                    <Button variant="ghost" size="icon" className="w-10 h-10" onClick={playNext}>
+                        <SkipForward className="w-5 h-5"/>
+                    </Button>
+                </div>
+                 <div className="flex items-center gap-2 w-full mt-1">
+                    <span className="text-xs font-mono w-10 text-center">{formatTime(localProgress)}</span>
+                    <Slider
+                        min={0}
+                        max={duration > 0 ? duration : 100}
+                        value={[localProgress]}
+                        onValueChange={handleProgressChange}
+                        onPointerDown={() => setIsSeeking(true)}
+                        onValueChangeCommit={handleSeekCommit}
+                        className="w-full"
+                    />
+                    <span className="text-xs font-mono w-10 text-center">{formatTime(duration)}</span>
+                </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 flex-1 min-w-0">
+                 <Button variant="ghost" size="icon">
+                    <Volume2 className="w-5 h-5"/>
+                </Button>
+                <Slider
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    defaultValue={[0.75]}
+                    className="w-24"
+                />
+                 <Button variant="ghost" size="icon" onClick={() => setIsPlayerOpen(true)}>
+                    <Maximize2 className="w-5 h-5"/>
+                </Button>
+            </div>
+
+        </div>
+    )
   }
   
   if (!currentSong) return null;

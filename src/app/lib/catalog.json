@@ -1,46 +1,67 @@
 {
   "songs": [
     {
-        "id": "cat-001",
-        "title": "Tame Impala - The Less I Know The Better",
+      "id": "7X2TAY0U0LI",
+      "videoId": "7X2TAY0U0LI",
+      "title": "Calvin Harris - My Way (Official Video)",
+      "artist": "Calvin Harris",
+      "url": "https://www.youtube.com/watch?v=7X2TAY0U0LI",
+      "type": "youtube",
+      "timestamp": {"seconds": 1672531200, "nanoseconds": 0}
+    },
+    {
+        "id": "sBzrzS1Ag_g",
+        "videoId": "sBzrzS1Ag_g",
+        "title": "Tame Impala - The Less I Know The Better (Official Video)",
         "artist": "Tame Impala",
         "url": "https://www.youtube.com/watch?v=sBzrzS1Ag_g",
-        "thumbnailUrl": "https://i.ytimg.com/vi/sBzrzS1Ag_g/hqdefault.jpg"
+        "type": "youtube",
+        "timestamp": {"seconds": 1672531100, "nanoseconds": 0}
     },
     {
-        "id": "cat-002",
-        "title": "Daft Punk - One More Time",
+        "id": "FGBhQbmPwH8",
+        "videoId": "FGBhQbmPwH8",
+        "title": "Daft Punk - One More Time (Official Video)",
         "artist": "Daft Punk",
         "url": "https://www.youtube.com/watch?v=FGBhQbmPwH8",
-        "thumbnailUrl": "https://i.ytimg.com/vi/FGBhQbmPwH8/hqdefault.jpg"
+        "type": "youtube",
+        "timestamp": {"seconds": 1672531000, "nanoseconds": 0}
     },
     {
-        "id": "cat-003",
-        "title": "The Strokes - Reptilia",
+        "id": "b8-tXG8KrWs",
+        "videoId": "b8-tXG8KrWs",
+        "title": "The Strokes - Reptilia (Official Music Video)",
         "artist": "The Strokes",
         "url": "https://www.youtube.com/watch?v=b8-tXG8KrWs",
-        "thumbnailUrl": "https://i.ytimg.com/vi/b8-tXG8KrWs/hqdefault.jpg"
+        "type": "youtube",
+        "timestamp": {"seconds": 1672530900, "nanoseconds": 0}
     },
     {
-        "id": "cat-004",
-        "title": "Gorillaz - Feel Good Inc.",
+        "id": "HyHNuVaZJ-k",
+        "videoId": "HyHNuVaZJ-k",
+        "title": "Gorillaz - Feel Good Inc. (Official Video)",
         "artist": "Gorillaz",
         "url": "https://www.youtube.com/watch?v=HyHNuVaZJ-k",
-        "thumbnailUrl": "https://i.ytimg.com/vi/HyHNuVaZJ-k/hqdefault.jpg"
+        "type": "youtube",
+        "timestamp": {"seconds": 1672530800, "nanoseconds": 0}
     },
     {
-        "id": "cat-005",
-        "title": "Arctic Monkeys - Do I Wanna Know?",
+        "id": "bpOSxM0rNPM",
+        "videoId": "bpOSxM0rNPM",
+        "title": "Arctic Monkeys - Do I Wanna Know? (Official Video)",
         "artist": "Arctic Monkeys",
         "url": "https://www.youtube.com/watch?v=bpOSxM0rNPM",
-        "thumbnailUrl": "https://i.ytimg.com/vi/bpOSxM0rNPM/hqdefault.jpg"
+        "type": "youtube",
+        "timestamp": {"seconds": 1672530700, "nanoseconds": 0}
     },
     {
-        "id": "cat-007",
-        "title": "Glass Animals - Heat Waves",
+        "id": "mRD0-GxqHVo",
+        "videoId": "mRD0-GxqHVo",
+        "title": "Glass Animals - Heat Waves (Official Video)",
         "artist": "Glass Animals",
         "url": "https://www.youtube.com/watch?v=mRD0-GxqHVo",
-        "thumbnailUrl": "https://i.ytimg.com/vi/mRD0-GxqHVo/hqdefault.jpg"
+        "type": "youtube",
+        "timestamp": {"seconds": 1672530600, "nanoseconds": 0}
     }
   ]
 }

@@ -12,6 +12,8 @@ export interface Song {
 }
 
 interface PlayerControls {
+  play: () => void;
+  pause: () => void;
   seek: (time: number) => void;
   unmute: () => void;
 }
@@ -58,21 +60,26 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playSong = (song: Song, index: number) => {
     setCurrentIndex(index);
     setIsPlaying(true);
-    setIsMutedByAutoplay(true); // Assume new song will start muted
-    setProgress(0); // Reset progress for new song
-    setDuration(0); // Reset duration for new song
+    setIsMutedByAutoplay(true);
+    setProgress(0);
+    setDuration(0);
   };
 
   const togglePlayPause = () => {
     if (!currentSong) return;
     
-    // First user interaction unmutes the player
     if (isMutedByAutoplay) {
       playerControlsRef.current?.unmute();
       setIsMutedByAutoplay(false);
     }
     
-    setIsPlaying(prev => !prev);
+    if (isPlaying) {
+      playerControlsRef.current?.pause();
+    } else {
+      playerControlsRef.current?.play();
+    }
+    // Note: We don't set isPlaying here directly. 
+    // The player's onStateChange will report the actual state.
   };
 
   const playNext = useCallback(() => {

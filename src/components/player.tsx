@@ -35,7 +35,7 @@ export const Player = () => {
             if (typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
                 const currentTime = player.getCurrentTime();
                 const duration = player.getDuration();
-                 if (duration > 0) { // Only update if duration is valid
+                 if (duration > 0) {
                     _playerSetProgress(currentTime);
                     _playerSetDuration(duration);
                 }
@@ -47,6 +47,20 @@ export const Player = () => {
 
   useEffect(() => {
     _playerRegisterControls({
+      play: () => {
+        if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
+          youtubePlayerRef.current.playVideo();
+        } else if (reactPlayerRef.current) {
+          // ReactPlayer is controlled via props, this is handled by `isPlaying`
+        }
+      },
+      pause: () => {
+        if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
+          youtubePlayerRef.current.pauseVideo();
+        } else if (reactPlayerRef.current) {
+           // ReactPlayer is controlled via props, this is handled by `isPlaying`
+        }
+      },
       seek: (time) => {
         if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
           youtubePlayerRef.current.seekTo(time, true);
@@ -64,25 +78,10 @@ export const Player = () => {
   }, [_playerRegisterControls, currentSong?.type]);
 
 
-  useEffect(() => {
-    if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
-      const player = youtubePlayerRef.current;
-      if (isPlaying) {
-        player.playVideo();
-      } else {
-        player.pauseVideo();
-      }
-    }
-  }, [isPlaying, currentSong?.type]);
-
   const handleYoutubeReady = (event: { target: YouTubePlayer }) => {
     youtubePlayerRef.current = event.target;
-    youtubePlayerRef.current.setVolume(75); // Set a default volume
-    youtubePlayerRef.current.mute(); // Mute by default to allow autoplay
-    if (currentSong?.videoId) {
-        // When ready, load and play the video. It will autoplay because it's muted.
-        youtubePlayerRef.current.loadVideoById(currentSong.videoId);
-        youtubePlayerRef.current.playVideo();
+    if (isPlaying) {
+      event.target.playVideo();
     }
   };
   
@@ -110,6 +109,10 @@ export const Player = () => {
   }
 
   if (!currentSong) {
+    stopProgressTracking();
+    if(youtubePlayerRef.current?.stopVideo){
+      youtubePlayerRef.current.stopVideo();
+    }
     return null;
   }
 
@@ -117,10 +120,10 @@ export const Player = () => {
     height: '0',
     width: '0',
     playerVars: {
-      autoplay: 0, // We control playback manually
+      autoplay: 1, 
       controls: 0,
       playsinline: 1,
-      mute: 1 // Start muted to ensure autoplay works
+      mute: 1 // Always start muted to guarantee autoplay
     },
   };
   
@@ -129,7 +132,7 @@ export const Player = () => {
         case 'youtube':
             return (
                 <YouTube
-                    key={currentSong.id} // Add key to force re-render on song change
+                    key={currentSong.id} // Re-mounts the component on song change
                     videoId={currentSong.videoId}
                     opts={youtubeOpts}
                     onReady={handleYoutubeReady}
@@ -143,7 +146,7 @@ export const Player = () => {
         case 'url':
             return (
                 <ReactPlayer
-                    key={currentSong.id} // Add key to force re-render
+                    key={currentSong.id}
                     ref={reactPlayerRef}
                     url={currentSong.url}
                     playing={isPlaying}
