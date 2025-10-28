@@ -337,6 +337,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const song = playlist[currentIndex];
 
+    // If not playing, ensure all players are paused.
     if (!isPlaying) {
       if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
       if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
@@ -344,10 +345,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    // If there is no song, do nothing.
     if (!song) {
       return;
     }
     
+    // Play the correct player based on song type.
     switch (song.type) {
       case 'youtube':
         if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
@@ -370,6 +373,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         }
         break;
       default:
+        // Pause all if the song type is unknown
         if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
         if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
         if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
