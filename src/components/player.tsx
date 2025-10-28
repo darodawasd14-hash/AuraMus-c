@@ -21,9 +21,15 @@ const YouTubePlayerInternal = () => {
   
   const playerRef = useRef<any>(null);
 
+  // Koruma Kalkanı: Gerekli `currentSong` ve `videoId` verisi yoksa bileşeni render etme.
+  // Bu, 'null' referans hatalarını kökünden engeller.
+  if (!currentSong || currentSong.type !== 'youtube' || !currentSong.videoId) {
+    return null;
+  }
+
   const onReady = useCallback((event: any) => {
     playerRef.current = event.target;
-    // Autoplay muted to comply with browser policies
+    // Tarayıcı politikalarına uymak için sesi kapalı başlat.
     playerRef.current.mute();
     _setIsMuted(true);
     if (isPlaying) {
@@ -35,21 +41,21 @@ const YouTubePlayerInternal = () => {
     const player = playerRef.current;
     if (!player) return;
 
-    // Sync duration
+    // Süreyi senkronize et
     const duration = player.getDuration();
     if (duration) _setDuration(duration);
 
-    // Sync Mute State
+    // Ses durumunu senkronize et
     _setIsMuted(player.isMuted());
     
     const playerState = event.data;
-    // Playing
+    // Oynatılıyor
     if (playerState === 1) { 
       _setIsPlaying(true);
-    // Ended
+    // Bitti
     } else if (playerState === 0) {
       playNext();
-    // Paused or other states
+    // Duraklatıldı veya diğer durumlar
     } else { 
       _setIsPlaying(false);
     }
@@ -57,10 +63,10 @@ const YouTubePlayerInternal = () => {
 
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // This effect handles the progress bar updates
+  // Bu effect, ilerleme çubuğu güncellemelerini yönetir
   useEffect(() => {
     const player = playerRef.current;
-    // GUARD CLAUSE: Ensure player exists before setting up interval
+    // GÜVENLİK KONTROLÜ: İnterval ayarlamadan önce oynatıcının var olduğundan emin ol
     if (!player) return;
     
     if (progressIntervalRef.current) {
@@ -83,13 +89,13 @@ const YouTubePlayerInternal = () => {
     };
   }, [isPlaying, isSeeking, _setProgress]);
   
-  // This is the MASTER CONTROLLER effect for the YouTube player.
+  // Bu, YouTube oynatıcısı için ANA KONTROL effect'idir.
   useEffect(() => {
     const player = playerRef.current;
-    // GUARD CLAUSE: Ensure player and current song exist
+    // GÜVENLİK KONTROLÜ: Oynatıcı ve şarkı var olduğundan emin ol
     if (!player || !currentSong) return;
 
-    // Sync Play/Pause state
+    // Oynat/Duraklat durumunu senkronize et
     const playerState = player.getPlayerState();
     if (isPlaying && playerState !== 1) {
       player.playVideo();
@@ -100,9 +106,9 @@ const YouTubePlayerInternal = () => {
 
   useEffect(() => {
     const player = playerRef.current;
-    // GUARD CLAUSE: Ensure player exists
+    // GÜVENLİK KONTROLÜ: Oynatıcı var olduğundan emin ol
     if (!player) return;
-     // Sync Mute state
+     // Ses durumunu senkronize et
     if (isMuted && !player.isMuted()) {
         player.mute();
     } else if (!isMuted && player.isMuted()) {
@@ -112,21 +118,18 @@ const YouTubePlayerInternal = () => {
 
   useEffect(() => {
     const player = playerRef.current;
-    // GUARD CLAUSE: Ensure player exists
+    // GÜVENLİK KONTROLÜ: Oynatıcı var olduğundan emin ol
     if (!player) return;
-    // Sync Seek Time
+    // İlerleme Zamanını senkronize et
     if (seekTime !== null) {
       player.seekTo(seekTime, true);
       _clearSeek(); 
     }
   }, [seekTime, _clearSeek]);
 
-
-  if (!currentSong || currentSong.type !== 'youtube' || !currentSong.videoId) return null;
-
   return (
     <YouTube
-      key={currentSong.id} // Re-mounts the component when the song changes
+      key={currentSong.id} // Şarkı değiştiğinde bileşeni yeniden bağlar
       videoId={currentSong.videoId}
       opts={{
         width: '1',
@@ -141,7 +144,7 @@ const YouTubePlayerInternal = () => {
       }}
       onReady={onReady}
       onStateChange={onStateChange}
-      onError={(e) => console.error('YouTube Player Error:', e)}
+      onError={(e) => console.error('YouTube Player Hatası:', e)}
       className="absolute top-[-9999px] left-[-9999px] opacity-0"
     />
   );
@@ -152,8 +155,13 @@ const SoundCloudPlayerInternal = () => {
     const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress, isSeeking, _setIsMuted, isMuted } = usePlayer();
     const soundcloudPlayerRef = useRef<any>(null);
 
+    // Koruma Kalkanı: Gerekli `currentSong` ve `url` verisi yoksa bileşeni render etme.
+    if (!currentSong || currentSong.type !== 'soundcloud' || !currentSong.url) {
+      return null;
+    }
+    
     useEffect(() => {
-        // GUARD CLAUSE: Wait for song and SoundCloud API
+        // GÜVENLİK KONTROLÜ: Şarkı veya SoundCloud API'si yoksa bekle
         if (!currentSong || currentSong.type !== 'soundcloud' || !(window as any).SC) return;
 
         const iframeId = `soundcloud-player-${currentSong.id}`;
@@ -211,10 +219,10 @@ const SoundCloudPlayerInternal = () => {
         };
     }, [currentSong, _setDuration, playNext, _setIsPlaying, _setProgress, isSeeking, isMuted, _setIsMuted]);
     
-    // Master controller for SoundCloud
+    // SoundCloud için ana kontrolcü
     useEffect(() => {
         const widget = soundcloudPlayerRef.current;
-        // GUARD CLAUSE: Wait for widget
+        // GÜVENLİK KONTROLÜ: Widget bekle
         if (!widget) return;
         
         widget.isPaused((paused: boolean) => {
@@ -238,6 +246,11 @@ const SoundCloudPlayerInternal = () => {
 const UrlPlayerInternal = () => {
     const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress, isSeeking, _setIsMuted, isMuted } = usePlayer();
     const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
+
+    // Koruma Kalkanı: Gerekli `currentSong` ve `url` verisi yoksa bileşeni render etme.
+    if (!currentSong || currentSong.type !== 'url' || !currentSong.url) {
+        return null;
+    }
     
     useEffect(() => {
         const player = urlPlayerRef.current ?? new Audio();
@@ -245,10 +258,10 @@ const UrlPlayerInternal = () => {
             urlPlayerRef.current = player;
         }
 
-        // GUARD CLAUSE: Wait for song of correct type
+        // GÜVENLİK KONTROLÜ: Doğru türde şarkı için bekle
         if (currentSong && currentSong.type === 'url' && player.src !== currentSong.url) {
             player.src = currentSong.url;
-            player.muted = true; // Start muted
+            player.muted = true; // Sesi kapalı başlat
             _setIsMuted(true);
         }
         
@@ -281,11 +294,11 @@ const UrlPlayerInternal = () => {
 
      useEffect(() => {
         const player = urlPlayerRef.current;
-        // GUARD CLAUSE: Wait for player
+        // GÜVENLİK KONTROLÜ: Oynatıcıyı bekle
         if (!player) return;
 
         if (isPlaying) {
-            player.play().catch(e => console.error("Audio playback failed:", e));
+            player.play().catch(e => console.error("Ses çalma başarısız:", e));
         } else {
             player.pause();
         }
@@ -304,7 +317,10 @@ const UrlPlayerInternal = () => {
 
 export function Player() {
   const { currentSong } = usePlayer();
-  if (!currentSong) return null;
+  
+  if (!currentSong) {
+    return null;
+  }
 
   switch (currentSong.type) {
     case 'youtube':
