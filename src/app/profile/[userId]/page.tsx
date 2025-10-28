@@ -29,7 +29,7 @@ export default function ProfilePage() {
   const firestore = useFirestore();
   const auth = useAuth();
 
-  const profileUserRef = useMemoFirebase(() => firestore ? doc(firestore, 'users', profileUserId) : null, [firestore, profileUserId]);
+  const profileUserRef = useMemoFirebase(() => (firestore && currentUser) ? doc(firestore, 'users', profileUserId) : null, [firestore, profileUserId, currentUser]);
   
   // Only create these refs if a user is logged in
   const followersRef = useMemoFirebase(() => (firestore && currentUser) ? collection(firestore, 'users', profileUserId, 'followers') : null, [firestore, profileUserId, currentUser]);
@@ -113,7 +113,7 @@ export default function ProfilePage() {
   }
 
   // After loading, if profileUser is still null, then the user doesn't exist.
-  if (!profileUser) {
+  if (!profileUser && !isLoading) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">
         <p>Kullanıcı bulunamadı.</p>
@@ -123,6 +123,15 @@ export default function ProfilePage() {
       </div>
     );
   }
+  
+  if (!profileUser) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
 
   const displayName = profileUser.displayName || 'İsimsiz Kullanıcı';
   const displayEmail = profileUser.email || 'E-posta yok';
