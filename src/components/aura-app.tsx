@@ -62,6 +62,7 @@ export function AuraApp() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (user) {
@@ -71,7 +72,15 @@ export function AuraApp() {
 
   const handleAddSong = async (e: FormEvent) => {
     e.preventDefault();
-    if (!songUrl || !user || !activePlaylistId) return;
+    if (!songUrl || !user) return;
+    if (!activePlaylistId) {
+      toast({
+        title: "Lütfen önce bir çalma listesi seçin.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsAdding(true);
     
     let type: 'youtube' | 'soundcloud' | 'url' = 'url';
@@ -85,8 +94,11 @@ export function AuraApp() {
     } else if (songUrl.includes('soundcloud.com')) {
         type = 'soundcloud';
     }
-
-    await addSong({url: songUrl, title: songUrl, type, videoId}, user.uid, activePlaylistId);
+    
+    const addedSong = await addSong({url: songUrl, title: songUrl, type, videoId}, user.uid, activePlaylistId);
+    if(addedSong) {
+      toast({ title: `"${addedSong.title}" listenize eklendi.` });
+    }
     setSongUrl('');
     setIsAdding(false);
   };
@@ -325,20 +337,22 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
       return;
     }
     if (!activePlaylistId) {
-       if (userPlaylists && userPlaylists.length > 0) {
-         toast({ title: `Please select a playlist first.`, variant: 'destructive' });
-       } else {
-         toast({ title: 'Please create a playlist first.', variant: 'destructive' });
-       }
+       toast({ 
+         title: "Lütfen önce bir çalma listesi seçin.",
+         description: userPlaylists && userPlaylists.length > 0 ? "Şarkıyı eklemek istediğiniz listeyi sağ üstten seçin." : "Şarkı eklemeden önce yeni bir çalma listesi oluşturun.",
+         variant: 'destructive' 
+       });
        return;
     }
     setIsAdding(song.videoId || song.url);
 
-    await addSong(song, user.uid, activePlaylistId);
+    const addedSong = await addSong(song, user.uid, activePlaylistId);
     
     setIsAdding(null);
-    toast({ title: `"${song.title}" listenize eklendi.` });
-    setView('player');
+    if (addedSong) {
+      toast({ title: `"${addedSong.title}" listenize eklendi.` });
+      setView('player');
+    }
   };
 
   const getThumbnailUrl = (song: Song) => {
@@ -385,9 +399,9 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
                   className="w-full mt-2"
                   size="sm"
                   onClick={() => handleAddFromCatalog(song)}
-                  disabled={isAdding === song.id}
+                  disabled={isAdding === (song.videoId || song.url)}
                 >
-                  {isAdding === song.id ? <Loader2 className="animate-spin" /> : "Listeye Ekle"}
+                  {isAdding === (song.videoId || song.url) ? <Loader2 className="animate-spin" /> : "Listeye Ekle"}
                 </Button>
               </div>
             ))}
@@ -455,11 +469,11 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
       return;
     }
      if (!activePlaylistId) {
-       if (userPlaylists && userPlaylists.length > 0) {
-         toast({ title: `Please select a playlist first.`, variant: 'destructive' });
-       } else {
-         toast({ title: 'Please create a playlist first.', variant: 'destructive' });
-       }
+       toast({ 
+         title: "Lütfen önce bir çalma listesi seçin.",
+         description: userPlaylists && userPlaylists.length > 0 ? "Şarkıyı eklemek istediğiniz listeyi sağ üstten seçin." : "Şarkı eklemeden önce yeni bir çalma listesi oluşturun.",
+         variant: 'destructive' 
+       });
       return;
     }
     setIsAdding(videoId);
@@ -471,11 +485,13 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
       type: 'youtube' as const
     };
 
-    await addSong(songDetails, user.uid, activePlaylistId);
+    const addedSong = await addSong(songDetails, user.uid, activePlaylistId);
     
     setIsAdding(null);
-    toast({ title: `"${title}" listenize eklendi.` });
-    setView('player');
+    if (addedSong) {
+      toast({ title: `"${title}" listenize eklendi.` });
+      setView('player');
+    }
   };
 
   return (

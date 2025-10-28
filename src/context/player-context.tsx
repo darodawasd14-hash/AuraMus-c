@@ -163,18 +163,19 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
                     videoId,
                     type: 'youtube'
                 };
-                // Use the addSong function to ensure consistency, but handle errors locally
-                await addSong(songDetails, user.uid, playlistDocRef.id).catch(error => {
-                   console.error("Error adding initial song:", error);
-                   // Don't re-throw, allow playlist creation to succeed even if one song fails
-                });
+                // We use addDoc directly here for the initial setup to avoid toast notifications for each song.
+                const centralSongRef = doc(collection(firestore, 'songs'), videoId || song.id);
+                await setDoc(centralSongRef, { ...songDetails, id: centralSongRef.id, timestamp: serverTimestamp() }, { merge: true });
+                const userPlaylistSongRef = doc(firestore, 'users', user.uid, 'playlists', playlistDocRef.id, 'songs', centralSongRef.id);
+                await setDoc(userPlaylistSongRef, { ...songDetails, id: centralSongRef.id, timestamp: serverTimestamp() });
             }
             toast({ title: "Hoş geldin! Başlangıç için bir çalma listesi ve birkaç şarkı ekledik."});
-            // setActivePlaylistId is handled by the other useEffect listening to userPlaylists
         } catch(e: any) {
+             const path = e.customData?.path || playlistsColRef.path;
+             const operation = e.customData?.operation || 'create';
              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: playlistsColRef.path,
-                operation: 'create',
+                path: path,
+                operation: operation,
                 requestResourceData: newPlaylistData,
             }));
              toast({ title: "Başlangıç çalma listesi oluşturulamadı.", description: e.message, variant: "destructive" });
@@ -202,7 +203,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         let centralSongData: Song;
 
         if (querySnapshot.empty) {
-            centralSongRef = doc(songsCollectionRef);
+            // Use videoId for YouTube songs as a more stable ID, otherwise create a new one.
+            const newSongId = songDetails.videoId || doc(songsCollectionRef).id;
+            centralSongRef = doc(songsCollectionRef, newSongId);
             centralSongData = {
                 ...songDetails,
                 id: centralSongRef.id,
@@ -230,20 +233,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
             timestamp: serverTimestamp()
         };
         
-        await setDoc(userPlaylistSongRef, songDataForPlaylist);
+        await setDoc(userPlaylistSongRef, songDataForPlaylist).catch(serverError => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: userPlaylistSongRef.path,
+                operation: 'create',
+                requestResourceData: songDataForPlaylist,
+            }));
+        });
 
-        toast({ title: `"${songDetails.title}" listenize eklendi.` });
         return songDataForPlaylist;
 
     } catch (serverError: any) {
-         // Determine which operation failed for a better error message
-        const path = serverError.customData?.path || 'unknown path';
-        const operation = serverError.customData?.operation || 'write';
-        
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: path,
-            operation: operation,
-            requestResourceData: serverError.customData?.requestResourceData || songDetails,
+            path: songsCollectionRef.path,
+            operation: 'write',
+            requestResourceData: songDetails,
         }));
         toast({ title: 'Şarkı eklenemedi.', description: "İzinler yetersiz olabilir.", variant: 'destructive'});
         return null;
@@ -387,5 +391,3 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
-
-    
