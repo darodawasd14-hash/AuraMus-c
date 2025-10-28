@@ -72,23 +72,23 @@ const SoundCloudPlayer = ({ song }: { song: Song }) => {
 
 
 const UrlPlayer = ({ song }: { song: Song }) => {
-  const { isPlaying, setProgress, setDuration, isSeeking, playNext, setIsPlaying, seekTo } = usePlayer();
+  const { isPlaying, setProgress, setDuration, isSeeking, playNext, setIsPlaying } = usePlayer();
 
   useEffect(() => {
-    const player = new Audio(song.url);
+    let player = new Audio(song.url);
 
     const handleTimeUpdate = () => {
-        if (!isSeeking) setProgress(player.currentTime);
+      if (!isSeeking) setProgress(player.currentTime);
     };
     const handleDurationChange = () => {
-        if (player.duration && isFinite(player.duration)) {
-            setDuration(player.duration);
-        }
+      if (player.duration && isFinite(player.duration)) {
+        setDuration(player.duration);
+      }
     };
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
     const handleEnded = () => playNext();
-    
+
     player.addEventListener('loadedmetadata', handleDurationChange);
     player.addEventListener('timeupdate', handleTimeUpdate);
     player.addEventListener('play', handlePlay);
@@ -150,14 +150,7 @@ export function Player({ song }: { song: Song | null }) {
             youtubePlayerRef.current.seekTo(time, true);
         }
     };
-    // A bit of a hack to listen for seek commands from context
-    // A proper event emitter would be better, but this works for now.
-    const originalSeekTo = seekTo;
-    (seekTo as any) = handleSeek;
-
-    return () => {
-        (seekTo as any) = originalSeekTo;
-    }
+    seekTo(handleSeek);
   }, [seekTo]);
 
 
