@@ -55,7 +55,7 @@ export function AuraApp() {
     <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
       
-      <main className="flex-grow flex flex-row overflow-hidden">
+      <main className="flex-grow flex md:flex-row flex-col overflow-hidden">
         {/* Main Content Area */}
         <div className="flex-grow flex flex-col overflow-y-auto pb-32">
           {view === 'playlist' && <PlaylistView />}
