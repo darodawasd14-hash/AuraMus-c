@@ -21,8 +21,9 @@ const YouTubePlayerInternal = () => {
   
   const playerRef = useRef<any>(null);
 
-  // Guard Clause: Render nothing if there is no valid YouTube song to play.
-  // This prevents the YouTube component from initializing with a null videoId.
+  // CRITICAL FIX: Guard Clause at the render level.
+  // If there's no song or no videoId, render nothing. This prevents
+  // the useEffect hooks from running with null data.
   if (!currentSong || currentSong.type !== 'youtube' || !currentSong.videoId) {
     return null;
   }
@@ -317,3 +318,5 @@ export function Player() {
       return null;
   }
 }
+
+    
