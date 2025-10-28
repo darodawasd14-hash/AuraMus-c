@@ -204,7 +204,7 @@ const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onPrev, onClick, prog
         <div onClick={onClick} className="flex items-center gap-4 flex-grow min-w-0 cursor-pointer">
           {song.videoId && (
               <Image 
-                  src={`https://i.ytimg.com/vi/${song.videoId}/default.jpg`}
+                  src={`https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`}
                   alt={song.title}
                   width={48}
                   height={48}
@@ -481,7 +481,7 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
       <div className="flex items-center flex-grow min-w-0 gap-4">
         {song.videoId ? (
             <Image 
-                src={`https://i.ytimg.com/vi/${song.videoId}/default.jpg`}
+                src={`https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`}
                 alt={song.title}
                 width={48}
                 height={48}
