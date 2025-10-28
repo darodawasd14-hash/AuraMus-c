@@ -35,6 +35,7 @@ type PlayerContextType = {
   isPlaying: boolean;
   isLoading: boolean;
   isPlayerOpen: boolean;
+  isSeeking: boolean; // Add isSeeking state
   progress: number;
   duration: number;
   youtubePlayerRef: React.MutableRefObject<any>;
@@ -50,6 +51,7 @@ type PlayerContextType = {
   setIsPlayerOpen: (isOpen: boolean) => void;
   setActivePlaylistId: (id: string | null) => void;
   createPlaylist: (name: string) => Promise<void>;
+  setIsSeeking: (isSeeking: boolean) => void; // Add setter for isSeeking
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -66,12 +68,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false); // State to track user seeking
 
   const youtubePlayerRef = useRef<any>(null);
   const soundcloudPlayerRef = useRef<any>(null);
   const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
+  
   // Fetch user's playlists
   const userPlaylistsQuery = useMemoFirebase(() => {
     if (user && firestore) {
@@ -103,15 +105,19 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   // Centralized effect for progress tracking
   useEffect(() => {
+    let progressInterval: NodeJS.Timeout | null = null;
+    
     const stopProgressInterval = () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
       }
     };
     
     if (isPlaying && currentSong) {
-      progressIntervalRef.current = setInterval(() => {
+      progressInterval = setInterval(() => {
+        if (isSeeking) return; // Don't update progress while user is seeking
+
         let currentTime = 0;
         let totalDuration = 0;
         
@@ -120,32 +126,32 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
                 currentTime = youtubePlayerRef.current.getCurrentTime();
                 totalDuration = youtubePlayerRef.current.getDuration();
             } else if (currentSong.type === 'soundcloud' && soundcloudPlayerRef.current && typeof soundcloudPlayerRef.current.getPosition === 'function') {
-                // SoundCloud is async, handle it carefully
                 soundcloudPlayerRef.current.getPosition((ms: number) => {
-                  if (ms !== undefined) setProgress(ms / 1000);
+                  if (ms !== undefined && !isSeeking) setProgress(ms / 1000);
                 });
                  soundcloudPlayerRef.current.getDuration((ms: number) => {
                    if (!isNaN(ms) && ms > 0) setDuration(ms / 1000);
                 });
-                return; // Return because SoundCloud updates state asynchronously
+                return; // SoundCloud updates state asynchronously
             } else if (currentSong.type === 'url' && urlPlayerRef.current) {
                 currentTime = urlPlayerRef.current.currentTime;
                 totalDuration = urlPlayerRef.current.duration;
+            }
+
+            setProgress(currentTime);
+            if (!isNaN(totalDuration) && totalDuration > 0) {
+              setDuration(totalDuration);
             }
         } catch(e) {
             console.error("Error getting player time:", e);
             stopProgressInterval();
         }
-        
-        setProgress(currentTime);
-        if (!isNaN(totalDuration) && totalDuration > 0) {
-          setDuration(totalDuration);
-        }
       }, 1000);
     }
 
     return stopProgressInterval;
-  }, [isPlaying, currentSong]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, currentSong, isSeeking]);
 
 
   // Update local state when Firestore data changes
@@ -155,9 +161,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setPlaylist(activePlaylistSongs);
       const newIndex = activePlaylistSongs.findIndex(s => s.id === currentSongId);
       
-      if (newIndex === -1) { // song not found or list is different
+      if (newIndex === -1) {
          if (currentIndex !== -1) {
-            // Keep playing if possible, or reset
             setCurrentIndex(0); 
          }
       } else {
@@ -173,7 +178,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const isLoading = isUserLoading || isUserPlaylistsLoading || isSongsLoading;
 
-  // Function to create a new playlist
   const createPlaylist = async (name: string) => {
     if (!firestore || !user) return;
     const playlistsColRef = collection(firestore, 'users', user.uid, 'playlists');
@@ -196,7 +200,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  // Create default playlist and add initial songs if no playlists exist
   useEffect(() => {
     if (user && !isUserLoading && !isUserPlaylistsLoading && userPlaylists?.length === 0) {
       const setupInitialPlaylist = async () => {
@@ -255,7 +258,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     let songDetails: SongDetails;
     const { url } = songInfo;
 
-    // Determine type and extract videoId
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
         const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
         const match = url.match(regex);
@@ -276,7 +278,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
     const songsCollectionRef = collection(firestore, 'songs');
     const queryIdentifier = songDetails.videoId || songDetails.url;
-    // Use a specific property for querying, depending on the song type
     const queryProperty = songDetails.type === 'youtube' ? "videoId" : "url";
     const q = query(songsCollectionRef, where(queryProperty, "==", queryIdentifier), limit(1));
     
@@ -286,7 +287,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         let centralSongData: Song;
 
         if (querySnapshot.empty) {
-            // Use videoId for YouTube songs as document ID for easy lookup, otherwise generate a new one
             const newSongId = songDetails.videoId || doc(songsCollectionRef).id;
             centralSongRef = doc(songsCollectionRef, newSongId);
             centralSongData = {
@@ -359,8 +359,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setCurrentIndex(index);
       setIsPlaying(true);
       setIsPlayerOpen(true);
-      setProgress(0); // Reset progress on new song
-      setDuration(0); // Reset duration
+      setProgress(0);
+      setDuration(0);
     } else {
       setCurrentIndex(-1);
       setIsPlaying(false);
@@ -381,7 +381,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       if (!song) return prevIsPlaying;
 
       try {
-        if (newIsPlaying) { // Play
+        if (newIsPlaying) {
             if (song.type === 'youtube' && youtubePlayerRef.current?.playVideo) {
               youtubePlayerRef.current.playVideo();
             } else if (song.type === 'soundcloud' && soundcloudPlayerRef.current?.play) {
@@ -389,7 +389,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
             } else if (song.type === 'url' && urlPlayerRef.current) {
               urlPlayerRef.current.play().catch(e => console.error("URL audio playback error:", e));
             }
-          } else { // Pause
+          } else {
             if (song.type === 'youtube' && youtubePlayerRef.current?.pauseVideo) {
               youtubePlayerRef.current.pauseVideo();
             } else if (song.type === 'soundcloud' && soundcloudPlayerRef.current?.pause) {
@@ -428,7 +428,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         if (currentSong.type === 'youtube' && youtubePlayerRef.current?.seekTo) {
           youtubePlayerRef.current.seekTo(time, true);
         } else if (currentSong.type === 'soundcloud' && soundcloudPlayerRef.current?.seekTo) {
-          soundcloudPlayerRef.current.seekTo(time * 1000); // SoundCloud uses ms
+          soundcloudPlayerRef.current.seekTo(time * 1000);
         } else if (currentSong.type === 'url' && urlPlayerRef.current) {
           urlPlayerRef.current.currentTime = time;
         }
@@ -448,6 +448,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     isPlaying,
     isLoading,
     isPlayerOpen,
+    isSeeking,
     progress,
     duration,
     youtubePlayerRef,
@@ -463,6 +464,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlayerOpen,
     setActivePlaylistId,
     createPlaylist,
+    setIsSeeking
   };
 
   return (
@@ -479,5 +481,3 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
-
-    

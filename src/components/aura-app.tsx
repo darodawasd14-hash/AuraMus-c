@@ -41,7 +41,7 @@ interface UserProfile {
 }
 
 export function AuraApp() {
-  const { currentSong, isPlaying, togglePlayPause, playNext, isPlayerOpen, setIsPlayerOpen, progress, duration, seekTo } = usePlayer();
+  const { currentSong, isPlaying, togglePlayPause, playNext, isPlayerOpen, setIsPlayerOpen, progress, duration, seekTo, setIsSeeking } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const { user } = useUser();
@@ -106,6 +106,7 @@ export function AuraApp() {
           progress={progress}
           duration={duration}
           onSeek={seekTo}
+          onSeeking={setIsSeeking}
         />
       )}
       
@@ -170,11 +171,10 @@ const formatTime = (seconds: number) => {
 };
 
 
-const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick, progress, duration, onSeek }: { song: Song, isPlaying: boolean, onPlayPause: () => void, onNext: () => void, onClick: () => void, progress: number, duration: number, onSeek: (time: number) => void}) => {
-  const [isSeeking, setIsSeeking] = useState(false);
-  
+const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick, progress, duration, onSeek, onSeeking }: { song: Song, isPlaying: boolean, onPlayPause: () => void, onNext: () => void, onClick: () => void, progress: number, duration: number, onSeek: (time: number) => void, onSeeking: (isSeeking: boolean) => void}) => {
   // Use a state for the slider's value to provide immediate feedback to the user
   const [sliderValue, setSliderValue] = useState(progress);
+  const { isSeeking } = usePlayer();
 
   // When the actual progress updates from the context (and the user is not seeking), update the slider.
   useEffect(() => {
@@ -185,11 +185,11 @@ const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick, progress, du
 
   const handleSeekCommit = (value: number[]) => {
     onSeek(value[0]);
-    setIsSeeking(false);
+    onSeeking(false);
   };
   
   const handlePointerDown = () => {
-    setIsSeeking(true);
+    onSeeking(true);
   }
 
   const handleValueChange = (value: number[]) => {
@@ -227,7 +227,7 @@ const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick, progress, du
         <span className="text-xs text-muted-foreground w-10 text-right">{formatTime(sliderValue)}</span>
         <Slider
             value={[sliderValue]}
-            max={duration || 1} // Ensure max is always a positive number
+            max={duration || 1}
             step={1}
             onValueChange={handleValueChange}
             onPointerDown={handlePointerDown}
@@ -310,15 +310,12 @@ const PlaylistView = () => {
 
     setIsAdding(true);
     
-    // The `addSong` function in the context now handles all the logic
-    // for parsing the URL, getting the videoId, and adding the song.
     const addedSong = await addSong({ url: songUrl, title: songUrl }, user.uid, activePlaylistId);
 
     if (addedSong) {
         toast({ title: `"${addedSong.title}" listenize eklendi.` });
-        setSongUrl(''); // Clear input only on successful addition
+        setSongUrl('');
     }
-    // If addSong returns null (e.g., duplicate or error), the URL remains for the user to see/correct.
     
     setIsAdding(false);
   };
@@ -504,7 +501,6 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
     if (song.type === 'youtube' && song.videoId) {
       return `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
     }
-    // Provide a generic placeholder
     return `https://i.ytimg.com/vi/default/hqdefault.jpg`;
   }
 
@@ -701,5 +697,3 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
     </div>
   );
 };
-
-    
