@@ -329,7 +329,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Başlangıç çalma listesi oluşturulamadı.", variant: "destructive" });
       });
     }
-  }, [user, isUserLoading, isUserPlaylistsLoading, userPlaylists, firestore, toast, addSong]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isUserLoading, isUserPlaylistsLoading, userPlaylists, firestore, toast]);
 
   const value: PlayerContextType = {
     playlist,
