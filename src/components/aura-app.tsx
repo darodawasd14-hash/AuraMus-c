@@ -169,6 +169,8 @@ const PlaylistView = () => {
         if (videoId) {
             let videoTitle = `Yeni Şarkı (${videoId.substring(0, 5)}...)`;
             try {
+                // Use a proxy or serverless function in a real app to avoid CORS and exposing API keys.
+                // For this example, we'll fetch directly, which might fail in a browser.
                 const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
                 if (oembedResponse.ok) {
                     const oembedData = await oembedResponse.json();
@@ -176,6 +178,7 @@ const PlaylistView = () => {
                 }
             } catch (error) {
                 console.error("Could not fetch YouTube video title:", error);
+                // Fallback to a default title if oEmbed fails
             }
     
             const newSong: Song = {
@@ -191,6 +194,8 @@ const PlaylistView = () => {
             toast({ title: `"${videoTitle}" eklendi ve çalınıyor.` });
         } else {
             // Handle non-YouTube URLs (e.g., SoundCloud or direct URL)
+            // Use btoa for a simple, dependency-free way to create a 'safe' ID from a URL.
+            // Replace '/' which is not safe for Firestore paths.
              const safeId = typeof window !== "undefined" ? window.btoa(songUrl).replace(/\//g, '-') : Buffer.from(songUrl).toString('base64').replace(/\//g, '-');
              const newSong: Song = {
                 id: safeId,
