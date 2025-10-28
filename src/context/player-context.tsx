@@ -337,19 +337,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const song = playlist[currentIndex];
     
-    if (!song) {
-        // Stop all players if there's no song
+    // --- GÜVENLİK KONTROLÜ ---
+    // Eğer çalma durumu aktif değilse veya çalınacak şarkı yoksa, tüm oynatıcıları duraklat ve çık.
+    if (!isPlaying || !song) {
         if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
         if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
         if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
         return;
-    }
-
-    if (!isPlaying) {
-      if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
-      if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
-      if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
-      return;
     }
   
     switch (song.type) {
@@ -367,15 +361,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
         if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
         if (urlPlayer) {
-          // Only change src if it's a different song
+          // Sadece şarkı değiştiyse src'yi değiştir
           if (urlPlayer.src !== song.url) {
             urlPlayer.src = song.url;
           }
-          urlPlayer.play().catch(e => console.error("URL audio playback error:", e));
+          urlPlayer.play().catch(e => console.error("URL ses oynatma hatası:", e));
         }
         break;
       default:
-        // Stop all players if song type is unknown
+        // Bilinmeyen şarkı türü, tüm oynatıcıları durdur
         if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
         if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
         if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
