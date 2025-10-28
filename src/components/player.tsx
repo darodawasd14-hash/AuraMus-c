@@ -79,8 +79,10 @@ const YouTubePlayerInternal = () => {
   // This reacts to "intentions" from the context (isPlaying, isMuted, seekTime).
   useEffect(() => {
     const player = playerRef.current;
-    // Guard Clause: Player must be ready.
-    if (!player) return;
+    // CRITICAL FIX: Guard Clause to ensure player and song are ready before sending commands.
+    if (!player || !currentSong) {
+      return;
+    }
 
     // Sync playing state
     const playerState = player.getPlayerState();
@@ -228,7 +230,7 @@ const UrlPlayerInternal = () => {
 
     // Guard Clause: Render nothing if there is no valid URL song.
     if (!currentSong || currentSong.type !== 'url' || !currentSong.url) {
-        return null;
+      return null;
     }
     
     // Audio Player Initializer Effect
