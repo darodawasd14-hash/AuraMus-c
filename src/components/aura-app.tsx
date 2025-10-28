@@ -4,7 +4,7 @@ import { usePlayer, type Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, Wand2, MessageSquare, X, Plus } from '@/components/icons';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, MessageSquare, X, Plus, ChevronDown } from '@/components/icons';
 import { useUser, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -31,22 +31,171 @@ import {
   DialogClose
 } from '@/components/ui/dialog';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
+
 
 interface UserProfile {
   displayName?: string;
 }
 
 export function AuraApp() {
+  const { currentSong, isPlaying, togglePlayPause, playNext } = usePlayer();
+  const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
+  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const { user } = useUser();
+
+  const handleTogglePlayer = () => {
+    if (currentSong) {
+      setIsPlayerOpen(prev => !prev);
+    }
+  };
+
+  return (
+    <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
+      <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
+      
+      <main className="flex-grow flex flex-row overflow-hidden">
+        <div className={cn("flex-grow flex flex-col transition-all duration-300 ease-in-out", isChatOpen ? "w-[calc(100%-20rem)]" : "w-full")}>
+           <div className="flex-grow overflow-y-auto pb-32"> {/* Padding-bottom to avoid overlap */}
+              {view === 'playlist' && <PlaylistView />}
+              {view === 'catalog' && <CatalogView setView={setView} />}
+              {view === 'search' && <SearchView setView={setView} />}
+           </div>
+        </div>
+        {isChatOpen && user && <ChatPane song={currentSong} displayName={user.displayName || user.email || 'Kullanıcı'} />}
+      </main>
+
+       {currentSong && (
+        <PlayerBar song={currentSong} isPlaying={isPlaying} onPlayPause={togglePlayPause} onNext={playNext} onClick={handleTogglePlayer} />
+      )}
+      
+      <BottomNavBar currentView={view} setView={setView} />
+      
+      {isPlayerOpen && (
+        <FullPlayerView song={currentSong} onClose={() => setIsPlayerOpen(false)} />
+      )}
+    </div>
+  );
+}
+
+const Header = ({ isChatOpen, setIsChatOpen }: { isChatOpen: boolean, setIsChatOpen: (isOpen: boolean) => void }) => {
+  const { user } = useUser();
+  return (
+    <header className="flex items-center justify-between p-4 bg-secondary/30 border-b border-border shadow-md backdrop-blur-sm z-20 flex-shrink-0">
+      <div className="flex items-center gap-2">
+        <AuraLogo className="w-8 h-8" />
+        <span className="text-xl font-bold tracking-tight">Aura</span>
+      </div>
+      <div className="flex items-center gap-2">
+        {user && (
+          <Link href={`/profile/${user.uid}`} passHref>
+            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+                <UserIcon/>
+            </Button>
+          </Link>
+        )}
+        <Button onClick={() => setIsChatOpen(!isChatOpen)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+          {isChatOpen ? <X /> : <MessageSquare />}
+        </Button>
+      </div>
+    </header>
+  );
+};
+
+
+const BottomNavBar = ({ currentView, setView }: { currentView: string, setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 h-16 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 flex justify-around items-center">
+      <button onClick={() => setView('playlist')} className={cn('nav-button', {'active': currentView === 'playlist'})}>
+        <ListMusic/>
+        <span>Listem</span>
+      </button>
+       <button onClick={() => setView('catalog')} className={cn('nav-button', {'active': currentView === 'catalog'})}>
+        <Music/>
+        <span>Katalog</span>
+      </button>
+       <button onClick={() => setView('search')} className={cn('nav-button', {'active': currentView === 'search'})}>
+        <Search/>
+        <span>Ara</span>
+      </button>
+    </nav>
+  )
+}
+
+const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick }: { song: Song, isPlaying: boolean, onPlayPause: () => void, onNext: () => void, onClick: () => void}) => {
+  return (
+    <div onClick={onClick} className="fixed bottom-16 left-0 right-0 h-16 bg-muted/80 backdrop-blur-lg border-t border-border z-20 flex items-center px-4 cursor-pointer group">
+       <div className="flex items-center gap-4 flex-grow min-w-0">
+        {song.videoId && (
+            <Image 
+                src={`https://i.ytimg.com/vi/${song.videoId}/default.jpg`}
+                alt={song.title}
+                width={48}
+                height={48}
+                className="rounded"
+            />
+        )}
+        <div className="truncate">
+            <p className="font-semibold text-sm truncate">{song.title}</p>
+            <p className="text-xs text-muted-foreground">{song.type}</p>
+        </div>
+       </div>
+       <div className="flex items-center gap-2 pl-4">
+        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onPlayPause(); }}>
+            {isPlaying ? <PauseIcon className="w-6 h-6"/> : <PlayIcon className="w-6 h-6"/>}
+        </Button>
+         <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onNext(); }}>
+            <SkipForward className="w-6 h-6"/>
+        </Button>
+       </div>
+    </div>
+  )
+}
+
+const FullPlayerView = ({ song, onClose }: { song: Song | null, onClose: () => void }) => {
+    const { isPlaying, togglePlayPause, playNext, playPrev } = usePlayer();
+
+    if (!song) return null;
+
+    return (
+        <div className="fixed inset-0 bg-background/95 backdrop-blur-2xl z-50 flex flex-col p-4 animate-in fade-in-0 slide-in-from-bottom-10 duration-500">
+            <header className="flex-shrink-0 flex items-center justify-between">
+                <Button variant="ghost" size="icon" onClick={onClose}><ChevronDown className="w-8 h-8"/></Button>
+                <span className="text-sm font-bold uppercase text-muted-foreground">Şimdi Oynatılıyor</span>
+                <div></div>
+            </header>
+            <main className="flex-grow flex flex-col items-center justify-center gap-8 text-center">
+                <div className="w-full max-w-md aspect-square">
+                    <Player song={song} />
+                </div>
+                <div className="w-full max-w-md">
+                    <h2 className="text-3xl font-bold tracking-tight truncate">{song.title}</h2>
+                    <p className="text-muted-foreground mt-1">{song.type}</p>
+                </div>
+                <div className="flex items-center justify-center space-x-4">
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground w-16 h-16" onClick={playPrev}>
+                      <SkipBack className="w-8 h-8" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="bg-primary/20 text-primary-foreground rounded-full w-20 h-20 hover:bg-primary/30" onClick={togglePlayPause}>
+                      {isPlaying ? <PauseIcon className="w-10 h-10" /> : <PlayIcon className="w-10 h-10" />}
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground w-16 h-16" onClick={playNext}>
+                      <SkipForward className="w-8 h-8" />
+                    </Button>
+                  </div>
+            </main>
+        </div>
+    )
+}
+
+const PlaylistView = () => {
   const { 
     playlist, 
     currentIndex, 
-    isPlaying, 
     playSong, 
     addSong, 
     deleteSong, 
-    togglePlayPause, 
-    playNext, 
-    playPrev, 
     isLoading: isPlayerLoading,
     userPlaylists,
     activePlaylistId,
@@ -56,21 +205,12 @@ export function AuraApp() {
 
   const [songUrl, setSongUrl] = useState('');
   const [isAdding, setIsAdding] = useState(false);
-  const [view, setView] = useState<'player' | 'catalog' | 'search'>('player');
   const { user } = useUser();
-  const [userProfile, setUserProfile] = useState<UserProfile>({ displayName: user?.displayName || user?.email || undefined });
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (user) {
-      setUserProfile({ displayName: user.displayName || user.email || undefined });
-    }
-  }, [user]);
-
-  const handleAddSong = async (e: FormEvent) => {
+   const handleAddSong = async (e: FormEvent) => {
     e.preventDefault();
     if (!songUrl || !user) return;
     if (!activePlaylistId) {
@@ -110,181 +250,94 @@ export function AuraApp() {
     setNewPlaylistName("");
     setIsCreatingPlaylist(false);
   };
-
-  const currentSong = currentIndex !== -1 ? playlist[currentIndex] : null;
-
   return (
-    <div id="app-container" className="h-screen flex flex-col text-foreground transition-all duration-1000">
-      <Header 
-        setView={setView} 
-        currentView={view} 
-        isChatOpen={isChatOpen}
-        setIsChatOpen={setIsChatOpen} 
-      />
-      <main className="flex-grow overflow-hidden flex flex-row">
-        <div id="main-content" className={`flex-grow flex flex-col transition-all duration-300 ${isChatOpen ? 'w-[calc(100%-20rem)]' : 'w-full'}`}>
-          {view === 'player' ? (
-            <div id="player-view" className="flex flex-col md:flex-row h-full">
-              <div className="w-full md:w-3/5 p-4 md:p-6 flex flex-col justify-center transition-all duration-300">
-                <div className="w-full max-w-3xl mx-auto">
-                  <Player song={currentSong} />
-                  <div className="mt-6 text-center">
-                    <div className="flex justify-center items-center gap-4">
-                      <h3 id="current-song-title" className="text-2xl font-bold truncate">
-                        {currentSong?.title || 'Şarkı Seçilmedi'}
-                      </h3>
-                    </div>
-                    <p className="text-muted-foreground mt-1">{currentSong?.type === 'youtube' ? 'YouTube' : currentSong?.type === 'soundcloud' ? 'SoundCloud' : currentSong?.type === 'url' ? 'URL' : '...'}</p>
-                  </div>
-                  <div className="flex items-center justify-center space-x-4 mt-6">
-                    <Button id="prev-button" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={playPrev}>
-                      <SkipBack className="w-6 h-6" />
-                    </Button>
-                    <Button id="play-pause-button" variant="ghost" size="icon" className="bg-primary/20 text-primary-foreground rounded-full w-16 h-16 hover:bg-primary/30" onClick={togglePlayPause}>
-                      {isPlaying ? <PauseIcon className="w-8 h-8" /> : <PlayIcon className="w-8 h-8" />}
-                    </Button>
-                    <Button id="next-button" variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={playNext}>
-                      <SkipForward className="w-6 h-6" />
-                    </Button>
-                  </div>
+    <div className="p-4 md:p-6 flex flex-col h-full">
+         <div className="flex justify-between items-center mb-4 gap-2">
+            {userPlaylists && userPlaylists.length > 0 ? (
+                <Select value={activePlaylistId || ''} onValueChange={setActivePlaylistId}>
+                <SelectTrigger className="flex-grow">
+                    <SelectValue placeholder="Çalma Listesi Seç" />
+                </SelectTrigger>
+                <SelectContent>
+                    {userPlaylists.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                </SelectContent>
+                </Select>
+            ) : (
+                <h2 className="text-xl font-semibold flex-grow">Çalma Listem</h2>
+            )}
+            <Dialog>
+                <DialogTrigger asChild>
+                <Button variant="outline" size="icon" className="flex-shrink-0"><Plus className="h-4 w-4"/></Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle>Yeni Çalma Listesi Oluştur</DialogTitle>
+                    <DialogDescription>
+                    Yeni çalma listeniz için bir isim girin.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <Input
+                    id="name"
+                    placeholder="Örn: Sabah Modu"
+                    value={newPlaylistName}
+                    onChange={(e) => setNewPlaylistName(e.target.value)}
+                    />
                 </div>
-              </div>
-              <aside className="w-full md:w-2/5 p-4 md:p-6 flex flex-col bg-secondary/30 border-l border-border backdrop-blur-sm transition-all duration-300">
-                <div className="flex justify-between items-center mb-4">
-                    {userPlaylists && userPlaylists.length > 0 ? (
-                      <Select value={activePlaylistId || ''} onValueChange={setActivePlaylistId}>
-                        <SelectTrigger className="w-[180px]">
-                          <SelectValue placeholder="Çalma Listesi Seç" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {userPlaylists.map(p => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                       <h2 className="text-2xl font-semibold">Çalma Listem</h2>
-                    )}
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="icon"><Plus className="h-4 w-4"/></Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                          <DialogTitle>Yeni Çalma Listesi Oluştur</DialogTitle>
-                          <DialogDescription>
-                            Yeni çalma listeniz için bir isim girin.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                          <Input
-                            id="name"
-                            placeholder="Örn: Sabah Modu"
-                            value={newPlaylistName}
-                            onChange={(e) => setNewPlaylistName(e.target.value)}
-                          />
-                        </div>
-                        <DialogFooter>
-                          <DialogClose asChild>
-                            <Button type="button" onClick={handleCreatePlaylist} disabled={isCreatingPlaylist || !newPlaylistName.trim()}>
-                              {isCreatingPlaylist ? <Loader2 className="animate-spin"/> : "Oluştur"}
-                            </Button>
-                          </DialogClose>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                </div>
-                <form id="add-song-form" className="flex mb-4 gap-2" onSubmit={handleAddSong}>
-                  <Input
-                    type="url"
-                    id="song-url-input"
-                    placeholder="YouTube, SoundCloud veya MP3 linki..."
-                    required
-                    value={songUrl}
-                    onChange={(e) => setSongUrl(e.target.value)}
-                    className="flex-grow"
-                    disabled={!activePlaylistId}
-                  />
-                  <Button type="submit" id="add-song-button" disabled={isAdding || !activePlaylistId}>
-                    {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ekle'}
-                  </Button>
-                </form>
-                <div id="playlist-container" className="flex-grow overflow-y-auto space-y-2 pr-2 -mr-2">
-                  {isPlayerLoading ? (
-                     <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
-                  ) : !activePlaylistId ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
-                      <ListMusic className="w-16 h-16 mb-4"/>
-                      <p className="font-semibold">Başlamak için bir çalma listesi seçin</p>
-                      <p className="text-sm">Veya yeni bir tane oluşturun.</p>
-                    </div>
-                  ) : playlist.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
-                      <Music className="w-16 h-16 mb-4"/>
-                      <p className="font-semibold">Çalma listeniz boş</p>
-                      <p className="text-sm">Yukarıdaki alandan şarkı ekleyin.</p>
-                    </div>
-                  ) : (
-                    playlist.map((song, index) => (
-                      <PlaylistItem key={song.id} song={song} index={index} isActive={index === currentIndex} onPlay={playSong} onDelete={(songId) => activePlaylistId && deleteSong(songId, activePlaylistId)} />
-                    ))
-                  )}
-                </div>
-              </aside>
-            </div>
-          ) : view === 'catalog' ? (
-            <CatalogView setView={setView} />
-          ) : (
-            <SearchView setView={setView} />
-          )}
+                <DialogFooter>
+                    <DialogClose asChild>
+                    <Button type="button" onClick={handleCreatePlaylist} disabled={isCreatingPlaylist || !newPlaylistName.trim()}>
+                        {isCreatingPlaylist ? <Loader2 className="animate-spin"/> : "Oluştur"}
+                    </Button>
+                    </DialogClose>
+                </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
-        {isChatOpen && <ChatPane song={currentSong} displayName={userProfile.displayName} />}
-      </main>
+
+        <form id="add-song-form" className="flex mb-4 gap-2" onSubmit={handleAddSong}>
+            <Input
+            type="url"
+            id="song-url-input"
+            placeholder="YouTube, SoundCloud veya MP3 linki..."
+            required
+            value={songUrl}
+            onChange={(e) => setSongUrl(e.target.value)}
+            className="flex-grow"
+            disabled={!activePlaylistId}
+            />
+            <Button type="submit" id="add-song-button" disabled={isAdding || !activePlaylistId}>
+            {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ekle'}
+            </Button>
+        </form>
+        <div id="playlist-container" className="flex-grow space-y-2">
+            {isPlayerLoading ? (
+                <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
+            ) : !activePlaylistId ? (
+            <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-8">
+                <ListMusic className="w-16 h-16 mb-4"/>
+                <p className="font-semibold">Başlamak için bir çalma listesi seçin</p>
+                <p className="text-sm">Veya yeni bir tane oluşturun.</p>
+            </div>
+            ) : playlist.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-8">
+                <Music className="w-16 h-16 mb-4"/>
+                <p className="font-semibold">Çalma listeniz boş</p>
+                <p className="text-sm">Yukarıdaki alandan şarkı ekleyin.</p>
+            </div>
+            ) : (
+            playlist.map((song, index) => (
+                <PlaylistItem key={song.id} song={song} index={index} isActive={index === currentIndex} onPlay={playSong} onDelete={(songId) => activePlaylistId && deleteSong(songId, activePlaylistId)} />
+            ))
+            )}
+        </div>
     </div>
-  );
+  )
 }
 
-const Header = ({ setView, currentView, isChatOpen, setIsChatOpen }: { setView: (view: 'player' | 'catalog' | 'search') => void; currentView: 'player' | 'catalog' | 'search', isChatOpen: boolean; setIsChatOpen: (isOpen: boolean) => void; }) => {
-  const { user } = useUser();
-  
-  return (
-    <>
-      <header className="flex items-center justify-between p-4 bg-secondary/30 border-b border-border shadow-md backdrop-blur-sm z-10">
-        <div className="flex items-center gap-2">
-          <AuraLogo className="w-8 h-8" />
-          <span className="text-xl font-bold tracking-tight">Aura</span>
-        </div>
-        <div className="flex items-center p-1 bg-muted/50 rounded-lg border-border">
-           <Button onClick={() => setView('player')} variant={currentView === 'player' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <ListMusic/> Listem</Button>
-           <Button onClick={() => setView('catalog')} variant={currentView === 'catalog' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Music/> Katalog</Button>
-           <Button onClick={() => setView('search')} variant={currentView === 'search' ? 'secondary' : 'ghost'} size="sm" className="gap-2"> <Search/> Ara</Button>
-        </div>
-        <div className="flex items-center gap-4">
-          {user && (
-            <Link href={`/profile/${user.uid}`} passHref>
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                  <UserIcon/>
-              </Button>
-            </Link>
-          )}
-           <Button onClick={() => setIsChatOpen(!isChatOpen)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-            {isChatOpen ? <X /> : <MessageSquare />}
-          </Button>
-        </div>
-      </header>
-    </>
-  );
-};
-
 const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song; index: number; isActive: boolean; onPlay: (index: number) => void; onDelete: (id: string) => void; }) => {
-  const getIcon = (type: Song['type']) => {
-    switch (type) {
-      case 'youtube': return '📺';
-      case 'soundcloud': return '☁️';
-      case 'url': return '🎵';
-      default: return '🎤';
-    }
-  }
 
   const getSourceText = (type: Song['type']) => {
     switch (type) {
@@ -296,11 +349,23 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
   }
 
   return (
-    <div className={`playlist-item flex items-center justify-between p-3 rounded-lg cursor-pointer ${isActive ? 'playing' : ''}`} onClick={() => onPlay(index)}>
+    <div className={cn(`playlist-item flex items-center justify-between p-3 rounded-lg cursor-pointer`, {'playing': isActive})} onClick={() => onPlay(index)}>
       <div className="flex items-center flex-grow min-w-0 gap-4">
-        <span className={`text-xl ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>{getIcon(song.type)}</span>
+        {song.videoId ? (
+            <Image 
+                src={`https://i.ytimg.com/vi/${song.videoId}/default.jpg`}
+                alt={song.title}
+                width={48}
+                height={48}
+                className="rounded"
+            />
+        ) : (
+            <div className="w-12 h-12 rounded bg-muted flex items-center justify-center">
+                <Music className="w-6 h-6 text-muted-foreground"/>
+            </div>
+        )}
         <div className="truncate">
-          <p className={`font-semibold ${isActive ? 'text-primary-foreground' : ''}`}>{song.title || 'İsimsiz Şarkı'}</p>
+          <p className={cn(`font-semibold truncate`, {'text-primary-foreground': isActive})}>{song.title || 'İsimsiz Şarkı'}</p>
           <p className="text-sm text-muted-foreground">{getSourceText(song.type)}</p>
         </div>
       </div>
@@ -317,7 +382,7 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
 };
 
 
-const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'search') => void }) => {
+const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
   const { addSong, activePlaylistId, userPlaylists } = usePlayer();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -339,7 +404,7 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
     if (!activePlaylistId) {
        toast({ 
          title: "Lütfen önce bir çalma listesi seçin.",
-         description: userPlaylists && userPlaylists.length > 0 ? "Şarkıyı eklemek istediğiniz listeyi sağ üstten seçin." : "Şarkı eklemeden önce yeni bir çalma listesi oluşturun.",
+         description: userPlaylists && userPlaylists.length > 0 ? "Şarkıyı eklemek istediğiniz listeyi 'Listem' sekmesinden seçin." : "Şarkı eklemeden önce yeni bir çalma listesi oluşturun.",
          variant: 'destructive' 
        });
        return;
@@ -351,7 +416,7 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
     setIsAdding(null);
     if (addedSong) {
       toast({ title: `"${addedSong.title}" listenize eklendi.` });
-      setView('player');
+      setView('playlist');
     }
   };
 
@@ -359,17 +424,18 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
     if (song.type === 'youtube' && song.videoId) {
       return `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
     }
+    // Provide a generic placeholder
     return `https://i.ytimg.com/vi/default/hqdefault.jpg`;
   }
 
   return (
-    <div id="catalog-view" className="p-4 md:p-8 h-full overflow-y-auto">
+    <div id="catalog-view" className="p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-8" id="catalog-content">
         <h2 className="text-3xl font-bold tracking-tight">Müzik Kataloğu</h2>
         
         {isLoading && (
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-             {Array.from({ length: 8 }).map((_, index) => (
+           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+             {Array.from({ length: 10 }).map((_, index) => (
                <div key={index} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3 animate-pulse">
                  <div className="aspect-video bg-muted rounded-md"></div>
                  <div className="h-4 bg-muted rounded w-3/4"></div>
@@ -381,7 +447,7 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
         )}
 
         {!isLoading && !error && catalogSongs && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {catalogSongs.map((song) => (
               <div key={song.id} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3">
                 <Image
@@ -392,8 +458,8 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
                   className="rounded-md aspect-video object-cover w-full"
                 />
                 <div className="flex-grow">
-                  <p className="font-semibold truncate leading-tight" title={song.title}>{song.title}</p>
-                  <p className="text-sm text-muted-foreground">{song.type}</p>
+                  <p className="font-semibold truncate leading-tight text-sm" title={song.title}>{song.title}</p>
+                  <p className="text-xs text-muted-foreground">{song.type}</p>
                 </div>
                 <Button
                   className="w-full mt-2"
@@ -401,7 +467,8 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
                   onClick={() => handleAddFromCatalog(song)}
                   disabled={isAdding === (song.videoId || song.url)}
                 >
-                  {isAdding === (song.videoId || song.url) ? <Loader2 className="animate-spin" /> : "Listeye Ekle"}
+                  {isAdding === (song.videoId || song.url) ? <Loader2 className="animate-spin" /> : <Plus className="w-4 h-4 mr-2"/> }
+                   Listeye Ekle
                 </Button>
               </div>
             ))}
@@ -427,7 +494,7 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
   );
 };
 
-const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'search') => void }) => {
+const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
   const { addSong, activePlaylistId, userPlaylists } = usePlayer();
   const { toast } = useToast();
   const { user } = useUser();
@@ -471,7 +538,7 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
      if (!activePlaylistId) {
        toast({ 
          title: "Lütfen önce bir çalma listesi seçin.",
-         description: userPlaylists && userPlaylists.length > 0 ? "Şarkıyı eklemek istediğiniz listeyi sağ üstten seçin." : "Şarkı eklemeden önce yeni bir çalma listesi oluşturun.",
+         description: userPlaylists && userPlaylists.length > 0 ? "Şarkıyı eklemek istediğiniz listeyi 'Listem' sekmesinden seçin." : "Şarkı eklemeden önce yeni bir çalma listesi oluşturun.",
          variant: 'destructive' 
        });
       return;
@@ -490,12 +557,12 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
     setIsAdding(null);
     if (addedSong) {
       toast({ title: `"${title}" listenize eklendi.` });
-      setView('player');
+      setView('playlist');
     }
   };
 
   return (
-    <div id="search-view" className="p-4 md:p-8 h-full overflow-y-auto">
+    <div id="search-view" className="p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-8" id="search-content">
         <h2 className="text-3xl font-bold tracking-tight">YouTube'da Ara</h2>
         <form onSubmit={handleSearch} className="flex gap-2">
@@ -512,20 +579,19 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
         </form>
 
         {isSearching && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3 animate-pulse">
-                <div className="aspect-video bg-muted rounded-md"></div>
-                <div className="h-4 bg-muted rounded w-3/4"></div>
-                <div className="h-3 bg-muted rounded w-1/2"></div>
-                <div className="h-8 bg-muted rounded mt-2"></div>
-              </div>
-            ))}
-          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+             {Array.from({ length: 4 }).map((_, index) => (
+               <div key={index} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3 animate-pulse">
+                 <div className="aspect-video bg-muted rounded-md"></div>
+                 <div className="h-4 bg-muted rounded w-3/4"></div>
+                 <div className="h-8 bg-muted rounded mt-2"></div>
+               </div>
+             ))}
+           </div>
         )}
 
         {searchResults && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {searchResults.songs.map((song) => (
               <div key={song.videoId} className="p-4 bg-secondary/50 rounded-lg shadow-lg border border-border flex flex-col gap-3">
                 <Image
@@ -536,7 +602,7 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
                   className="rounded-md aspect-video object-cover w-full"
                 />
                 <div className="flex-grow">
-                   <p className="font-semibold truncate leading-tight" title={song.title}>{song.title}</p>
+                   <p className="font-semibold truncate leading-tight text-sm" title={song.title}>{song.title}</p>
                 </div>
                 <Button
                   className="w-full mt-2"
@@ -544,7 +610,8 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
                   onClick={() => handleAddFromSearch(song.videoId, song.title)}
                   disabled={isAdding === song.videoId}
                 >
-                  {isAdding === song.videoId ? <Loader2 className="animate-spin" /> : "Listeye Ekle"}
+                  {isAdding === song.videoId ? <Loader2 className="animate-spin" /> : <Plus className="w-4 h-4 mr-2"/>}
+                  Listeye Ekle
                 </Button>
               </div>
             ))}

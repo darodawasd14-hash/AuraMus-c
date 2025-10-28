@@ -99,4 +99,16 @@
   .playlist-item.playing {
     @apply bg-primary/20 text-white ring-2 ring-primary;
   }
+  .nav-button {
+    @apply flex flex-col items-center justify-center h-full w-full text-muted-foreground transition-colors duration-200 ease-in-out gap-1;
+  }
+  .nav-button.active {
+    @apply text-primary;
+  }
+  .nav-button svg {
+    @apply w-6 h-6;
+  }
+  .nav-button span {
+    @apply text-xs font-medium;
+  }
 }
