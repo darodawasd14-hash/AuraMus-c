@@ -10,8 +10,7 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
 
   useEffect(() => {
     if (!song.url) return;
-    
-    // Ensure the SC object is available
+
     if (!(window as any).SC) {
       console.error("SoundCloud API script not loaded yet.");
       return;
@@ -75,57 +74,56 @@ const SoundCloudPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; 
 };
 
 
-const UrlPlayer = ({ song, onEnded }: { song: Song; onEnded: () => void; }) => {
-    const { urlPlayerRef, isPlaying, setProgress, setDuration, isSeeking } = usePlayer();
+const UrlPlayer = ({ song }: { song: Song }) => {
+  const { urlPlayerRef, isPlaying, setProgress, setDuration, isSeeking, playNext } = usePlayer();
 
-    // This single useEffect handles all logic for the audio element.
-    useEffect(() => {
-        const player = urlPlayerRef.current;
-        // 1. Exit early if the player element itself doesn't exist.
-        if (!player) {
-            return;
-        }
+  useEffect(() => {
+    const player = urlPlayerRef.current;
+    if (!player) return;
 
-        // 2. Set the source only if it has changed.
-        if (player.src !== song.url) {
-            player.src = song.url;
-        }
+    // Set source if it's different
+    if (player.src !== song.url) {
+      player.src = song.url;
+    }
 
-        // 3. Handle play/pause based on the isPlaying state.
-        if (isPlaying) {
-            player.play().catch(e => console.error("URL audio playback error:", e));
-        } else {
-            player.pause();
-        }
+    // Play/Pause logic
+    if (isPlaying) {
+      player.play().catch(e => console.error("Audio playback failed:", e));
+    } else {
+      player.pause();
+    }
+  }, [song.url, isPlaying, urlPlayerRef]);
 
-        // 4. Set up event listeners.
-        const handleTimeUpdate = () => {
-            if (!isSeeking) {
-                setProgress(player.currentTime);
-            }
-        };
-        const handleDurationChange = () => {
-            if (player.duration && isFinite(player.duration)) {
-                setDuration(player.duration);
-            }
-        };
+  useEffect(() => {
+    const player = urlPlayerRef.current;
+    if (!player) return;
+    
+    const handleTimeUpdate = () => {
+      if (!isSeeking) {
+        setProgress(player.currentTime);
+      }
+    };
+    const handleDurationChange = () => {
+      if (player.duration && isFinite(player.duration)) {
+        setDuration(player.duration);
+      }
+    };
+    
+    player.addEventListener('timeupdate', handleTimeUpdate);
+    player.addEventListener('durationchange', handleDurationChange);
+    player.addEventListener('loadedmetadata', handleDurationChange);
+    player.addEventListener('ended', playNext);
 
-        player.addEventListener('timeupdate', handleTimeUpdate);
-        player.addEventListener('durationchange', handleDurationChange);
-        player.addEventListener('loadedmetadata', handleDurationChange);
-        player.addEventListener('ended', onEnded);
+    return () => {
+      player.removeEventListener('timeupdate', handleTimeUpdate);
+      player.removeEventListener('durationchange', handleDurationChange);
+      player.removeEventListener('loadedmetadata', handleDurationChange);
+      player.removeEventListener('ended', playNext);
+    };
+  }, [isSeeking, playNext, setDuration, setProgress, urlPlayerRef]);
 
-        // 5. Cleanup function to remove listeners.
-        return () => {
-            player.removeEventListener('timeupdate', handleTimeUpdate);
-            player.removeEventListener('durationchange', handleDurationChange);
-            player.removeEventListener('loadedmetadata', handleDurationChange);
-            player.removeEventListener('ended', onEnded);
-        };
-    }, [song.url, isPlaying, isSeeking, onEnded, setDuration, setProgress, urlPlayerRef]);
-
-    return <audio ref={urlPlayerRef} className="w-0 h-0"/>;
-}
+  return <audio ref={urlPlayerRef} className="w-0 h-0"/>;
+};
 
 
 export function Player({ song }: { song: Song | null }) {
@@ -142,14 +140,28 @@ export function Player({ song }: { song: Song | null }) {
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const cleanupProgressInterval = () => {
-      if (progressIntervalRef.current) {
-          clearInterval(progressIntervalRef.current);
-          progressIntervalRef.current = null;
-      }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
   };
+  
+  // This effect handles playing and pausing the YouTube video
+  useEffect(() => {
+    const player = youtubePlayerRef.current;
+    if (player && typeof player.getPlayerState === 'function') {
+      if (isPlaying) {
+        player.playVideo();
+      } else {
+        player.pauseVideo();
+      }
+    }
+  }, [isPlaying, youtubePlayerRef]);
+
 
   const onReady = (event: any) => {
     youtubePlayerRef.current = event.target;
+    // When player is ready, if we intended to play, play now.
     if (isPlaying) {
       event.target.playVideo();
     }
@@ -171,8 +183,8 @@ export function Player({ song }: { song: Song | null }) {
 
     } else if (event.data === 0) { // Ended
       playNext();
-    } else { 
-      if(isPlaying) setIsPlaying(false);
+    } else if (event.data === 2) { // Paused
+       if(isPlaying) setIsPlaying(false);
     }
   };
 
@@ -181,7 +193,6 @@ export function Player({ song }: { song: Song | null }) {
       cleanupProgressInterval();
     };
   }, []);
-
 
   if (!song) {
     return null;
@@ -212,7 +223,7 @@ export function Player({ song }: { song: Song | null }) {
       case 'soundcloud':
         return <SoundCloudPlayer song={song} onEnded={playNext} />;
       case 'url':
-        return <UrlPlayer song={song} onEnded={playNext} />;
+        return <UrlPlayer song={song} />;
       default:
         return null;
     }
