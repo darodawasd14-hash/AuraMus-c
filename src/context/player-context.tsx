@@ -188,7 +188,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         }
       };
 
-      setupInitialPlaylist();
+      if (!user.isAnonymous) {
+          setupInitialPlaylist();
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isUserLoading, isUserPlaylistsLoading, userPlaylists, firestore]);
@@ -363,18 +365,18 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   // Effect for handling URL player
   useEffect(() => {
     if (!urlPlayer) return;
-    const shouldPlay = isPlaying && currentSong?.type === 'url';
-
+    
     // Ensure the source is correct before playing
-    if (currentSong && urlPlayer.src !== currentSong.url) {
+    if (currentSong && currentSong.type === 'url' && urlPlayer.src !== currentSong.url) {
         urlPlayer.src = currentSong.url;
     }
 
+    const shouldPlay = isPlaying && currentSong?.type === 'url';
+
     if (shouldPlay) {
-        // Check src again in case it was just set
-        if (urlPlayer.src) {
-            urlPlayer.play().catch(e => console.error("URL audio playback error:", e));
-        }
+      if (urlPlayer.src) {
+        urlPlayer.play().catch(e => console.error("URL audio playback error:", e));
+      }
     } else {
       if (!urlPlayer.paused) {
         urlPlayer.pause();
@@ -424,3 +426,5 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
+
+    
