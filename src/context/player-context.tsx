@@ -337,7 +337,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const song = playlist[currentIndex];
     
-    // Safety Guard: Do not proceed if there is no song
+    // --- ÇÖZÜM BURASI ---
+    // Eğer şarkı yoksa (null ise), hiçbir şey yapmadan fonksiyondan çık.
     if (!song) {
         return;
     }
