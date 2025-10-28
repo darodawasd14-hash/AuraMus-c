@@ -100,6 +100,38 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
+  // This is the CRITICAL effect that syncs the `isPlaying` state to the actual player.
+  useEffect(() => {
+    if (!currentSong) return;
+
+    const youtubePlayer = youtubePlayerRef.current;
+    const soundcloudPlayer = soundcloudPlayerRef.current;
+    const urlPlayer = urlPlayerRef.current;
+
+    try {
+        if (isPlaying) {
+            if (currentSong.type === 'youtube' && youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
+                youtubePlayer.playVideo();
+            } else if (currentSong.type === 'soundcloud' && soundcloudPlayer && typeof soundcloudPlayer.play === 'function') {
+                soundcloudPlayer.play();
+            } else if (currentSong.type === 'url' && urlPlayer) {
+                urlPlayer.play().catch(e => console.error("URL audio playback error:", e));
+            }
+        } else {
+            if (currentSong.type === 'youtube' && youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
+                youtubePlayer.pauseVideo();
+            } else if (currentSong.type === 'soundcloud' && soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') {
+                soundcloudPlayer.pause();
+            } else if (currentSong.type === 'url' && urlPlayer) {
+                urlPlayer.pause();
+            }
+        }
+    } catch (e) {
+        console.error("Error controlling player state:", e);
+    }
+  }, [isPlaying, currentSong]);
+
+
   useEffect(() => {
     let progressInterval: NodeJS.Timeout | null = null;
     
@@ -154,7 +186,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       
       if (newIndex === -1) {
          if (currentIndex !== -1) {
-            setCurrentIndex(0); 
+            // If the currently playing song is removed from the active playlist,
+            // we could either stop playback or play the next song.
+            // For now, we'll just reset the index which will stop playback.
+            // A more advanced implementation might play the next available song.
+            // setCurrentIndex(-1);
+            // setIsPlaying(false);
          }
       } else {
         setCurrentIndex(newIndex);
@@ -164,6 +201,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setPlaylist([]);
       setCurrentIndex(-1);
     }
+    // This dependency array intentionally omits `currentIndex` and `playlist`
+    // to avoid re-running when we manually update them inside.
+    // We only want this to run when the source of truth (activePlaylistSongs) changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlaylistSongs, activePlaylistId]);
 
   const isLoading = isUserLoading || isUserPlaylistsLoading || isSongsLoading;
