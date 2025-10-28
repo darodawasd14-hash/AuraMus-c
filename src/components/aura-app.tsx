@@ -14,7 +14,6 @@ import { ChatPane } from '@/components/chat-pane';
 import { searchYoutube, type YouTubeSearchOutput } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
 import { collection, query, orderBy, limit, serverTimestamp, addDoc } from 'firebase/firestore';
-import { generateSongBackground } from '@/ai/flows/generate-song-background';
 
 const appId = 'Aura';
 
@@ -29,7 +28,6 @@ export function AuraApp() {
   const [view, setView] = useState<'player' | 'catalog' | 'search'>('player');
   const { user } = useUser();
   const [userProfile, setUserProfile] = useState<UserProfile>({ displayName: user?.displayName || user?.email || undefined });
-  const [isGeneratingBg, setIsGeneratingBg] = useState(false);
   const [backgroundStyle, setBackgroundStyle] = useState({});
 
   useEffect(() => {
@@ -61,31 +59,6 @@ export function AuraApp() {
     setIsAdding(false);
   };
 
-  const handleGenerateBackground = async () => {
-    if (!currentSong) {
-      toast({ title: 'Arka plan oluşturmak için bir şarkı çalıyor olmalı.', variant: 'destructive' });
-      return;
-    }
-    setIsGeneratingBg(true);
-    try {
-      const result = await generateSongBackground({
-        songTitle: currentSong.title,
-        songType: currentSong.type,
-      });
-      setBackgroundStyle({
-        backgroundImage: `url(${result.imageUrl})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      });
-      toast({ title: 'Yeni arka plan oluşturuldu ve uygulandı!' });
-    } catch (error) {
-      console.error("Arka plan oluşturma hatası:", error);
-      toast({ title: 'Arka plan oluşturulamadı.', description: 'Lütfen daha sonra tekrar deneyin.', variant: 'destructive' });
-    } finally {
-      setIsGeneratingBg(false);
-    }
-  };
-
   const currentSong = currentIndex !== -1 ? playlist[currentIndex] : null;
 
   return (
@@ -103,9 +76,6 @@ export function AuraApp() {
                       <h3 id="current-song-title" className="text-2xl font-bold truncate">
                         {currentSong?.title || 'Şarkı Seçilmedi'}
                       </h3>
-                      <Button onClick={handleGenerateBackground} size="icon" variant="ghost" disabled={isGeneratingBg || !currentSong}>
-                        {isGeneratingBg ? <Loader2 className="animate-spin" /> : <Wand2 />}
-                      </Button>
                     </div>
                     <p className="text-muted-foreground mt-1">{currentSong?.type === 'youtube' ? 'YouTube' : currentSong?.type === 'soundcloud' ? 'SoundCloud' : currentSong?.type === 'url' ? 'URL' : '...'}</p>
                   </div>
@@ -540,3 +510,5 @@ const ProfileModal = ({ isOpen, setIsOpen, profile, setProfile }: { isOpen?: boo
     </div>
   );
 };
+
+    
