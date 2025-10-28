@@ -5,7 +5,7 @@ import YouTube from 'react-youtube';
 import { usePlayer, type Song } from '@/context/player-context';
 
 const SoundCloudPlayer = ({ song }: { song: Song; }) => {
-  const { soundcloudPlayerRef, isPlaying, setProgress, setDuration, isSeeking, playNext, setIsPlaying } = usePlayer();
+  const { isPlaying, setProgress, setDuration, isSeeking, playNext, setIsPlaying, soundcloudPlayerRef } = usePlayer();
   const widgetRef = useRef<any>(null);
 
   useEffect(() => {
@@ -20,25 +20,17 @@ const SoundCloudPlayer = ({ song }: { song: Song; }) => {
     const onReady = () => {
       widget.getDuration((d: number) => setDuration(d / 1000));
       widget.bind((window as any).SC.Widget.Events.FINISH, playNext);
-      
       if (isPlaying) {
         widget.play();
       }
     };
-
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
-
-    const onPlayProgress = (data: { currentPosition: number }) => {
-      if (!isSeeking) {
-        setProgress(data.currentPosition / 1000);
-      }
-    };
     
     widget.bind((window as any).SC.Widget.Events.READY, onReady);
-    widget.bind((window as any).SC.Widget.Events.PLAY, onPlay);
-    widget.bind((window as any).SC.Widget.Events.PAUSE, onPause);
-    widget.bind((window as any).SC.Widget.Events.PLAY_PROGRESS, onPlayProgress);
+    widget.bind((window as any).SC.Widget.Events.PLAY, () => setIsPlaying(true));
+    widget.bind((window as any).SC.Widget.Events.PAUSE, () => setIsPlaying(false));
+    widget.bind((window as any).SC.Widget.Events.PLAY_PROGRESS, (data: { currentPosition: number }) => {
+        if (!isSeeking) setProgress(data.currentPosition / 1000);
+    });
 
     return () => {
       try {
@@ -49,18 +41,17 @@ const SoundCloudPlayer = ({ song }: { song: Song; }) => {
           widgetRef.current.unbind((window as any).SC.Widget.Events.FINISH);
           widgetRef.current.unbind((window as any).SC.Widget.Events.PLAY_PROGRESS);
         }
-      } catch (e) {
-        // Suppress errors
-      }
+      } catch (e) { /* Suppress errors */ }
     };
   }, [song.url, playNext, setDuration, setProgress, isSeeking, soundcloudPlayerRef, setIsPlaying, isPlaying]);
 
   useEffect(() => {
-    if (!widgetRef.current) return;
-    if (isPlaying) {
-      widgetRef.current.play();
-    } else {
-      widgetRef.current.pause();
+    if (widgetRef.current) {
+      if (isPlaying) {
+        widgetRef.current.play();
+      } else {
+        widgetRef.current.pause();
+      }
     }
   }, [isPlaying]);
 
@@ -74,10 +65,11 @@ const SoundCloudPlayer = ({ song }: { song: Song; }) => {
       scrolling="no"
       frameBorder="no"
       allow="autoplay"
-      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=false&visual=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false`}
+      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=true&visual=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false`}
     ></iframe>
   );
 };
+
 
 const UrlPlayer = ({ song }: { song: Song }) => {
     const { urlPlayerRef, isPlaying, setProgress, setDuration, isSeeking, playNext, setIsPlaying } = usePlayer();
@@ -95,6 +87,7 @@ const UrlPlayer = ({ song }: { song: Song }) => {
         // Assign src only if it's different to avoid re-loading
         if (player.src !== song.url) {
             player.src = song.url;
+            player.load(); // Load the new source
         }
 
         player.addEventListener('timeupdate', handleTimeUpdate);
@@ -121,7 +114,6 @@ const UrlPlayer = ({ song }: { song: Song }) => {
         };
     }, [song.url, isPlaying, isSeeking, playNext, setProgress, setDuration, urlPlayerRef, setIsPlaying]);
 
-
     return <audio ref={urlPlayerRef} className="w-0 h-0"/>;
 };
 
@@ -141,7 +133,6 @@ export function Player({ song }: { song: Song | null }) {
 
   const onReady = (event: any) => {
     youtubePlayerRef.current = event.target;
-    setDuration(event.target.getDuration());
     if (isPlaying) {
         event.target.playVideo();
     }
@@ -157,7 +148,6 @@ export function Player({ song }: { song: Song | null }) {
 
     if (event.data === 1) { // Playing
       setIsPlaying(true);
-      // Update duration again in case it wasn't ready before
       setDuration(player.getDuration());
       progressIntervalRef.current = setInterval(() => {
         if (player && typeof player.getCurrentTime === 'function' && !isSeeking) {
@@ -174,6 +164,20 @@ export function Player({ song }: { song: Song | null }) {
        setIsPlaying(false);
     }
   };
+  
+  // Effect to control YouTube player based on context's isPlaying state
+  useEffect(() => {
+    const player = youtubePlayerRef.current;
+    if (player && typeof player.getPlayerState === 'function' && song?.type === 'youtube') {
+      const playerState = player.getPlayerState();
+      if (isPlaying && playerState !== 1) {
+        player.playVideo();
+      } else if (!isPlaying && playerState === 1) {
+        player.pauseVideo();
+      }
+    }
+  }, [isPlaying, song]);
+
 
   useEffect(() => {
     // Cleanup interval on unmount
@@ -199,7 +203,7 @@ export function Player({ song }: { song: Song | null }) {
               width: '0',
               height: '0',
               playerVars: {
-                autoplay: 1,
+                autoplay: 1, // Let YouTube try to autoplay
                 controls: 0,
                 modestbranding: 1,
                 rel: 0,

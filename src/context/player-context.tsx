@@ -300,7 +300,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         }));
       });
   };
-
+  
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
       if (index === currentIndex) {
@@ -310,10 +310,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         // If a new song is clicked, start playing it
         setCurrentIndex(index);
         setIsPlaying(true);
-        setIsPlayerOpen(true);
       }
     } else {
-      // Invalid index, stop playback
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
