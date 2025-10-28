@@ -4,64 +4,65 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import YouTube from 'react-youtube';
 import { usePlayer } from '@/context/player-context';
 
-// This is the "Motor" component.
-// Its only job is to listen to the "Brain" (PlayerContext) and control the players.
-// It also reports back the player's real status to the "Brain".
-
 const YouTubePlayerInternal = () => {
   const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress } = usePlayer();
   const playerRef = useRef<any>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const onReady = useCallback((event: any) => {
     playerRef.current = event.target;
-    // On ready, get duration and if the intent is to play, start playing.
     const duration = playerRef.current.getDuration();
     if (duration) {
       _setDuration(duration);
     }
-    if (isPlaying) {
-      playerRef.current.playVideo();
-    }
-  }, [isPlaying, _setDuration]);
+    // Don't auto-play here, let the useEffect handle it based on isPlaying state
+  }, [_setDuration]);
 
   const onStateChange = useCallback((event: any) => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-    }
-    
     // The player's state changed, so we report back to the context.
     if (event.data === 1) { // Playing
       _setIsPlaying(true);
       const duration = playerRef.current.getDuration();
-       if (duration) {
+      if (duration) {
         _setDuration(duration);
       }
-      progressIntervalRef.current = setInterval(() => {
-        if (playerRef.current) {
-          const progress = playerRef.current.getCurrentTime();
-          _setProgress(progress);
-        }
-      }, 250);
     } else if (event.data === 0) { // Ended
       _setIsPlaying(false);
       playNext();
     } else { // Paused, buffering, etc.
       _setIsPlaying(false);
     }
-  }, [_setIsPlaying, _setDuration, _setProgress, playNext]);
+  }, [_setIsPlaying, _setDuration, playNext]);
+
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+    }
+    if (isPlaying && playerRef.current) {
+        progressIntervalRef.current = setInterval(() => {
+            const progress = playerRef.current.getCurrentTime();
+            _setProgress(progress);
+        }, 250);
+    }
+
+    return () => {
+        if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+        }
+    };
+  }, [isPlaying, _setProgress]);
   
   useEffect(() => {
     const player = playerRef.current;
     if (player && typeof player.getPlayerState === 'function') {
-      const playerState = player.getPlayerState();
-      if (isPlaying && playerState !== 1) {
+      if (isPlaying) {
         player.playVideo();
-      } else if (!isPlaying && playerState === 1) {
+      } else {
         player.pauseVideo();
       }
     }
-  }, [isPlaying, currentSong]);
+  }, [isPlaying, currentSong]); // Depend on currentSong to re-evaluate when song changes
 
   useEffect(() => {
     if (seekTime !== null && playerRef.current && typeof playerRef.current.seekTo === 'function') {
@@ -69,14 +70,6 @@ const YouTubePlayerInternal = () => {
       _clearSeek(); 
     }
   }, [seekTime, _clearSeek]);
-  
-  useEffect(() => {
-    return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-      }
-    };
-  }, []);
 
   if (!currentSong || currentSong.type !== 'youtube' || !currentSong.videoId) return null;
 
@@ -100,6 +93,7 @@ const YouTubePlayerInternal = () => {
     />
   );
 };
+
 
 const SoundCloudPlayerInternal = () => {
     const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress, isSeeking } = usePlayer();
@@ -163,13 +157,11 @@ const SoundCloudPlayerInternal = () => {
     useEffect(() => {
         const widget = widgetRef.current;
         if (widget && typeof widget.isPaused === 'function') {
-            widget.isPaused((paused: boolean) => {
-                if (isPlaying && paused) {
-                    widget.play();
-                } else if (!isPlaying && !paused) {
-                    widget.pause();
-                }
-            });
+            if (isPlaying) {
+                widget.play();
+            } else {
+                widget.pause();
+            }
         }
     }, [isPlaying]);
 
