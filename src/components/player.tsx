@@ -50,14 +50,10 @@ export const Player = () => {
     playerRef = event.target;
     startProgressTracking(playerRef);
 
-    // Başlangıçta sessize al
+    // Başlangıçta sessize al ve oynatmayı dene.
+    // Tarayıcılar genellikle sessiz otomatik oynatmaya izin verir.
     playerRef.mute();
-
-    // Eğer bu fonksiyon çalıştığında zaten çalıyor olmamız gerekiyorsa
-    // (örneğin şarkıya tıkladık, player YENİ yüklendi), çal komutunu ver.
-    if (isPlaying) {
-      playerRef?.playVideo();
-    }
+    playerRef.playVideo();
   };
   
   const handleOnStateChange = (event: { data: number }) => {
@@ -84,10 +80,6 @@ export const Player = () => {
     // 'isPlaying' durumu 'true' ise çal, 'false' ise durdur.
     if (isPlaying) {
       playerRef.playVideo();
-      // Kullanıcı oynat tuşuna bastığında sesi aç
-      if (playerRef.isMuted()) {
-        playerRef.unMute();
-      }
     } else {
       // pauseVideo fonksiyonunun varlığını kontrol etmek her zaman iyidir.
       if (playerRef && typeof playerRef.pauseVideo === 'function') {
@@ -142,7 +134,7 @@ export const Player = () => {
     height: '0',
     width: '0',
     playerVars: {
-      autoplay: 0, // Otomatik oynatmayı biz yöneteceğiz, o yüzden '0'.
+      autoplay: 1, // Otomatik oynatmayı biz yöneteceğiz, ama '1' olarak ayarlamak onReady sonrası için niyet belirtir.
       controls: 0,
       playsinline: 1
     },
