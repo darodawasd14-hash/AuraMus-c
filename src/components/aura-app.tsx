@@ -4,7 +4,7 @@ import { usePlayer, type Song, type SongDetails } from '@/context/player-context
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, Wand2 } from '@/components/icons';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, Wand2, MessageSquare, X } from '@/components/icons';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut, updateProfile } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +30,7 @@ export function AuraApp() {
   const { user } = useUser();
   const [userProfile, setUserProfile] = useState<UserProfile>({ displayName: user?.displayName || user?.email || undefined });
   const [backgroundStyle, setBackgroundStyle] = useState({});
+  const [isChatOpen, setIsChatOpen] = useState(true);
 
   useEffect(() => {
     if (user) {
@@ -64,12 +65,19 @@ export function AuraApp() {
 
   return (
     <div id="app-container" className="h-screen flex flex-col text-foreground transition-all duration-1000" style={backgroundStyle}>
-      <Header setView={setView} currentView={view} profile={userProfile} setProfile={setUserProfile} />
+      <Header 
+        setView={setView} 
+        currentView={view} 
+        profile={userProfile} 
+        setProfile={setUserProfile}
+        isChatOpen={isChatOpen}
+        setIsChatOpen={setIsChatOpen} 
+      />
       <main className="flex-grow overflow-hidden flex flex-row">
-        <div id="main-content" className="flex-grow flex flex-col">
+        <div id="main-content" className="flex-grow flex flex-col transition-all duration-300">
           {view === 'player' ? (
             <div id="player-view" className="flex flex-col md:flex-row h-full">
-              <div className="w-full md:w-3/5 p-4 md:p-6 flex flex-col justify-center">
+              <div className={`w-full ${isChatOpen ? 'md:w-3/5' : 'md:w-full'} p-4 md:p-6 flex flex-col justify-center transition-all duration-300`}>
                 <div className="w-full max-w-3xl mx-auto">
                   <Player song={currentSong} />
                   <div className="mt-6 text-center">
@@ -93,7 +101,7 @@ export function AuraApp() {
                   </div>
                 </div>
               </div>
-              <aside className="w-full md:w-2/5 p-4 md:p-6 flex flex-col bg-secondary/30 border-l border-border backdrop-blur-sm">
+              <aside className={`w-full ${isChatOpen ? 'md:w-2/5' : 'hidden'} p-4 md:p-6 flex flex-col bg-secondary/30 border-l border-border backdrop-blur-sm transition-all duration-300`}>
                 <h2 className="text-2xl font-semibold mb-4">Çalma Listem</h2>
                 <form id="add-song-form" className="flex mb-4 gap-2" onSubmit={handleAddSong}>
                   <Input
@@ -132,13 +140,13 @@ export function AuraApp() {
             <SearchView setView={setView} />
           )}
         </div>
-        <ChatPane song={currentSong} displayName={userProfile.displayName} />
+        {isChatOpen && <ChatPane song={currentSong} displayName={userProfile.displayName} />}
       </main>
     </div>
   );
 }
 
-const Header = ({ setView, currentView, profile, setProfile }: { setView: (view: 'player' | 'catalog' | 'search') => void; currentView: 'player' | 'catalog' | 'search', profile: UserProfile, setProfile: (profile: UserProfile) => void; }) => {
+const Header = ({ setView, currentView, profile, setProfile, isChatOpen, setIsChatOpen }: { setView: (view: 'player' | 'catalog' | 'search') => void; currentView: 'player' | 'catalog' | 'search', profile: UserProfile, setProfile: (profile: UserProfile) => void; isChatOpen: boolean; setIsChatOpen: (isOpen: boolean) => void; }) => {
   const [isModalOpen, setModalOpen] = useState(false);
   
   return (
@@ -156,6 +164,9 @@ const Header = ({ setView, currentView, profile, setProfile }: { setView: (view:
         <div className="flex items-center gap-4">
           <Button onClick={() => setModalOpen(true)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
             <UserIcon/>
+          </Button>
+           <Button onClick={() => setIsChatOpen(!isChatOpen)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+            {isChatOpen ? <X /> : <MessageSquare />}
           </Button>
         </div>
       </header>
