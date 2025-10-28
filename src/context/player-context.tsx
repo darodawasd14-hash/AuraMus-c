@@ -344,7 +344,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         } else if (currentSong.type === 'soundcloud' && soundcloudPlayerRef.current) {
           const widget = (window as any).SC.Widget(soundcloudPlayerRef.current);
           widget.seekTo(time * 1000);
-        } else if (currentSong.type === 'url' && urlPlayerRef.current) {
+        } else if (urlPlayerRef.current) {
           urlPlayerRef.current.currentTime = time;
         }
         setProgress(time);

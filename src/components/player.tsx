@@ -67,11 +67,13 @@ const SoundCloudPlayer = ({ song }: { song: Song; }) => {
 
 
 const UrlPlayer = ({ song }: { song: Song }) => {
-    const { urlPlayerRef, isPlaying, setProgress, setDuration, isSeeking, playNext, setIsPlaying } = usePlayer();
+    const { isPlaying, setProgress, setDuration, isSeeking, playNext, setIsPlaying } = usePlayer();
+    const playerRef = useRef<HTMLAudioElement | null>(null);
 
     useEffect(() => {
-        const player = urlPlayerRef.current;
-        if (!player) return; // <-- GÜVENLİK KONTROLÜ: Oynatıcı null ise devam etme.
+        // A new Audio object is created whenever the song URL changes.
+        const player = new Audio(song.url);
+        playerRef.current = player;
 
         const handleTimeUpdate = () => !isSeeking && setProgress(player.currentTime);
         const handleDurationChange = () => player.duration && isFinite(player.duration) && setDuration(player.duration);
@@ -79,13 +81,7 @@ const UrlPlayer = ({ song }: { song: Song }) => {
         const handlePause = () => setIsPlaying(false);
         const handleEnded = () => playNext();
 
-        // Şarkı URL'si değiştiyse, kaynağı güncelle
-        if (player.src !== song.url) {
-            player.src = song.url;
-            player.load();
-        }
-
-        // Olay dinleyicilerini ekle
+        // Add event listeners
         player.addEventListener('timeupdate', handleTimeUpdate);
         player.addEventListener('durationchange', handleDurationChange);
         player.addEventListener('loadedmetadata', handleDurationChange);
@@ -93,14 +89,14 @@ const UrlPlayer = ({ song }: { song: Song }) => {
         player.addEventListener('pause', handlePause);
         player.addEventListener('ended', handleEnded);
 
-        // Oynatma durumunu yönet
+        // Manage playback state
         if (isPlaying) {
             player.play().catch(e => console.error("Audio playback failed:", e));
         } else {
             player.pause();
         }
 
-        // Bileşen kaldırıldığında dinleyicileri temizle
+        // Cleanup function
         return () => {
             player.removeEventListener('timeupdate', handleTimeUpdate);
             player.removeEventListener('durationchange', handleDurationChange);
@@ -108,10 +104,26 @@ const UrlPlayer = ({ song }: { song: Song }) => {
             player.removeEventListener('play', handlePlay);
             player.removeEventListener('pause', handlePause);
             player.removeEventListener('ended', handleEnded);
+            player.pause();
+            player.src = ''; // Release the audio source
+            playerRef.current = null;
         };
-    }, [song.url, isPlaying, isSeeking, playNext, setProgress, setDuration, urlPlayerRef, setIsPlaying]);
+    }, [song.url]); // Re-run effect only when song URL changes
 
-    return <audio ref={urlPlayerRef} className="w-0 h-0"/>;
+    useEffect(() => {
+        // This effect only controls play/pause on the existing player instance
+        const player = playerRef.current;
+        if (!player) return;
+
+        if (isPlaying) {
+            player.play().catch(e => console.error("Audio playback failed:", e));
+        } else {
+            player.pause();
+        }
+    }, [isPlaying]); // Re-run only when isPlaying state changes
+
+
+    return null; // No need to render a visible element
 };
 
 
