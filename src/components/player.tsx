@@ -20,8 +20,12 @@ const SoundCloudPlayer = ({ song }: { song: Song; }) => {
     const onReady = () => {
       widget.getDuration((d: number) => setDuration(d / 1000));
       widget.bind((window as any).SC.Widget.Events.FINISH, playNext);
+      
+      // Control playback based on isPlaying state
       if (isPlaying) {
         widget.play();
+      } else {
+        widget.pause();
       }
     };
     
@@ -43,17 +47,8 @@ const SoundCloudPlayer = ({ song }: { song: Song; }) => {
         }
       } catch (e) { /* Suppress errors */ }
     };
-  }, [song.url, playNext, setDuration, setProgress, isSeeking, soundcloudPlayerRef, setIsPlaying, isPlaying]);
+  }, [song.url, isPlaying, playNext, setDuration, setProgress, isSeeking, soundcloudPlayerRef, setIsPlaying]);
 
-  useEffect(() => {
-    if (widgetRef.current) {
-      if (isPlaying) {
-        widgetRef.current.play();
-      } else {
-        widgetRef.current.pause();
-      }
-    }
-  }, [isPlaying]);
 
   return (
     <iframe
@@ -65,7 +60,7 @@ const SoundCloudPlayer = ({ song }: { song: Song; }) => {
       scrolling="no"
       frameBorder="no"
       allow="autoplay"
-      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=true&visual=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false`}
+      src={`https://w.soundcloud.com/player/?url=${song.url}&auto_play=false&visual=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false`}
     ></iframe>
   );
 };
@@ -76,7 +71,7 @@ const UrlPlayer = ({ song }: { song: Song }) => {
 
     useEffect(() => {
         const player = urlPlayerRef.current;
-        if (!player) return;
+        if (!player) return; // <-- GÜVENLİK KONTROLÜ: Oynatıcı null ise devam etme.
 
         const handleTimeUpdate = () => !isSeeking && setProgress(player.currentTime);
         const handleDurationChange = () => player.duration && isFinite(player.duration) && setDuration(player.duration);
@@ -84,12 +79,13 @@ const UrlPlayer = ({ song }: { song: Song }) => {
         const handlePause = () => setIsPlaying(false);
         const handleEnded = () => playNext();
 
-        // Assign src only if it's different to avoid re-loading
+        // Şarkı URL'si değiştiyse, kaynağı güncelle
         if (player.src !== song.url) {
             player.src = song.url;
-            player.load(); // Load the new source
+            player.load();
         }
 
+        // Olay dinleyicilerini ekle
         player.addEventListener('timeupdate', handleTimeUpdate);
         player.addEventListener('durationchange', handleDurationChange);
         player.addEventListener('loadedmetadata', handleDurationChange);
@@ -97,13 +93,14 @@ const UrlPlayer = ({ song }: { song: Song }) => {
         player.addEventListener('pause', handlePause);
         player.addEventListener('ended', handleEnded);
 
-        // Control playback based on isPlaying state
+        // Oynatma durumunu yönet
         if (isPlaying) {
             player.play().catch(e => console.error("Audio playback failed:", e));
         } else {
             player.pause();
         }
 
+        // Bileşen kaldırıldığında dinleyicileri temizle
         return () => {
             player.removeEventListener('timeupdate', handleTimeUpdate);
             player.removeEventListener('durationchange', handleDurationChange);
@@ -133,6 +130,7 @@ export function Player({ song }: { song: Song | null }) {
 
   const onReady = (event: any) => {
     youtubePlayerRef.current = event.target;
+    // Oynatıcı hazır olduğunda ve global durum "çalıyor" ise çalmaya başla
     if (isPlaying) {
         event.target.playVideo();
     }
@@ -141,31 +139,31 @@ export function Player({ song }: { song: Song | null }) {
   const onStateChange = (event: any) => {
     const player = event.target;
     
+    // Her durum değişikliğinde interval'i temizle
     if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
         progressIntervalRef.current = null;
     }
 
-    if (event.data === 1) { // Playing
+    if (event.data === 1) { // Oynatılıyor (Playing)
       setIsPlaying(true);
       setDuration(player.getDuration());
+      // İlerlemeyi takip etmek için interval başlat
       progressIntervalRef.current = setInterval(() => {
         if (player && typeof player.getCurrentTime === 'function' && !isSeeking) {
           setProgress(player.getCurrentTime());
         }
       }, 250);
 
-    } else if (event.data === 0) { // Ended
+    } else if (event.data === 0) { // Bitti (Ended)
       setIsPlaying(false);
       playNext();
-    } else if (event.data === 2) { // Paused
-       setIsPlaying(false);
-    } else {
+    } else { // Duraklatıldı (2), Tamponlanıyor (3), vb.
        setIsPlaying(false);
     }
   };
   
-  // Effect to control YouTube player based on context's isPlaying state
+  // Context'teki isPlaying durumu değiştiğinde oynatıcıyı kontrol et
   useEffect(() => {
     const player = youtubePlayerRef.current;
     if (player && typeof player.getPlayerState === 'function' && song?.type === 'youtube') {
@@ -176,11 +174,11 @@ export function Player({ song }: { song: Song | null }) {
         player.pauseVideo();
       }
     }
-  }, [isPlaying, song]);
+  }, [isPlaying, song, youtubePlayerRef]);
 
 
   useEffect(() => {
-    // Cleanup interval on unmount
+    // Bileşen kaldırıldığında interval'i temizle
     return () => {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
@@ -203,7 +201,7 @@ export function Player({ song }: { song: Song | null }) {
               width: '0',
               height: '0',
               playerVars: {
-                autoplay: 1, // Let YouTube try to autoplay
+                autoplay: 0, // Otomatik çalmayı onReady ve isPlaying state'i ile yöneteceğiz
                 controls: 0,
                 modestbranding: 1,
                 rel: 0,
