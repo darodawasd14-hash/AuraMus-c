@@ -136,18 +136,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-        // Çalma listesinde aynı isimde şarkı olup olmadığını kontrol et.
-        // Bu kontrol, merkezi şarkı kimliğini bulmak için yapılan transaction'dan önce yapılır.
         const userPlaylistColRef = collection(firestore, 'users', userId, 'playlist');
         const duplicateQuery = query(userPlaylistColRef, where("title", "==", songDetails.title), limit(1));
         const duplicateSnapshot = await getDocs(duplicateQuery);
 
         if (!duplicateSnapshot.empty) {
             toast({
-                title: "Bu şarkı zaten listenizde var.",
+                title: `"${songDetails.title}" zaten listenizde var.`,
                 variant: "default",
             });
-            return null; // Şarkı zaten var, işlemi durdur.
+            return null;
         }
 
         const songRef = await runTransaction(firestore, async (transaction) => {
@@ -155,26 +153,22 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
             const queryIdentifier = songDetails.videoId || songDetails.url;
             const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
             
-            const querySnapshot = await transaction.get(q);
+            const querySnapshot = await getDocs(q); // Use getDocs within transaction for reads before writes
             let centralSongRef: DocumentReference;
 
             if (querySnapshot.empty) {
-                // Şarkı merkezi koleksiyonda yok, yeni bir tane oluştur.
-                centralSongRef = doc(songsCollectionRef); // Yeni bir doküman referansı al.
+                centralSongRef = doc(songsCollectionRef);
                 const newSongData = {
                     ...songDetails,
                     id: centralSongRef.id,
-                    userId: userId, // İlk ekleyen kullanıcı
+                    userId: userId,
                     timestamp: serverTimestamp(),
                 };
                 transaction.set(centralSongRef, newSongData);
             } else {
-                // Şarkı zaten var, mevcut referansı kullan.
                 centralSongRef = querySnapshot.docs[0].ref;
             }
 
-            // Şimdi şarkıyı kullanıcının kişisel çalma listesine ekle.
-            // ID olarak merkezi şarkının ID'sini kullanıyoruz.
             const userPlaylistSongRef = doc(firestore, 'users', userId, 'playlist', centralSongRef.id);
             const centralSongDoc = await transaction.get(centralSongRef);
             
@@ -184,7 +178,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
             const songDataForPlaylist = {
                 ...(centralSongDoc.data() as Song),
-                timestamp: serverTimestamp() // Kullanıcının eklediği zaman
+                timestamp: serverTimestamp()
             };
             transaction.set(userPlaylistSongRef, songDataForPlaylist);
             
@@ -212,8 +206,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const deleteSong = async (songId: string) => {
     if (!firestore || !user) return;
     
-    // NOT: Bu artık şarkıyı sadece kullanıcının çalma listesinden siler.
-    // Global /songs koleksiyonundan silmez.
     const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
     
     deleteDoc(songDocRef)
@@ -264,20 +256,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const soundcloudPlayer = soundcloudPlayerRef.current;
     const urlPlayer = urlPlayerRef.current;
   
-    // Helper to securely pause players
     const pauseAllPlayers = () => {
       if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
       if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
       if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
     };
   
-    // If we are not supposed to be playing, or there's no song, pause everything and exit.
     if (!isPlaying || !song) {
       pauseAllPlayers();
       return;
     }
   
-    // Play the correct player based on song type
     switch (song.type) {
       case 'youtube':
         if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
