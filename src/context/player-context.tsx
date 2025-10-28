@@ -337,41 +337,29 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const song = playlist[currentIndex];
   
-    const pauseAllPlayers = () => {
-        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function' && typeof youtubePlayer.getPlayerState === 'function') {
-            const playerState = youtubePlayer.getPlayerState();
-            if (playerState === 1 || playerState === 3) {
-              youtubePlayer.pauseVideo();
-            }
-          }
-      if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
-      if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
-    };
-  
+    // This is a "guard clause" to prevent running the effect if there's no song or it's paused.
     if (!isPlaying || !song) {
-      pauseAllPlayers();
+      if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
+      if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
+      if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
       return;
     }
   
     switch (song.type) {
       case 'youtube':
-        if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
+        if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
         if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
-        if (youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-          youtubePlayer.playVideo();
-        }
+        if (youtubePlayer?.playVideo) youtubePlayer.playVideo();
         break;
       case 'soundcloud':
-        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
+        if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
         if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
-        if (soundcloudPlayer && typeof soundcloudPlayer.play === 'function') {
-          soundcloudPlayer.play();
-        }
+        if (soundcloudPlayer?.play) soundcloudPlayer.play();
         break;
       case 'url':
-        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
-        if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
-        if (urlPlayer) {
+        if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
+        if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
+        if (urlPlayer) { // Null check for urlPlayer
           if (urlPlayer.src !== song.url) {
             urlPlayer.src = song.url;
           }
@@ -379,7 +367,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         }
         break;
       default:
-        pauseAllPlayers();
+        // Pause all players if song type is unknown
+        if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
+        if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
+        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
     }
   }, [isPlaying, currentIndex, playlist, youtubePlayer, soundcloudPlayer, urlPlayer]);
 
