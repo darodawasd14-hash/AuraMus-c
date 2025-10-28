@@ -5,29 +5,27 @@ import YouTube from 'react-youtube';
 import { usePlayer } from '@/context/player-context';
 
 const YouTubePlayerInternal = () => {
-  const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress } = usePlayer();
-  const playerRef = useRef<any>(null); // This is the 'remote control' box
+  const { currentSong, isPlaying, playNext, _setIsPlaying, _setDuration, _setProgress, seekTime, _clearSeek } = usePlayer();
+  const playerRef = useRef<any>(null);
 
   const onReady = useCallback((event: any) => {
     playerRef.current = event.target;
-    const duration = playerRef.current.getDuration();
-    if (duration) {
-      _setDuration(duration);
-    }
-    // Autoplay if isPlaying is already true when player becomes ready
-    if (isPlaying) {
-        event.target.playVideo();
-    }
-  }, [_setDuration, isPlaying]);
+    // TEST: Mute the player first to see if autoplay policy is the issue
+    event.target.mute(); 
+    // Then try to play. If it plays silently, we've confirmed the issue.
+    event.target.playVideo();
+  }, []);
 
   const onStateChange = useCallback((event: any) => {
-    // The player's state changed, so we report back to the context.
+    if (playerRef.current) {
+        const duration = playerRef.current.getDuration();
+        if (duration) {
+            _setDuration(duration);
+        }
+    }
+    
     if (event.data === 1) { // Playing
       _setIsPlaying(true);
-      const duration = playerRef.current.getDuration();
-      if (duration) {
-        _setDuration(duration);
-      }
     } else if (event.data === 0) { // Ended
       _setIsPlaying(false);
       playNext();
@@ -67,7 +65,7 @@ const YouTubePlayerInternal = () => {
         player.pauseVideo();
       }
     }
-  }, [isPlaying, currentSong]); // Depend on currentSong to re-evaluate when song changes
+  }, [isPlaying, currentSong]);
 
   useEffect(() => {
     if (seekTime !== null && playerRef.current && typeof playerRef.current.seekTo === 'function') {
@@ -83,19 +81,20 @@ const YouTubePlayerInternal = () => {
       key={currentSong.id}
       videoId={currentSong.videoId}
       opts={{
-        width: '0',
-        height: '0',
+        width: '1', // Positioned off-screen
+        height: '1',
         playerVars: {
-          autoplay: isPlaying ? 1 : 0, 
+          autoplay: 1, 
           controls: 0,
           modestbranding: 1,
           rel: 0,
+          playsinline: 1
         },
       }}
       onReady={onReady}
       onStateChange={onStateChange}
       onError={(e) => console.error('YouTube Player Error:', e)}
-      className="hidden"
+      className="absolute top-[-9999px] left-[-9999px] opacity-0"
     />
   );
 };
@@ -110,13 +109,16 @@ const SoundCloudPlayerInternal = () => {
 
         const iframeId = `soundcloud-player-${currentSong.id}`;
         let iframe = document.getElementById(iframeId) as HTMLIFrameElement;
-        let created = false;
+        
         if (!iframe) {
             iframe = document.createElement('iframe');
             iframe.id = iframeId;
-            iframe.style.display = 'none';
+            iframe.style.position = 'absolute';
+            iframe.style.top = '-9999px';
+            iframe.style.left = '-9999px';
+            iframe.style.width = '1px';
+            iframe.style.height = '1px';
             document.body.appendChild(iframe);
-            created = true;
         }
         
         iframe.src = `https://w.soundcloud.com/player/?url=${currentSong.url}&auto_play=false&visual=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false`;
@@ -152,7 +154,7 @@ const SoundCloudPlayerInternal = () => {
                      widgetRef.current.unbind((window as any).SC.Widget.Events.READY);
                      widgetRef.current.unbind((window as any).SC.Widget.Events.PLAY);
                      widgetRef.current.unbind((window as any).SC.Widget.Events.PAUSE);
-                     widgetRef.current.unbind((window as any).SC.Widget.Events.FINISH);
+                     widgetRef.current.unbind((window as a-ny).SC.Widget.Events.FINISH);
                      widgetRef.current.unbind((window as any).SC.Widget.Events.PLAY_PROGRESS);
                 } catch (e) {}
             }
@@ -189,28 +191,25 @@ const UrlPlayerInternal = () => {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     
     useEffect(() => {
+        let player = audioRef.current;
         if (!currentSong || currentSong.type !== 'url' || !currentSong.url) {
-            // Cleanup previous audio element if song changes or becomes null
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current = null;
+            if (player) {
+                player.pause();
+                player.src = '';
             }
             return;
         }
-
-        let player = audioRef.current;
         
         if (!player) {
-            player = new Audio(currentSong.url);
+            player = new Audio();
             audioRef.current = player;
         }
 
-        // If the src is different, update it.
         if(player.src !== currentSong.url) {
             player.src = currentSong.url;
         }
 
-        const handleDurationChange = () => {
+        const handleLoadedMetadata = () => {
             if (player && player.duration && isFinite(player.duration)) {
                 _setDuration(player.duration);
             }
@@ -224,12 +223,26 @@ const UrlPlayerInternal = () => {
         const handlePause = () => _setIsPlaying(false);
         const handleEnded = () => playNext();
 
-        player.addEventListener('loadedmetadata', handleDurationChange);
-        player.addEventListener('durationchange', handleDurationChange);
+        player.addEventListener('loadedmetadata', handleLoadedMetadata);
         player.addEventListener('timeupdate', handleTimeUpdate);
         player.addEventListener('play', handlePlay);
         player.addEventListener('pause', handlePause);
         player.addEventListener('ended', handleEnded);
+
+        return () => {
+            if(player) {
+                player.removeEventListener('loadedmetadata', handleLoadedMetadata);
+                player.removeEventListener('timeupdate', handleTimeUpdate);
+                player.removeEventListener('play', handlePlay);
+                player.removeEventListener('pause', handlePause);
+                player.removeEventListener('ended', handleEnded);
+            }
+        };
+    }, [currentSong, _setDuration, _setProgress, _setIsPlaying, playNext, isSeeking]);
+
+     useEffect(() => {
+        const player = audioRef.current;
+        if (!player) return;
 
         if (seekTime !== null) {
             player.currentTime = seekTime;
@@ -241,20 +254,7 @@ const UrlPlayerInternal = () => {
         } else {
             player.pause();
         }
-
-        return () => {
-            if(player) {
-                player.removeEventListener('loadedmetadata', handleDurationChange);
-                player.removeEventListener('durationchange', handleDurationChange);
-                player.removeEventListener('timeupdate', handleTimeUpdate);
-                player.removeEventListener('play', handlePlay);
-                player.removeEventListener('pause', handlePause);
-                player.removeEventListener('ended', handleEnded);
-                player.pause();
-                // Don't set src to '', just detach listeners
-            }
-        };
-    }, [currentSong, isPlaying, seekTime, _setIsPlaying, _setDuration, _setProgress, _clearSeek, playNext, isSeeking]);
+    }, [isPlaying, seekTime, _clearSeek]);
 
     return null;
 };
