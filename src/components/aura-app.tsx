@@ -163,6 +163,7 @@ const BottomNavBar = ({ currentView, setView }: { currentView: string, setView: 
 }
 
 const formatTime = (seconds: number) => {
+  if (isNaN(seconds) || seconds < 0) return '0:00';
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.floor(seconds % 60);
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
@@ -171,25 +172,29 @@ const formatTime = (seconds: number) => {
 
 const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick, progress, duration, onSeek }: { song: Song, isPlaying: boolean, onPlayPause: () => void, onNext: () => void, onClick: () => void, progress: number, duration: number, onSeek: (time: number) => void}) => {
   const [isSeeking, setIsSeeking] = useState(false);
-  const [seekValue, setSeekValue] = useState(0);
+  
+  // Use a state for the slider's value to provide immediate feedback to the user
+  const [sliderValue, setSliderValue] = useState(progress);
 
-  const handleSeek = (value: number[]) => {
+  // When the actual progress updates from the context (and the user is not seeking), update the slider.
+  useEffect(() => {
+    if (!isSeeking) {
+      setSliderValue(progress);
+    }
+  }, [progress, isSeeking]);
+
+  const handleSeekCommit = (value: number[]) => {
     onSeek(value[0]);
+    setIsSeeking(false);
   };
-
+  
   const handlePointerDown = () => {
     setIsSeeking(true);
   }
-  
-  const handlePointerUp = () => {
-    setIsSeeking(false);
-  }
 
   const handleValueChange = (value: number[]) => {
-    setSeekValue(value[0]);
+    setSliderValue(value[0]);
   }
-
-  const displayProgress = isSeeking ? seekValue : progress;
 
   return (
     <div className="fixed bottom-16 left-0 right-0 h-20 bg-muted/80 backdrop-blur-lg border-t border-border z-20 flex flex-col justify-center px-4 group">
@@ -219,15 +224,14 @@ const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick, progress, du
         </div>
       </div>
       <div className="w-full flex items-center gap-2 mt-1">
-        <span className="text-xs text-muted-foreground w-10 text-right">{formatTime(displayProgress)}</span>
+        <span className="text-xs text-muted-foreground w-10 text-right">{formatTime(sliderValue)}</span>
         <Slider
-            value={[displayProgress]}
-            max={duration}
+            value={[sliderValue]}
+            max={duration || 1} // Ensure max is always a positive number
             step={1}
             onValueChange={handleValueChange}
             onPointerDown={handlePointerDown}
-            onPointerUp={handlePointerUp}
-            onValueCommit={handleSeek}
+            onValueCommit={handleSeekCommit}
             className="flex-grow"
         />
         <span className="text-xs text-muted-foreground w-10">{formatTime(duration)}</span>
