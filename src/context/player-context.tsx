@@ -43,6 +43,14 @@ type PlayerContextType = {
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
+// Özel hata sınıfı
+class SongAlreadyExistsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SongAlreadyExistsError';
+  }
+}
+
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -129,31 +137,32 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   }, [firestore, user, isPlaylistLoading, userPlaylist]);
 
 
-  const addSong = async (songDetails: SongDetails, userId: string): Promise<Song | null> => {
+const addSong = async (songDetails: SongDetails, userId: string): Promise<Song | null> => {
     if (!firestore || !user) {
         toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
         return null;
     }
 
     try {
-        const userPlaylistColRef = collection(firestore, 'users', userId, 'playlist');
-        const duplicateQuery = query(userPlaylistColRef, where("title", "==", songDetails.title), limit(1));
-        const duplicateSnapshot = await getDocs(duplicateQuery);
-
-        if (!duplicateSnapshot.empty) {
-            toast({
-                title: `"${songDetails.title}" zaten listenizde var.`,
-                variant: "default",
-            });
-            return null;
-        }
-
         const songRef = await runTransaction(firestore, async (transaction) => {
+            // Transaction İÇİNDE kontrol et
+            const userPlaylistColRef = collection(firestore, 'users', userId, 'playlist');
+            const duplicateQuery = query(userPlaylistColRef, where("title", "==", songDetails.title), limit(1));
+            // Transaction içinde okuma yapmak için transaction.get kullan
+            const duplicateSnapshot = await getDocs(duplicateQuery);
+
+            if (!duplicateSnapshot.empty) {
+                // Şarkı zaten varsa, özel bir hata fırlatarak transaction'ı sonlandır
+                throw new SongAlreadyExistsError(`"${songDetails.title}" zaten listenizde var.`);
+            }
+
+            // --- Yinelenen şarkı yoksa ekleme işlemine devam et ---
+
             const songsCollectionRef = collection(firestore, 'songs');
             const queryIdentifier = songDetails.videoId || songDetails.url;
             const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
             
-            const querySnapshot = await getDocs(q); // Use getDocs within transaction for reads before writes
+            const querySnapshot = await getDocs(q); 
             let centralSongRef: DocumentReference;
 
             if (querySnapshot.empty) {
@@ -185,19 +194,30 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
             return centralSongRef;
         });
 
+        toast({ title: `"${songDetails.title}" listenize eklendi.` });
+
         const finalSongDoc = await getDoc(songRef);
         if(finalSongDoc.exists()){
              return finalSongDoc.data() as Song;
         }
         return null;
        
-    } catch (error) {
-        console.error("Şarkı ekleme işlemi sırasında hata (transaction failed): ", error);
-        toast({
-            title: "Şarkı eklenemedi",
-            description: "İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.",
-            variant: "destructive"
-        });
+    } catch (error: any) {
+        if (error instanceof SongAlreadyExistsError) {
+            // Fırlattığımız özel hatayı yakala ve kullanıcıya göster
+            toast({
+                title: error.message,
+                variant: "default",
+            });
+        } else {
+            // Diğer hataları genel bir mesajla bildir
+            console.error("Şarkı ekleme işlemi sırasında hata (transaction failed): ", error);
+            toast({
+                title: "Şarkı eklenemedi",
+                description: "İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.",
+                variant: "destructive"
+            });
+        }
         return null;
     }
 };
@@ -257,7 +277,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const urlPlayer = urlPlayerRef.current;
   
     const pauseAllPlayers = () => {
-      if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') youtubePlayer.pauseVideo();
+      if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function' && typeof youtubePlayer.getPlayerState === 'function') {
+        const state = youtubePlayer.getPlayerState();
+        if (state === 1 || state === 3) youtubePlayer.pauseVideo();
+      }
       if (soundcloudPlayer && typeof soundcloudPlayer.pause === 'function') soundcloudPlayer.pause();
       if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
     };
