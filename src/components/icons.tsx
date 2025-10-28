@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
-import { Music, ListMusic, User, Volume2, Send, Users, Search, MessageSquare, X } from 'lucide-react';
+import { Music, ListMusic, User, Volume2, Send, Users, Search, MessageSquare, X, Plus } from 'lucide-react';
 
-export { Music, ListMusic, User, Volume2, Send, Users, Search, MessageSquare, X };
+export { Music, ListMusic, User, Volume2, Send, Users, Search, MessageSquare, X, Plus };
 
 export function AuraLogo({ className, ...props }: React.SVGProps<SVGSVGElement>) {
   return (

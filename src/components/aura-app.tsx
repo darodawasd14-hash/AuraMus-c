@@ -1,10 +1,10 @@
 'use client';
 import React, { useState, useEffect, FormEvent, useMemo } from 'react';
-import { usePlayer, type Song, type SongDetails } from '@/context/player-context';
+import { usePlayer, type Song, type Playlist } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, Wand2, MessageSquare, X } from '@/components/icons';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, Wand2, MessageSquare, X, Plus } from '@/components/icons';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { signOut, updateProfile } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +15,23 @@ import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import type { YouTubeSearchOutput } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
 import { collection, query, orderBy, limit, serverTimestamp, addDoc, getDoc, doc } from 'firebase/firestore';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+  DialogClose
+} from '@/components/ui/dialog';
 
 const appId = 'Aura';
 
@@ -23,14 +40,32 @@ interface UserProfile {
 }
 
 export function AuraApp() {
-  const { playlist, currentIndex, isPlaying, playSong, addSong, deleteSong, togglePlayPause, playNext, playPrev, isLoading: isPlayerLoading } = usePlayer();
+  const { 
+    playlist, 
+    currentIndex, 
+    isPlaying, 
+    playSong, 
+    addSong, 
+    deleteSong, 
+    togglePlayPause, 
+    playNext, 
+    playPrev, 
+    isLoading: isPlayerLoading,
+    userPlaylists,
+    activePlaylistId,
+    setActivePlaylistId,
+    createPlaylist
+  } = usePlayer();
+
   const [songUrl, setSongUrl] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [view, setView] = useState<'player' | 'catalog' | 'search'>('player');
   const { user } = useUser();
   const [userProfile, setUserProfile] = useState<UserProfile>({ displayName: user?.displayName || user?.email || undefined });
   const [backgroundStyle, setBackgroundStyle] = useState({});
-  const [isChatOpen, setIsChatOpen] = useState(true);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState("");
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -40,10 +75,9 @@ export function AuraApp() {
 
   const handleAddSong = async (e: FormEvent) => {
     e.preventDefault();
-    if (!songUrl || !user) return;
+    if (!songUrl || !user || !activePlaylistId) return;
     setIsAdding(true);
     
-    // Basit URL ayrıştırma
     let type: 'youtube' | 'soundcloud' | 'url' = 'url';
     let videoId: string | undefined = undefined;
 
@@ -56,9 +90,19 @@ export function AuraApp() {
         type = 'soundcloud';
     }
 
-    await addSong({url: songUrl, title: songUrl, type, videoId}, user.uid);
+    await addSong({url: songUrl, title: songUrl, type, videoId}, user.uid, activePlaylistId);
     setSongUrl('');
     setIsAdding(false);
+  };
+  
+  const handleCreatePlaylist = async () => {
+    if (!newPlaylistName.trim() || !user) return;
+    setIsCreatingPlaylist(true);
+    await createPlaylist(newPlaylistName);
+    setNewPlaylistName("");
+    setIsCreatingPlaylist(false);
+    // Dialog should close automatically. You might need a ref or state lift to control Dialog's open prop for this.
+    // For simplicity, we'll rely on DialogClose for now.
   };
 
   const currentSong = currentIndex !== -1 ? playlist[currentIndex] : null;
@@ -74,10 +118,10 @@ export function AuraApp() {
         setIsChatOpen={setIsChatOpen} 
       />
       <main className="flex-grow overflow-hidden flex flex-row">
-        <div id="main-content" className="flex-grow flex flex-col transition-all duration-300">
+        <div id="main-content" className={`flex-grow flex flex-col transition-all duration-300 ${isChatOpen ? 'w-[calc(100%-20rem)]' : 'w-full'}`}>
           {view === 'player' ? (
             <div id="player-view" className="flex flex-col md:flex-row h-full">
-              <div className={`w-full ${isChatOpen ? 'md:w-3/5' : 'md:w-full'} p-4 md:p-6 flex flex-col justify-center transition-all duration-300`}>
+              <div className="w-full md:w-3/5 p-4 md:p-6 flex flex-col justify-center transition-all duration-300">
                 <div className="w-full max-w-3xl mx-auto">
                   <Player song={currentSong} />
                   <div className="mt-6 text-center">
@@ -101,8 +145,51 @@ export function AuraApp() {
                   </div>
                 </div>
               </div>
-              <aside className={`w-full ${isChatOpen ? 'md:w-2/5' : 'hidden'} p-4 md:p-6 flex flex-col bg-secondary/30 border-l border-border backdrop-blur-sm transition-all duration-300`}>
-                <h2 className="text-2xl font-semibold mb-4">Çalma Listem</h2>
+              <aside className="w-full md:w-2/5 p-4 md:p-6 flex flex-col bg-secondary/30 border-l border-border backdrop-blur-sm transition-all duration-300">
+                <div className="flex justify-between items-center mb-4">
+                    {userPlaylists && userPlaylists.length > 0 ? (
+                      <Select value={activePlaylistId || ''} onValueChange={setActivePlaylistId}>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Çalma Listesi Seç" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {userPlaylists.map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                       <h2 className="text-2xl font-semibold">Çalma Listem</h2>
+                    )}
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="icon"><Plus className="h-4 w-4"/></Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                          <DialogTitle>Yeni Çalma Listesi Oluştur</DialogTitle>
+                          <DialogDescription>
+                            Yeni çalma listeniz için bir isim girin.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <Input
+                            id="name"
+                            placeholder="Örn: Sabah Modu"
+                            value={newPlaylistName}
+                            onChange={(e) => setNewPlaylistName(e.target.value)}
+                          />
+                        </div>
+                        <DialogFooter>
+                          <DialogClose asChild>
+                            <Button type="button" onClick={handleCreatePlaylist} disabled={isCreatingPlaylist || !newPlaylistName.trim()}>
+                              {isCreatingPlaylist ? <Loader2 className="animate-spin"/> : "Oluştur"}
+                            </Button>
+                          </DialogClose>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                </div>
                 <form id="add-song-form" className="flex mb-4 gap-2" onSubmit={handleAddSong}>
                   <Input
                     type="url"
@@ -112,14 +199,21 @@ export function AuraApp() {
                     value={songUrl}
                     onChange={(e) => setSongUrl(e.target.value)}
                     className="flex-grow"
+                    disabled={!activePlaylistId}
                   />
-                  <Button type="submit" id="add-song-button" disabled={isAdding}>
+                  <Button type="submit" id="add-song-button" disabled={isAdding || !activePlaylistId}>
                     {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ekle'}
                   </Button>
                 </form>
                 <div id="playlist-container" className="flex-grow overflow-y-auto space-y-2 pr-2 -mr-2">
                   {isPlayerLoading ? (
                      <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
+                  ) : !activePlaylistId ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
+                      <ListMusic className="w-16 h-16 mb-4"/>
+                      <p className="font-semibold">Başlamak için bir çalma listesi seçin</p>
+                      <p className="text-sm">Veya yeni bir tane oluşturun.</p>
+                    </div>
                   ) : playlist.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
                       <Music className="w-16 h-16 mb-4"/>
@@ -128,7 +222,7 @@ export function AuraApp() {
                     </div>
                   ) : (
                     playlist.map((song, index) => (
-                      <PlaylistItem key={song.id} song={song} index={index} isActive={index === currentIndex} onPlay={playSong} onDelete={deleteSong} />
+                      <PlaylistItem key={song.id} song={song} index={index} isActive={index === currentIndex} onPlay={playSong} onDelete={(songId) => deleteSong(songId, activePlaylistId)} />
                     ))
                   )}
                 </div>
@@ -217,7 +311,7 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
 
 
 const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'search') => void }) => {
-  const { addSong } = usePlayer();
+  const { addSong, activePlaylistId } = usePlayer();
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -225,7 +319,6 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
 
   const songsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    // Artık merkezi /songs koleksiyonunu dinliyoruz
     return query(collection(firestore, 'songs'), orderBy('timestamp', 'desc'), limit(50));
   }, [firestore]);
 
@@ -236,10 +329,13 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
       toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
       return;
     }
+    if (!activePlaylistId) {
+      toast({ title: 'Lütfen önce bir çalma listesi seçin.', variant: 'destructive' });
+      return;
+    }
     setIsAdding(song.id);
 
-    // addSong fonksiyonu artık tüm işi yapacak (globale ekleme/kontrol etme ve kullanıcının listesine ekleme)
-    await addSong(song, user.uid);
+    await addSong(song, user.uid, activePlaylistId);
     
     setIsAdding(null);
     setView('player');
@@ -249,7 +345,6 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
     if (song.type === 'youtube' && song.videoId) {
       return `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
     }
-    // Fallback resmi
     return `https://i.ytimg.com/vi/default/hqdefault.jpg`;
   }
 
@@ -292,7 +387,7 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
                   onClick={() => handleAddFromCatalog(song)}
                   disabled={isAdding === song.id}
                 >
-                  {isAdding === song.id ? <Loader2 className="animate-spin" /> : "Aura'ya Ekle"}
+                  {isAdding === song.id ? <Loader2 className="animate-spin" /> : "Listeye Ekle"}
                 </Button>
               </div>
             ))}
@@ -319,7 +414,7 @@ const CatalogView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'sear
 };
 
 const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'search') => void }) => {
-  const { addSong } = usePlayer();
+  const { addSong, activePlaylistId } = usePlayer();
   const { toast } = useToast();
   const { user } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
@@ -359,16 +454,20 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
       toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
       return;
     }
+     if (!activePlaylistId) {
+      toast({ title: 'Lütfen önce bir çalma listesi seçin.', variant: 'destructive' });
+      return;
+    }
     setIsAdding(videoId);
     
-    const songDetails: SongDetails = {
+    const songDetails = {
       url: `https://www.youtube.com/watch?v=${videoId}`,
       title: title,
       videoId: videoId,
       type: 'youtube'
     };
 
-    await addSong(songDetails, user.uid);
+    await addSong(songDetails, user.uid, activePlaylistId);
     
     setIsAdding(null);
     setView('player');
@@ -424,7 +523,7 @@ const SearchView = ({ setView }: { setView: (view: 'player' | 'catalog' | 'searc
                   onClick={() => handleAddFromSearch(song.videoId, song.title)}
                   disabled={isAdding === song.videoId}
                 >
-                  {isAdding === song.videoId ? <Loader2 className="animate-spin" /> : "Aura'ya Ekle"}
+                  {isAdding === song.videoId ? <Loader2 className="animate-spin" /> : "Listeye Ekle"}
                 </Button>
               </div>
             ))}

@@ -2,43 +2,48 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit, runTransaction, DocumentReference, getDoc, setDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit, runTransaction, DocumentReference, getDoc, setDoc, addDoc } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import initialCatalog from '@/app/lib/catalog.json';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
 
+export interface Playlist {
+  id: string;
+  name: string;
+  userId: string;
+  createdAt: any;
+}
+
 export interface Song {
-  id: string; // Bu ID artık /songs koleksiyonundaki merkezi ID olacak
+  id: string;
   title: string;
   url: string;
   type: 'youtube' | 'soundcloud' | 'url';
   videoId?: string;
-  userId?: string; // Bu, şarkıyı ilk ekleyen kişi olabilir, ama anahtar değil
   timestamp?: any;
 }
 
-export type SongDetails = {
-  url: string;
-  title: string;
-  videoId?: string;
-  type: 'youtube' | 'soundcloud' | 'url';
-};
+export type SongDetails = Omit<Song, 'id' | 'timestamp'>;
 
 type PlayerContextType = {
   playlist: Song[];
+  userPlaylists: Playlist[] | null;
+  activePlaylistId: string | null;
   currentSong: Song | null;
   currentIndex: number;
   isPlaying: boolean;
   isLoading: boolean;
-  addSong: (songDetails: SongDetails, userId: string) => Promise<Song | null>;
-  deleteSong: (songId: string) => Promise<void>;
+  addSong: (songDetails: SongDetails, userId: string, playlistId: string) => Promise<Song | null>;
+  deleteSong: (songId: string, playlistId: string) => Promise<void>;
   playSong: (index: number) => void;
   togglePlayPause: () => void;
   playNext: () => void;
   playPrev: () => void;
   setYoutubePlayer: (player: any) => void;
   setSoundcloudPlayer: (player: any) => void;
+  setActivePlaylistId: (id: string | null) => void;
+  createPlaylist: (name: string) => Promise<void>;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -47,98 +52,130 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
-  const dataLoadedRef = useRef(false);
 
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
+
   const youtubePlayerRef = useRef<any>(null);
   const soundcloudPlayerRef = useRef<any>(null);
   const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
 
-  const userPlaylistQuery = useMemoFirebase(() => {
+  // Fetch user's playlists
+  const userPlaylistsQuery = useMemoFirebase(() => {
     if (user && firestore) {
-      return query(collection(firestore, 'users', user.uid, 'playlist'), orderBy('timestamp', 'asc'));
+      return query(collection(firestore, 'users', user.uid, 'playlists'), orderBy('createdAt', 'asc'));
     }
     return null;
   }, [user, firestore]);
+  const { data: userPlaylists, isLoading: isUserPlaylistsLoading } = useCollection<Playlist>(userPlaylistsQuery);
 
-  const { data: userPlaylist, isLoading: isPlaylistLoading } = useCollection<Song>(userPlaylistQuery);
-  
+  // Set initial active playlist
   useEffect(() => {
-    const isActuallyLoading = isPlaylistLoading || isUserLoading;
-    setIsLoading(isActuallyLoading);
-    if (isActuallyLoading) return;
-  
-    if (userPlaylist) {
+    if (userPlaylists && userPlaylists.length > 0 && !activePlaylistId) {
+      setActivePlaylistId(userPlaylists[0].id);
+    } else if (userPlaylists && userPlaylists.length === 0) {
+      setActivePlaylistId(null);
+    }
+  }, [userPlaylists, activePlaylistId]);
+
+  // Fetch songs for the active playlist
+  const songsQuery = useMemoFirebase(() => {
+    if (user && firestore && activePlaylistId) {
+      return query(collection(firestore, 'users', user.uid, 'playlists', activePlaylistId, 'songs'), orderBy('timestamp', 'asc'));
+    }
+    return null;
+  }, [user, firestore, activePlaylistId]);
+  const { data: activePlaylistSongs, isLoading: isSongsLoading } = useCollection<Song>(songsQuery);
+
+  // Update local state when Firestore data changes
+  useEffect(() => {
+    if (activePlaylistSongs) {
       const currentSongId = playlist[currentIndex]?.id;
-      setPlaylist(userPlaylist);
-  
-      if (userPlaylist.length === 0) {
-        setCurrentIndex(-1);
-        setIsPlaying(false);
+      setPlaylist(activePlaylistSongs);
+      const newIndex = activePlaylistSongs.findIndex(s => s.id === currentSongId);
+      
+      if (newIndex === -1) { // song not found or list is different
+         if (currentIndex !== -1) {
+            // Keep playing if possible, or reset
+            setCurrentIndex(0); 
+         }
       } else {
-        const newIndex = userPlaylist.findIndex(s => s.id === currentSongId);
-        if (newIndex !== -1) {
-          setCurrentIndex(newIndex);
-        } else if (currentIndex >= userPlaylist.length) {
-          setCurrentIndex(0);
-        } else if (currentIndex === -1 && userPlaylist.length > 0) {
-          setCurrentIndex(0);
-        }
+        setCurrentIndex(newIndex);
       }
-    } else if (!user) {
+      
+    } else if (!activePlaylistId) {
       setPlaylist([]);
       setCurrentIndex(-1);
-      setIsPlaying(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userPlaylist, isPlaylistLoading, isUserLoading, user]);
+  }, [activePlaylistSongs, activePlaylistId]);
 
+  const isLoading = isUserLoading || isUserPlaylistsLoading || isSongsLoading;
 
-  const extractYouTubeID = (url: string): string | null => {
-    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-    const match = url.match(regex);
-    return match ? match[1] : null;
+  // Function to create a new playlist
+  const createPlaylist = async (name: string) => {
+    if (!firestore || !user) return;
+    const playlistsColRef = collection(firestore, 'users', user.uid, 'playlists');
+    const newPlaylist = {
+      name,
+      userId: user.uid,
+      createdAt: serverTimestamp(),
+    };
+    try {
+      const docRef = await addDoc(playlistsColRef, newPlaylist);
+      setActivePlaylistId(docRef.id);
+      toast({ title: `Çalma listesi "${name}" oluşturuldu.` });
+    } catch (error) {
+      console.error("Error creating playlist: ", error);
+      toast({ title: "Çalma listesi oluşturulamadı.", variant: "destructive" });
+    }
   };
 
+  // Create default playlist and add initial songs if no playlists exist
   useEffect(() => {
-    if (firestore && user && !isPlaylistLoading && !dataLoadedRef.current && userPlaylist?.length === 0) {
-      dataLoadedRef.current = true; // Sadece bir kez çalışmasını sağla
-      const addInitialSongs = async () => {
-        const songsToAdd = initialCatalog.songs;
-        for (const song of songsToAdd) {
-            const videoId = extractYouTubeID(song.url);
-            if (videoId) {
-                const songData: SongDetails = {
-                    url: song.url,
-                    title: song.title,
-                    videoId,
-                    type: 'youtube'
-                };
-                // addSong fonksiyonunu kullanarak hem globale hem kullanıcının listesine ekle
-                await addSong(songData, user.uid);
-            }
+    if (user && !isUserPlaylistsLoading && userPlaylists?.length === 0) {
+      const setupInitialPlaylist = async () => {
+        if (!firestore) return;
+        
+        const defaultPlaylistName = "İlk Çalma Listem";
+        const playlistsColRef = collection(firestore, 'users', user.uid, 'playlists');
+        const newPlaylistData = {
+          name: defaultPlaylistName,
+          userId: user.uid,
+          createdAt: serverTimestamp(),
+        };
+
+        const playlistDocRef = await addDoc(playlistsColRef, newPlaylistData);
+        
+        for (const song of initialCatalog.songs) {
+            const videoId = song.url.split('v=')[1];
+            const songDetails: SongDetails = {
+                url: song.url,
+                title: song.title,
+                videoId,
+                type: 'youtube'
+            };
+            await addSong(songDetails, user.uid, playlistDocRef.id);
         }
-        toast({ title: "Hoş geldin! Başlangıç için birkaç şarkı ekledik."});
+        toast({ title: "Hoş geldin! Başlangıç için bir çalma listesi ve birkaç şarkı ekledik."});
+        setActivePlaylistId(playlistDocRef.id);
       };
-      addInitialSongs();
+
+      setupInitialPlaylist();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firestore, user, isPlaylistLoading, userPlaylist]);
+  }, [user, isUserPlaylistsLoading, userPlaylists, firestore]);
 
-
-const addSong = async (songDetails: SongDetails, userId: string): Promise<Song | null> => {
-    if (!firestore || !user) {
-        toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
+  const addSong = async (songDetails: SongDetails, userId: string, playlistId: string): Promise<Song | null> => {
+    if (!firestore || !user || !playlistId) {
+        toast({ title: 'Şarkı eklemek için bir çalma listesi seçmelisiniz.', variant: 'destructive' });
         return null;
     }
 
     try {
-        // 1. Merkezi şarkı referansını bul veya oluştur.
         const songsCollectionRef = collection(firestore, 'songs');
-        // Benzersiz tanımlayıcı olarak videoId veya URL kullan.
         const queryIdentifier = songDetails.videoId || songDetails.url;
         const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
         
@@ -147,40 +184,31 @@ const addSong = async (songDetails: SongDetails, userId: string): Promise<Song |
         let centralSongData: Song;
 
         if (querySnapshot.empty) {
-            // Şarkı merkezde yok, yeni bir tane oluştur.
             centralSongRef = doc(songsCollectionRef);
             centralSongData = {
                 ...songDetails,
                 id: centralSongRef.id,
-                userId: userId,
                 timestamp: serverTimestamp(),
             };
             await setDoc(centralSongRef, centralSongData);
         } else {
-            // Şarkı merkezde var, mevcut olanı kullan.
             centralSongRef = querySnapshot.docs[0].ref;
             centralSongData = querySnapshot.docs[0].data() as Song;
         }
 
-        // 2. Kullanıcının çalma listesindeki şarkı referansını oluştur (ID, merkezi şarkının ID'si olacak).
-        const userPlaylistSongRef = doc(firestore, 'users', userId, 'playlist', centralSongRef.id);
-
-        // 3. ADIM: YAZMADAN ÖNCE OKU - Şarkının kullanıcının listesinde olup olmadığını kontrol et.
+        const userPlaylistSongRef = doc(firestore, 'users', userId, 'playlists', playlistId, 'songs', centralSongRef.id);
         const docSnap = await getDoc(userPlaylistSongRef);
 
-        // 4. ADIM: KONTROL ET
         if (docSnap.exists()) {
-            // EĞER BELGE VARSA: Uyarı ver ve işlemi durdur.
             toast({
-                title: `"${songDetails.title}" zaten listenizde var.`,
+                title: `"${songDetails.title}" zaten bu listede var.`,
                 variant: 'default',
             });
-            return null; // Ekleme işlemi yapılmadı.
+            return null;
         } else {
-            // EĞER BELGE YOKSA: Ekle.
             const songDataForPlaylist = {
-                ...centralSongData, // Merkezi şarkının tüm bilgilerini kopyala
-                timestamp: serverTimestamp() // Kullanıcının listesine eklenme tarihini ayarla
+                ...centralSongData, 
+                timestamp: serverTimestamp()
             };
             await setDoc(userPlaylistSongRef, songDataForPlaylist);
 
@@ -190,31 +218,29 @@ const addSong = async (songDetails: SongDetails, userId: string): Promise<Song |
         }
        
     } catch (error: any) {
-        console.error("Şarkı ekleme işlemi sırasında hata: ", error);
-        // Bu hata, bir izin hatası olabilir, bu yüzden merkezi hata yayıcıya gönderelim.
+        console.error("Şarkı ekleme sırasında hata: ", error);
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `users/${userId}/playlist`, // Genel bir yol
-            operation: 'write',
+            path: `users/${userId}/playlists/${playlistId}/songs`,
+            operation: 'create',
             requestResourceData: songDetails
         }));
         toast({
             title: "Şarkı eklenemedi",
-            description: "İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.",
+            description: "İşlem sırasında bir hata oluştu.",
             variant: "destructive"
         });
         return null;
     }
 };
 
-
-  const deleteSong = async (songId: string) => {
-    if (!firestore || !user) return;
+  const deleteSong = async (songId: string, playlistId: string) => {
+    if (!firestore || !user || !playlistId) return;
     
-    const songDocRef = doc(firestore, 'users', user.uid, 'playlist', songId);
+    const songDocRef = doc(firestore, 'users', user.uid, 'playlists', playlistId, 'songs', songId);
     
     deleteDoc(songDocRef)
       .then(() => {
-        toast({ title: "Şarkı listenizden silindi." });
+        toast({ title: "Şarkı listeden silindi." });
       })
       .catch(serverError => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -263,7 +289,6 @@ const addSong = async (songDetails: SongDetails, userId: string): Promise<Song |
     const pauseAllPlayers = () => {
         if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function' && typeof youtubePlayer.getPlayerState === 'function') {
             const playerState = youtubePlayer.getPlayerState();
-            // 1 (playing), 3 (buffering)
             if (playerState === 1 || playerState === 3) {
               youtubePlayer.pauseVideo();
             }
@@ -312,6 +337,8 @@ const addSong = async (songDetails: SongDetails, userId: string): Promise<Song |
 
   const value: PlayerContextType = {
     playlist,
+    userPlaylists,
+    activePlaylistId,
     currentSong,
     currentIndex,
     isPlaying,
@@ -324,6 +351,8 @@ const addSong = async (songDetails: SongDetails, userId: string): Promise<Song |
     playPrev,
     setYoutubePlayer: (player: any) => { youtubePlayerRef.current = player; },
     setSoundcloudPlayer: (player: any) => { soundcloudPlayerRef.current = player; },
+    setActivePlaylistId,
+    createPlaylist,
   };
 
   return (

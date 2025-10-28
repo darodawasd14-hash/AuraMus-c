@@ -24,6 +24,26 @@
         "id"
       ]
     },
+    "Playlist": {
+      "title": "Playlist",
+      "description": "Represents a user-created playlist.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "object"
+        }
+      },
+      "required": ["name", "userId", "createdAt"]
+    },
     "Song": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Song",
@@ -33,10 +53,6 @@
         "id": {
           "type": "string",
           "description": "Unique identifier for the song."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to the User who owns this song."
         },
         "title": {
           "type": "string",
@@ -56,7 +72,6 @@
         }
       },
       "required": [
-        "userId",
         "title",
         "url",
         "type",
@@ -107,11 +122,17 @@
       },
       "description": "Stores user profile information. Each user has a document identified by their unique user ID."
     },
-    "/users/{userId}/playlist/{songId}": {
+    "/users/{userId}/playlists/{playlistId}": {
       "schema": {
-        "$ref": "#/entities/Song"
+        "$ref": "#/entities/Playlist"
       },
-      "description": "Sub-collection storing the songs in a specific user's personal playlist."
+      "description": "Stores the metadata for user-created playlists."
+    },
+    "/users/{userId}/playlists/{playlistId}/songs/{songId}": {
+        "schema": {
+            "$ref": "#/entities/Song"
+        },
+        "description": "Sub-collection storing the songs for a specific playlist."
     },
     "/songs/{songId}": {
       "schema": {
