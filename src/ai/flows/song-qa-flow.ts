@@ -11,16 +11,16 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-export const SongQuestionInputSchema = z.object({
+const SongQuestionInputSchema = z.object({
   songTitle: z.string().describe('Kullanıcının hakkında soru sorduğu şarkının adı.'),
   question: z.string().describe('Kullanıcının şarkı hakkındaki sorusu.'),
 });
-export type SongQuestionInput = z.infer<typeof SongQuestionInputSchema>;
+type SongQuestionInput = z.infer<typeof SongQuestionInputSchema>;
 
-export const SongQuestionOutputSchema = z.object({
+const SongQuestionOutputSchema = z.object({
   answer: z.string().describe('Kullanıcının sorusuna verilen cevap.'),
 });
-export type SongQuestionOutput = z.infer<typeof SongQuestionOutputSchema>;
+type SongQuestionOutput = z.infer<typeof SongQuestionOutputSchema>;
 
 export async function answerSongQuestion(
   input: SongQuestionInput

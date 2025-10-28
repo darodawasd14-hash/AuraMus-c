@@ -163,7 +163,7 @@ export function ChatPane({ song, displayName }: { song: Song | null, displayName
                     </div>
                 )}
                 {!isLoading && localMessages.length === 0 && (
-                    <div className="flex justify-center items-center h-full">
+                    <div className="flex flex-col justify-center items-center h-full text-center">
                         <p className="text-muted-foreground text-sm">İlk mesajı sen gönder!</p>
                         <p className="text-muted-foreground text-xs mt-2">Aura'ya sormak için: <code className="bg-muted px-1 py-0.5 rounded-sm">@aura soru</code></p>
                     </div>
