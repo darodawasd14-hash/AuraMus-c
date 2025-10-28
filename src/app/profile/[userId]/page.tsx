@@ -1,7 +1,7 @@
 'use client';
 import { useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { doc, collection, setDoc, deleteDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home } from 'lucide-react';
@@ -41,22 +41,46 @@ export default function ProfilePage() {
   const isFollowing = useMemo(() => followers?.some(f => f.id === currentUser?.uid), [followers, currentUser]);
   const isLoading = isProfileLoading || isFollowersLoading || isFollowingLoading || isPlaylistsLoading;
 
-  const handleFollow = async () => {
+  const handleFollow = () => {
     if (!currentUser || !firestore) return;
+    const followerData = { uid: currentUser.uid };
     const followerRef = doc(firestore, 'users', profileUserId, 'followers', currentUser.uid);
-    const followingRefDoc = doc(firestore, 'users', currentUser.uid, 'following', profileUserId);
+    setDoc(followerRef, followerData).catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: followerRef.path,
+            operation: 'create',
+            requestResourceData: followerData,
+        }));
+    });
     
-    await setDoc(followerRef, { uid: currentUser.uid });
-    await setDoc(followingRefDoc, { uid: profileUserId });
+    const followingData = { uid: profileUserId };
+    const followingRefDoc = doc(firestore, 'users', currentUser.uid, 'following', profileUserId);
+    setDoc(followingRefDoc, followingData).catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: followingRefDoc.path,
+            operation: 'create',
+            requestResourceData: followingData,
+        }));
+    });
   };
 
-  const handleUnfollow = async () => {
+  const handleUnfollow = () => {
     if (!currentUser || !firestore) return;
     const followerRef = doc(firestore, 'users', profileUserId, 'followers', currentUser.uid);
-    const followingRefDoc = doc(firestore, 'users', currentUser.uid, 'following', profileUserId);
+    deleteDoc(followerRef).catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: followerRef.path,
+            operation: 'delete',
+        }));
+    });
     
-    await deleteDoc(followerRef);
-    await deleteDoc(followingRefDoc);
+    const followingRefDoc = doc(firestore, 'users', currentUser.uid, 'following', profileUserId);
+    deleteDoc(followingRefDoc).catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: followingRefDoc.path,
+            operation: 'delete',
+        }));
+    });
   };
   
   // If the user is viewing their own profile, show the main Aura app.
