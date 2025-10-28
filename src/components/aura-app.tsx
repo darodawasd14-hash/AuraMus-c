@@ -68,7 +68,7 @@ export function AuraApp() {
     <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       {/* Player component is now always rendered but hidden, to allow background playback */}
       <div className="absolute -z-10 w-0 h-0 overflow-hidden">
-        <Player song={currentSong} />
+         <Player song={currentSong} />
       </div>
 
       <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
@@ -275,23 +275,16 @@ const PlaylistView = () => {
 
     setIsAdding(true);
     
-    let type: 'youtube' | 'soundcloud' | 'url' = 'url';
-    let videoId: string | undefined = undefined;
+    // The `addSong` function in the context now handles all the logic
+    // for parsing the URL, getting the videoId, and adding the song.
+    const addedSong = await addSong({ url: songUrl, title: songUrl }, user.uid, activePlaylistId);
 
-    if (songUrl.includes('youtube.com') || songUrl.includes('youtu.be')) {
-        type = 'youtube';
-        const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-        const match = songUrl.match(regex);
-        videoId = match ? match[1] : undefined;
-    } else if (songUrl.includes('soundcloud.com')) {
-        type = 'soundcloud';
+    if (addedSong) {
+        toast({ title: `"${addedSong.title}" listenize eklendi.` });
+        setSongUrl(''); // Clear input only on successful addition
     }
+    // If addSong returns null (e.g., duplicate or error), the URL remains for the user to see/correct.
     
-    const addedSong = await addSong({url: songUrl, title: songUrl, type, videoId}, user.uid, activePlaylistId);
-    if(addedSong) {
-      toast({ title: `"${addedSong.title}" listenize eklendi.` });
-    }
-    setSongUrl('');
     setIsAdding(false);
   };
   

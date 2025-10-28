@@ -34,7 +34,7 @@ type PlayerContextType = {
   currentIndex: number;
   isPlaying: boolean;
   isLoading: boolean;
-  addSong: (songDetails: SongDetails, userId: string, playlistId: string) => Promise<Song | null>;
+  addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
   deleteSong: (songId: string, playlistId: string) => Promise<void>;
   playSong: (index: number) => void;
   togglePlayPause: () => void;
@@ -186,15 +186,39 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isUserLoading, isUserPlaylistsLoading, userPlaylists, firestore]);
 
-  const addSong = async (songDetails: SongDetails, userId: string, playlistId: string): Promise<Song | null> => {
+  const addSong = async (songInfo: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string): Promise<Song | null> => {
     if (!firestore || !user || !playlistId) {
         toast({ title: 'Şarkı eklemek için bir çalma listesi seçmelisiniz.', variant: 'destructive' });
         return null;
     }
 
+    let songDetails: SongDetails;
+    const { url } = songInfo;
+
+    // Determine type and extract videoId
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+        const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
+        const match = url.match(regex);
+        const videoId = match ? match[1] : undefined;
+
+        if (!videoId) {
+            toast({ title: "Geçersiz YouTube linki", description: "Lütfen geçerli bir YouTube video linki girin.", variant: 'destructive' });
+            return null;
+        }
+        songDetails = { ...songInfo, type: 'youtube', videoId };
+
+    } else if (url.includes('soundcloud.com')) {
+        songDetails = { ...songInfo, type: 'soundcloud' };
+    } else {
+        songDetails = { ...songInfo, type: 'url' };
+    }
+
+
     const songsCollectionRef = collection(firestore, 'songs');
     const queryIdentifier = songDetails.videoId || songDetails.url;
-    const q = query(songsCollectionRef, where(songDetails.videoId ? "videoId" : "url", "==", queryIdentifier), limit(1));
+    // Use a specific property for querying, depending on the song type
+    const queryProperty = songDetails.type === 'youtube' ? "videoId" : "url";
+    const q = query(songsCollectionRef, where(queryProperty, "==", queryIdentifier), limit(1));
     
     try {
         const querySnapshot = await getDocs(q); 
@@ -202,6 +226,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         let centralSongData: Song;
 
         if (querySnapshot.empty) {
+            // Use videoId for YouTube songs as document ID for easy lookup, otherwise generate a new one
             const newSongId = songDetails.videoId || doc(songsCollectionRef).id;
             centralSongRef = doc(songsCollectionRef, newSongId);
             centralSongData = {
