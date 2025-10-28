@@ -85,7 +85,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isPlayerOpen, setIsPlayerOpen] = useState<boolean>(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [isMuted, setIsMuted] = useState(true); // Start muted to comply with autoplay policies
+  const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolumeState] = useState(0.75); // Volume from 0 to 1
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekTime, setSeekTime] = useState<number | null>(null);
