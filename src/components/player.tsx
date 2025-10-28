@@ -25,8 +25,8 @@ const YouTubePlayerInternal = () => {
     playerRef.current = event.target;
     // Autoplay muted to comply with browser policies
     playerRef.current.mute();
-    playerRef.current.playVideo();
     _setIsMuted(true);
+    // The playVideo command is now managed by the isPlaying useEffect
   }, [_setIsMuted]);
 
   const onStateChange = useCallback((event: any) => {
@@ -91,20 +91,28 @@ const YouTubePlayerInternal = () => {
     } else if (!isPlaying && playerState === 1) {
       player.pauseVideo();
     }
-    
-    // Sync Mute state
+  }, [isPlaying, currentSong]);
+
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player) return;
+     // Sync Mute state
     if (isMuted && !player.isMuted()) {
         player.mute();
     } else if (!isMuted && player.isMuted()) {
         player.unMute();
     }
+  }, [isMuted]);
 
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player) return;
     // Sync Seek Time
     if (seekTime !== null) {
       player.seekTo(seekTime, true);
       _clearSeek(); 
     }
-  }, [isPlaying, isMuted, seekTime, currentSong, _clearSeek]);
+  }, [seekTime, _clearSeek]);
 
 
   if (!currentSong || currentSong.type !== 'youtube' || !currentSong.videoId) return null;
@@ -297,3 +305,5 @@ export function Player() {
       return null;
   }
 }
+
+    
