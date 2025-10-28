@@ -246,7 +246,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         togglePlayPause();
       } else {
         setCurrentIndex(index);
-        setIsPlaying(true);
+        setIsPlaying(true); // Always set to play when a new song is selected
       }
     } else {
       setCurrentIndex(-1);
@@ -257,7 +257,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const togglePlayPause = () => {
     if (!currentSong) return;
     setIsPlaying(prev => {
-        // If user presses play for the first time, unmute
+        // If user presses play for the first time or from a paused state, unmute.
         if (isMuted && !prev) {
             setIsMuted(false);
         }
@@ -329,7 +329,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Başlangıç çalma listesi oluşturulamadı.", variant: "destructive" });
       });
     }
-  }, [user, isUserLoading, isUserPlaylistsLoading, userPlaylists, firestore, toast]);
+  }, [user, isUserLoading, isUserPlaylistsLoading, userPlaylists, firestore, toast, addSong]);
 
   const value: PlayerContextType = {
     playlist,

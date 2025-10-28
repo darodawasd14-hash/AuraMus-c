@@ -76,6 +76,7 @@ function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDurat
     playerRef.current = event.target;
     onDuration(event.target.getDuration());
     event.target.mute(); // Mute by default to comply with autoplay policies
+    event.target.playVideo(); // Start playing automatically (muted)
     startProgressTracking(event.target); // Start tracking as soon as the player is ready
   };
   
@@ -148,7 +149,7 @@ function YouTubePlayerInternal({ song, onEnd, onStateChange, onProgress, onDurat
       height: '0',
       width: '0',
       playerVars: {
-        autoplay: 1, 
+        // autoplay: 1, // Let onReady handle autoplay
         controls: 0,
         playsinline: 1,
         // modestbranding: 1,
