@@ -301,25 +301,22 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       });
   };
 
-  const togglePlayPause = useCallback(() => {
-    setIsPlaying(prev => !prev);
-  }, []);
-  
   const playSong = useCallback((index: number) => {
     if (index >= 0 && index < playlist.length) {
-      if (currentIndex !== index) {
-        setCurrentIndex(index);
-        setIsPlaying(true);
-      } else {
-        togglePlayPause();
-      }
+      setCurrentIndex(index);
+      setIsPlaying(true);
       setIsPlayerOpen(true);
     } else {
       setCurrentIndex(-1);
       setIsPlaying(false);
-      setIsPlayerOpen(false);
     }
-  }, [playlist.length, currentIndex, togglePlayPause]);
+  }, [playlist.length]);
+
+  const togglePlayPause = useCallback(() => {
+    if (playlist.length > 0) {
+      setIsPlaying(prev => !prev);
+    }
+  }, [playlist.length]);
 
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
@@ -351,7 +348,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         console.error("Seek error:", e);
     }
   };
-
 
   const value: PlayerContextType = {
     playlist,
