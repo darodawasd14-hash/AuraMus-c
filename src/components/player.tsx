@@ -68,12 +68,9 @@ const SoundCloudPlayer = ({ song }: { song: Song; }) => {
 
 const UrlPlayer = ({ song }: { song: Song }) => {
     const { isPlaying, setProgress, setDuration, isSeeking, playNext, setIsPlaying } = usePlayer();
-    const playerRef = useRef<HTMLAudioElement | null>(null);
 
     useEffect(() => {
-        // A new Audio object is created whenever the song URL changes.
         const player = new Audio(song.url);
-        playerRef.current = player;
 
         const handleTimeUpdate = () => !isSeeking && setProgress(player.currentTime);
         const handleDurationChange = () => player.duration && isFinite(player.duration) && setDuration(player.duration);
@@ -81,22 +78,19 @@ const UrlPlayer = ({ song }: { song: Song }) => {
         const handlePause = () => setIsPlaying(false);
         const handleEnded = () => playNext();
 
-        // Add event listeners
         player.addEventListener('timeupdate', handleTimeUpdate);
         player.addEventListener('durationchange', handleDurationChange);
-        player.addEventListener('loadedmetadata', handleDurationChange);
+        player.addEventListener('loadedmetadata', handleDurationChange); // Important for getting duration
         player.addEventListener('play', handlePlay);
         player.addEventListener('pause', handlePause);
         player.addEventListener('ended', handleEnded);
 
-        // Manage playback state
         if (isPlaying) {
             player.play().catch(e => console.error("Audio playback failed:", e));
         } else {
             player.pause();
         }
 
-        // Cleanup function
         return () => {
             player.removeEventListener('timeupdate', handleTimeUpdate);
             player.removeEventListener('durationchange', handleDurationChange);
@@ -105,25 +99,11 @@ const UrlPlayer = ({ song }: { song: Song }) => {
             player.removeEventListener('pause', handlePause);
             player.removeEventListener('ended', handleEnded);
             player.pause();
-            player.src = ''; // Release the audio source
-            playerRef.current = null;
+            player.src = '';
         };
-    }, [song.url]); // Re-run effect only when song URL changes
+    }, [song.url, isPlaying, isSeeking, playNext, setDuration, setIsPlaying, setProgress]);
 
-    useEffect(() => {
-        // This effect only controls play/pause on the existing player instance
-        const player = playerRef.current;
-        if (!player) return;
-
-        if (isPlaying) {
-            player.play().catch(e => console.error("Audio playback failed:", e));
-        } else {
-            player.pause();
-        }
-    }, [isPlaying]); // Re-run only when isPlaying state changes
-
-
-    return null; // No need to render a visible element
+    return null;
 };
 
 
@@ -142,7 +122,6 @@ export function Player({ song }: { song: Song | null }) {
 
   const onReady = (event: any) => {
     youtubePlayerRef.current = event.target;
-    // Oynatıcı hazır olduğunda ve global durum "çalıyor" ise çalmaya başla
     if (isPlaying) {
         event.target.playVideo();
     }
@@ -151,31 +130,28 @@ export function Player({ song }: { song: Song | null }) {
   const onStateChange = (event: any) => {
     const player = event.target;
     
-    // Her durum değişikliğinde interval'i temizle
     if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
         progressIntervalRef.current = null;
     }
 
-    if (event.data === 1) { // Oynatılıyor (Playing)
+    if (event.data === 1) { // Playing
       setIsPlaying(true);
       setDuration(player.getDuration());
-      // İlerlemeyi takip etmek için interval başlat
       progressIntervalRef.current = setInterval(() => {
         if (player && typeof player.getCurrentTime === 'function' && !isSeeking) {
           setProgress(player.getCurrentTime());
         }
       }, 250);
 
-    } else if (event.data === 0) { // Bitti (Ended)
+    } else if (event.data === 0) { // Ended
       setIsPlaying(false);
       playNext();
-    } else { // Duraklatıldı (2), Tamponlanıyor (3), vb.
+    } else { // Paused, Buffering, etc.
        setIsPlaying(false);
     }
   };
   
-  // Context'teki isPlaying durumu değiştiğinde oynatıcıyı kontrol et
   useEffect(() => {
     const player = youtubePlayerRef.current;
     if (player && typeof player.getPlayerState === 'function' && song?.type === 'youtube') {
@@ -190,7 +166,6 @@ export function Player({ song }: { song: Song | null }) {
 
 
   useEffect(() => {
-    // Bileşen kaldırıldığında interval'i temizle
     return () => {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
@@ -213,7 +188,7 @@ export function Player({ song }: { song: Song | null }) {
               width: '0',
               height: '0',
               playerVars: {
-                autoplay: 0, // Otomatik çalmayı onReady ve isPlaying state'i ile yöneteceğiz
+                autoplay: 0,
                 controls: 0,
                 modestbranding: 1,
                 rel: 0,
