@@ -26,11 +26,13 @@ export interface Song {
 
 export type SongDetails = Omit<Song, 'id' | 'timestamp'>;
 
-// This is the "Brain" of the player.
-// It only holds state and exposes functions to INTEND to change the state.
-// It does NOT directly control any player.
+declare global {
+  interface Window {
+    myGlobalPlayer: any;
+  }
+}
+
 type PlayerContextType = {
-  // STATE
   playlist: Song[];
   userPlaylists: Playlist[] | null;
   activePlaylistId: string | null;
@@ -41,14 +43,8 @@ type PlayerContextType = {
   isPlayerOpen: boolean;
   progress: number;
   duration: number;
+  isSeeking: boolean;
   
-  // REFS for player instances - This allows the UI to access the player "remote"
-  youtubePlayerRef: React.MutableRefObject<any>;
-  soundcloudPlayerRef: React.MutableRefObject<any>;
-  urlPlayerRef: React.MutableRefObject<HTMLAudioElement | null>;
-
-
-  // INTENT FUNCTIONS (called by UI)
   addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
   deleteSong: (songId: string, playlistId: string) => Promise<void>;
   playSong: (index: number) => void;
@@ -60,10 +56,13 @@ type PlayerContextType = {
   createPlaylist: (name: string) => Promise<void>;
   seekTo: (time: number) => void; 
   
-  // STATE UPDATERS (called by Player Engine)
+  // Player Engine'den gelen durum güncellemeleri
   _setIsPlaying: (isPlaying: boolean) => void;
   _setProgress: (progress: number) => void;
   _setDuration: (duration: number) => void;
+  _clearSeek: () => void;
+  seekTime: number | null;
+  setIsSeeking: (isSeeking: boolean) => void;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -81,12 +80,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [seekTime, setSeekTime] = useState<number | null>(null);
+  const [isSeeking, setIsSeeking] = useState<boolean>(false);
   
-  // Create refs here to hold the player instances ("remotes")
-  const youtubePlayerRef = useRef<any>(null);
-  const soundcloudPlayerRef = useRef<any>(null);
-  const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
-
   const userPlaylistsQuery = useMemoFirebase(() => {
     if (user && firestore) {
       return query(collection(firestore, 'users', user.uid, 'playlists'), orderBy('createdAt', 'asc'));
@@ -120,7 +116,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const newIndex = activePlaylistSongs.findIndex(s => s.id === currentSongId);
       
       if (newIndex === -1 && currentIndex !== -1) {
-         // Current song was removed from playlist
          setIsPlaying(false);
          setCurrentIndex(-1);
          setProgress(0); 
@@ -136,7 +131,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setProgress(0);
       setDuration(0);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlaylistSongs, activePlaylistId]);
 
   const isLoading = isUserLoading || isUserPlaylistsLoading || isSongsLoading;
@@ -187,11 +181,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
                     videoId,
                     type: 'youtube'
                 };
-                // Ensure song exists in central catalog
                 const centralSongRef = doc(collection(firestore, 'songs'), videoId || song.id);
                 await setDoc(centralSongRef, { ...songDetails, id: centralSongRef.id, timestamp: serverTimestamp() }, { merge: true });
                 
-                // Add song to user's new playlist
                 const userPlaylistSongRef = doc(firestore, 'users', user.uid, 'playlists', playlistDocRef.id, 'songs', centralSongRef.id);
                 await setDoc(userPlaylistSongRef, { ...songDetails, id: centralSongRef.id, timestamp: serverTimestamp() });
             }
@@ -208,7 +200,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         }
       };
 
-      // Only setup for new, non-anonymous users
       if (!user.isAnonymous) {
           setupInitialPlaylist();
       }
@@ -224,7 +215,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     let songDetails: SongDetails;
     const { url } = songInfo;
 
-    // Logic to determine song type and extract videoId
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
         const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
         const match = url.match(regex);
@@ -243,7 +233,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const songsCollectionRef = collection(firestore, 'songs');
-    // Use videoId for YouTube, URL for others as the unique identifier in the 'songs' collection
     const queryIdentifier = songDetails.videoId || songDetails.url;
     const queryProperty = songDetails.type === 'youtube' ? "videoId" : "url";
     const q = query(songsCollectionRef, where(queryProperty, "==", queryIdentifier), limit(1));
@@ -253,8 +242,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         let centralSongRef;
 
         if (querySnapshot.empty) {
-            // Song doesn't exist in the central catalog, create it
-            // Use videoId for YouTube as document ID for easy lookup, or generate new ID for others
             const newSongId = songDetails.videoId || doc(songsCollectionRef).id;
             centralSongRef = doc(songsCollectionRef, newSongId);
             await setDoc(centralSongRef, {
@@ -263,11 +250,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
                 timestamp: serverTimestamp(),
             });
         } else {
-            // Song already exists, use its reference
             centralSongRef = querySnapshot.docs[0].ref;
         }
 
-        // Add the song reference to the user's playlist
         const userPlaylistSongRef = doc(firestore, 'users', userId, 'playlists', playlistId, 'songs', centralSongRef.id);
         const docSnap = await getDoc(userPlaylistSongRef);
 
@@ -325,55 +310,59 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const playSong = (index: number) => {
     if (index >= 0 && index < playlist.length) {
-      if (index === currentIndex) {
-        togglePlayPause();
-      } else {
-        setCurrentIndex(index);
-        setIsPlaying(true);
-      }
+      setCurrentIndex(index);
+      setIsPlaying(true);
     } else {
-      // If index is invalid, stop playing
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
   };
 
   const togglePlayPause = () => {
-    if (!currentSong) return;
+    console.log("Butona tıklandı. 'window.myGlobalPlayer' aranıyor...");
 
-    if (currentSong.type === 'youtube') {
-      const player = youtubePlayerRef.current;
-      // 1. Ref'i kontrol et
-      if (!player || !player.unMute) {
-          console.error("HATA: Oynatıcı (playerRef) bulunamadı veya 'unMute' fonksiyonu yok!");
-          return;
+    const player = window.myGlobalPlayer;
+  
+    if (!player || !player.getPlayerState) {
+      console.error("HATA: Global oynatıcı 'window.myGlobalPlayer' bulunamadı!");
+      // If there is no global player, maybe we can just toggle the state for other player types
+      if (currentSong && currentSong.type !== 'youtube') {
+        setIsPlaying(prev => !prev);
       }
-
-      console.log("Butona tıklandı. 'unMute()' komutu deneniyor...");
-      
-      // 2. Sesi açmayı zorla
-      player.unMute();
-      
-      // 3. Sesi %100 yapmayı da zorla (garanti olsun)
-      player.setVolume(100); 
-
-      console.log("playVideo() komutu gönderiliyor...");
-      
-      // 4. Oynat
-      player.playVideo();
-
-      // 5. Son durumu kontrol et:
-      // Sesi açtıktan hemen sonra tekrar kontrol ediyoruz.
-      setTimeout(() => {
-          console.log("Komutlardan 1 saniye sonra durum (Hala sessiz mi?):", player.isMuted());
-      }, 1000);
-
-    } else if (currentSong.type === 'url' || currentSong.type === 'soundcloud') {
-        const player = currentSong.type === 'url' ? urlPlayerRef.current : soundcloudPlayerRef.current;
-         if (player) {
-            setIsPlaying(prev => !prev);
-        }
+      return;
     }
+    
+    console.log("Global oynatıcı bulundu. Mevcut durum:", player.getPlayerState());
+  
+    if (player.isMuted()) {
+      console.log("Global oynatıcıda sesi açıyor...");
+      player.unMute();
+      player.setVolume(100); 
+    }
+  
+    const playerState = player.getPlayerState();
+    
+    // State 1 = Playing
+    if (playerState === 1) { 
+      console.log("Global oynatıcıyı durduruluyor...");
+      player.pauseVideo();
+    } else { 
+      // State 2 = Paused (or 0, 3, 5)
+      console.log("Global oynatıcıyı oynatıyor...");
+      player.playVideo();
+    }
+  
+    setTimeout(() => {
+      if (window.myGlobalPlayer) {
+        console.log("--- 1 saniye sonra ---");
+        const muted = window.myGlobalPlayer.isMuted();
+        const state = window.myGlobalPlayer.getPlayerState();
+        console.log("Hala sessiz mi?:", muted);
+        console.log("Durum ne?:", state);
+        // Sync React state with the actual player state
+        setIsPlaying(state === 1);
+      }
+    }, 1000);
   };
 
   const playNext = useCallback(() => {
@@ -391,15 +380,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const seekTo = (time: number) => {
-      if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
-          youtubePlayerRef.current.seekTo(time, true);
-      } else if (currentSong?.type === 'soundcloud' && soundcloudPlayerRef.current) {
-          soundcloudPlayerRef.current.seekTo(time * 1000);
-      } else if (currentSong?.type === 'url' && urlPlayerRef.current) {
-          urlPlayerRef.current.currentTime = time;
-      }
-      _setProgress(time);
+    setSeekTime(time);
   };
+  
+  const _clearSeek = () => {
+      setSeekTime(null);
+  }
 
   const value: PlayerContextType = {
     playlist,
@@ -412,9 +398,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     isPlayerOpen,
     progress,
     duration,
-    youtubePlayerRef,
-    soundcloudPlayerRef,
-    urlPlayerRef,
+    isSeeking,
     addSong,
     deleteSong,
     playSong,
@@ -425,9 +409,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setActivePlaylistId,
     createPlaylist,
     seekTo,
+    seekTime,
+    setIsSeeking,
     _setIsPlaying: setIsPlaying,
     _setProgress: setProgress,
     _setDuration: setDuration,
+    _clearSeek,
   };
 
   return (
