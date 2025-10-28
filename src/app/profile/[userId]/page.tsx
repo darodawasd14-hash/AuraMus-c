@@ -1,10 +1,11 @@
 'use client';
 import { useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError, useAuth } from '@/firebase';
 import { doc, collection, setDoc, deleteDoc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home } from 'lucide-react';
+import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import Link from 'next/link';
@@ -26,6 +27,7 @@ export default function ProfilePage() {
 
   const { user: currentUser } = useUser();
   const firestore = useFirestore();
+  const auth = useAuth();
 
   const profileUserRef = useMemoFirebase(() => firestore ? doc(firestore, 'users', profileUserId) : null, [firestore, profileUserId]);
   const followersRef = useMemoFirebase(() => firestore ? collection(firestore, 'users', profileUserId, 'followers') : null, [firestore, profileUserId]);
@@ -84,6 +86,14 @@ export default function ProfilePage() {
     });
   };
 
+  const handleSignOut = async () => {
+    if (auth) {
+      await signOut(auth);
+      router.push('/'); // Redirect to home/auth page after sign out
+    }
+  };
+
+
   if (isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -134,9 +144,13 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          {currentUser && !isOwnProfile && (
+          {currentUser && (
             <div className="mt-4 md:mt-0">
-              {isFollowing ? (
+              {isOwnProfile ? (
+                 <Button onClick={handleSignOut} variant="outline">
+                  <LogOut className="mr-2 h-4 w-4" /> Çıkış Yap
+                </Button>
+              ) : isFollowing ? (
                 <Button onClick={handleUnfollow} variant="outline">
                   <UserMinus className="mr-2 h-4 w-4" /> Takipten Çık
                 </Button>
