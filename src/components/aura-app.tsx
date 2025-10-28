@@ -180,7 +180,7 @@ const PlaylistView = () => {
             };
         } else {
              // For SoundCloud or other URLs, use a Base64 encoded URL as the ID
-             const safeId = typeof window !== "undefined" ? window.btoa(songUrl) : Buffer.from(songUrl).toString('base64');
+             const safeId = typeof window !== "undefined" ? window.btoa(songUrl).replace(/\//g, '-') : Buffer.from(songUrl).toString('base64').replace(/\//g, '-');
              songDetails = { 
                 id: safeId, 
                 url: songUrl, 
