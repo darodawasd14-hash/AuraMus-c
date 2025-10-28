@@ -334,54 +334,55 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playSong(prevIndex);
   };
   
-  useEffect(() => {
-    const song = playlist[currentIndex];
-
-    // If not playing, ensure all players are paused.
-    if (!isPlaying) {
-      if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
-      if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
-      if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
-      return;
-    }
-
-    // If there is no song, do nothing.
-    if (!song) {
-      return;
-    }
-    
-    // Play the correct player based on song type.
-    switch (song.type) {
-      case 'youtube':
-        if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
-        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
-        if (youtubePlayer?.playVideo) youtubePlayer.playVideo();
-        break;
-      case 'soundcloud':
-        if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
-        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
-        if (soundcloudPlayer?.play) soundcloudPlayer.play();
-        break;
-      case 'url':
-        if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
-        if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
-        if (urlPlayer) {
-          if (urlPlayer.src !== song.url) {
-            urlPlayer.src = song.url;
-          }
-          urlPlayer.play().catch(e => console.error("URL audio playback error:", e));
-        }
-        break;
-      default:
-        // Pause all if the song type is unknown
-        if (youtubePlayer?.pauseVideo) youtubePlayer.pauseVideo();
-        if (soundcloudPlayer?.pause) soundcloudPlayer.pause();
-        if (urlPlayer && !urlPlayer.paused) urlPlayer.pause();
-    }
-  }, [isPlaying, currentIndex, playlist, youtubePlayer, soundcloudPlayer, urlPlayer]);
-
-
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
+
+  // --- START: REFACTORED PLAYER LOGIC ---
+
+  // Effect for handling YouTube player
+  useEffect(() => {
+    if (!youtubePlayer) return;
+    const shouldPlay = isPlaying && currentSong?.type === 'youtube';
+    if (shouldPlay) {
+      youtubePlayer.playVideo();
+    } else {
+      youtubePlayer.pauseVideo();
+    }
+  }, [isPlaying, currentSong, youtubePlayer]);
+
+  // Effect for handling SoundCloud player
+  useEffect(() => {
+    if (!soundcloudPlayer) return;
+    const shouldPlay = isPlaying && currentSong?.type === 'soundcloud';
+    if (shouldPlay) {
+      soundcloudPlayer.play();
+    } else {
+      soundcloudPlayer.pause();
+    }
+  }, [isPlaying, currentSong, soundcloudPlayer]);
+
+  // Effect for handling URL player
+  useEffect(() => {
+    if (!urlPlayer) return;
+    const shouldPlay = isPlaying && currentSong?.type === 'url';
+
+    // Ensure the source is correct before playing
+    if (currentSong && urlPlayer.src !== currentSong.url) {
+        urlPlayer.src = currentSong.url;
+    }
+
+    if (shouldPlay) {
+        // Check src again in case it was just set
+        if (urlPlayer.src) {
+            urlPlayer.play().catch(e => console.error("URL audio playback error:", e));
+        }
+    } else {
+      if (!urlPlayer.paused) {
+        urlPlayer.pause();
+      }
+    }
+  }, [isPlaying, currentSong, urlPlayer]);
+
+  // --- END: REFACTORED PLAYER LOGIC ---
 
   const value: PlayerContextType = {
     playlist,
