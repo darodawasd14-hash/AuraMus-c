@@ -41,7 +41,7 @@ interface UserProfile {
 }
 
 export function AuraApp() {
-  const { currentSong, isPlaying, togglePlayPause, playNext, isPlayerOpen, setIsPlayerOpen, progress, duration, seekTo, setIsSeeking } = usePlayer();
+  const { currentSong, isPlaying, togglePlayPause, playNext, playPrev, isPlayerOpen, setIsPlayerOpen, progress, duration, _seekTo, _setIsSeeking } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const { user } = useUser();
@@ -68,7 +68,6 @@ export function AuraApp() {
   return (
     <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       
-      {/* The single, persistent, INVISIBLE Player instance */}
       <div className="w-0 h-0 overflow-hidden">
           <Player song={currentSong} />
       </div>
@@ -110,8 +109,8 @@ export function AuraApp() {
           onClick={handleTogglePlayer}
           progress={progress}
           duration={duration}
-          onSeek={seekTo}
-          onSeeking={setIsSeeking}
+          onSeek={_seekTo}
+          onSeeking={_setIsSeeking}
         />
       )}
       
@@ -244,11 +243,10 @@ const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick, progress, du
 }
 
 const FullPlayerView = ({ song, onClose }: { song: Song | null, onClose: () => void }) => {
-    const { isPlaying, togglePlayPause, playNext, playPrev, progress, duration, seekTo, setIsSeeking } = usePlayer();
+    const { isPlaying, togglePlayPause, playNext, playPrev, progress, duration, _seekTo, _setIsSeeking } = usePlayer();
 
     if (!song) return null;
     
-    // This component now ALSO uses the central slider logic
     const [sliderValue, setSliderValue] = useState(progress);
     const { isSeeking } = usePlayer();
 
@@ -259,12 +257,12 @@ const FullPlayerView = ({ song, onClose }: { song: Song | null, onClose: () => v
     }, [progress, isSeeking]);
 
     const handleSeekCommit = (value: number[]) => {
-        seekTo(value[0]);
-        setIsSeeking(false);
+        _seekTo(value[0]);
+        _setIsSeeking(false);
     };
     
     const handlePointerDown = () => {
-        setIsSeeking(true);
+        _setIsSeeking(true);
     }
 
     const handleValueChange = (value: number[]) => {

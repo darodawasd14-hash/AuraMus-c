@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit, runTransaction, DocumentReference, getDoc, setDoc, addDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, deleteDoc, doc, query, orderBy, getDocs, where, limit, getDoc, setDoc, addDoc } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import initialCatalog from '@/app/lib/catalog.json';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -26,7 +26,10 @@ export interface Song {
 
 export type SongDetails = Omit<Song, 'id' | 'timestamp'>;
 
+// Context artık sadece durumu ve durumu değiştirecek "niyet" fonksiyonlarını tutar.
+// Oynatıcıyı doğrudan kontrol eden hiçbir şey burada yer almaz.
 type PlayerContextType = {
+  // DURUM (STATE)
   playlist: Song[];
   userPlaylists: Playlist[] | null;
   activePlaylistId: string | null;
@@ -38,21 +41,25 @@ type PlayerContextType = {
   isSeeking: boolean;
   progress: number;
   duration: number;
+
+  // NİYET (INTENT) FONKSİYONLARI
   addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
   deleteSong: (songId: string, playlistId: string) => Promise<void>;
   playSong: (index: number) => void;
   togglePlayPause: () => void;
   playNext: () => void;
   playPrev: () => void;
-  seekTo: (time: number) => void;
   setIsPlayerOpen: (isOpen: boolean) => void;
   setActivePlaylistId: (id: string | null) => void;
   createPlaylist: (name: string) => Promise<void>;
-  setIsSeeking: (isSeeking: boolean) => void;
-  setIsPlaying: (isPlaying: boolean) => void;
-  setProgress: (progress: number) => void;
-  setDuration: (duration: number) => void;
-  // Refs are removed from context to be managed locally in Player component
+
+  // DOĞRUDAN STATE GÜNCELLEYİCİLER (Sadece player.tsx tarafından kullanılır)
+  _setIsPlaying: (isPlaying: boolean) => void;
+  _setProgress: (progress: number) => void;
+  _setDuration: (duration: number) => void;
+  _setIsSeeking: (isSeeking: boolean) => void;
+  _seekTo: (time: number) => void;
+  seekTime: number | null;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -70,7 +77,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
-  const [seekTime, setSeekTime] = useState<number | null>(null); // To communicate seek to player
+  const [seekTime, setSeekTime] = useState<number | null>(null);
 
   const userPlaylistsQuery = useMemoFirebase(() => {
     if (user && firestore) {
@@ -105,7 +112,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const newIndex = activePlaylistSongs.findIndex(s => s.id === currentSongId);
       
       if (newIndex === -1 && currentIndex !== -1) {
-         // Song was deleted, stop playing
          setIsPlaying(false);
          setCurrentIndex(-1);
       } else {
@@ -116,7 +122,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setPlaylist([]);
       setCurrentIndex(-1);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlaylistSongs, activePlaylistId]);
 
   const isLoading = isUserLoading || isUserPlaylistsLoading || isSongsLoading;
@@ -224,21 +230,18 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     
     try {
         const querySnapshot = await getDocs(q); 
-        let centralSongRef: DocumentReference;
-        let centralSongData: Song;
+        let centralSongRef;
 
         if (querySnapshot.empty) {
             const newSongId = songDetails.videoId || doc(songsCollectionRef).id;
             centralSongRef = doc(songsCollectionRef, newSongId);
-            centralSongData = {
+            await setDoc(centralSongRef, {
                 ...songDetails,
                 id: centralSongRef.id,
                 timestamp: serverTimestamp(),
-            };
-            await setDoc(centralSongRef, centralSongData);
+            });
         } else {
             centralSongRef = querySnapshot.docs[0].ref;
-            centralSongData = querySnapshot.docs[0].data() as Song;
         }
 
         const userPlaylistSongRef = doc(firestore, 'users', userId, 'playlists', playlistId, 'songs', centralSongRef.id);
@@ -251,12 +254,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
             });
             return null;
         } 
-
+        
         const songDataForPlaylist = {
-            ...centralSongData, 
+            ...songDetails,
+            id: centralSongRef.id,
             timestamp: serverTimestamp()
         };
-        
+
         await setDoc(userPlaylistSongRef, songDataForPlaylist).catch(serverError => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: userPlaylistSongRef.path,
@@ -265,7 +269,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
             }));
         });
 
-        return songDataForPlaylist;
+        return songDataForPlaylist as Song;
 
     } catch (serverError: any) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -298,10 +302,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playSong = (index: number) => {
     if (index >= 0 && index < playlist.length) {
       if (index === currentIndex) {
-        // If the same song is clicked, toggle play/pause
-        setIsPlaying(prev => !prev);
+        togglePlayPause();
       } else {
-        // If a new song is clicked, start playing it
         setCurrentIndex(index);
         setIsPlaying(true);
       }
@@ -332,13 +334,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const seekTo = (time: number) => {
     if (!currentSong) return;
-    // This is now an indirect command.
-    // The Player component will listen for this state change.
     setSeekTime(time);
-    // After sending the command, reset it to allow subsequent seeks
-    // The player will handle the actual seek and then we can clear it.
-    // A better approach is for the player to clear it after seeking.
-    setTimeout(() => setSeekTime(null), 100);
+    // Let the player component handle the seek and reset the value
+    setTimeout(() => setSeekTime(null), 50);
   };
 
   const value: PlayerContextType = {
@@ -353,20 +351,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     isSeeking,
     progress,
     duration,
+    seekTime,
     addSong,
     deleteSong,
     playSong,
     togglePlayPause,
     playNext,
     playPrev,
-    seekTo: seekTo,
     setIsPlayerOpen,
     setActivePlaylistId,
     createPlaylist,
-    setIsSeeking,
-    setIsPlaying,
-    setProgress,
-    setDuration,
+    _seekTo: seekTo,
+    _setIsPlaying: setIsPlaying,
+    _setProgress: setProgress,
+    _setDuration: setDuration,
+    _setIsSeeking: setIsSeeking,
   };
 
   return (

@@ -1,237 +1,243 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import YouTube from 'react-youtube';
 import { usePlayer, type Song } from '@/context/player-context';
 
-const SoundCloudPlayer = ({ song }: { song: Song }) => {
-  const { isPlaying, setProgress, setDuration, isSeeking, playNext, setIsPlaying, seekTo } = usePlayer();
-  const widgetRef = useRef<any>(null);
 
-  // Effect for creating and managing the widget
-  useEffect(() => {
-    if (!song.url || !(window as any).SC) return;
-
-    // Use a local iframe, don't rely on a shared ref
-    const iframeId = `soundcloud-player-${song.id}`;
-    let iframe = document.getElementById(iframeId) as HTMLIFrameElement;
-    if (!iframe) {
-        iframe = document.createElement('iframe');
-        iframe.id = iframeId;
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-    }
-    iframe.src = `https://w.soundcloud.com/player/?url=${song.url}&auto_play=true&visual=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false`;
-
-    const widget = (window as any).SC.Widget(iframe);
-    widgetRef.current = widget;
-
-    const onReady = () => {
-      widget.getDuration((d: number) => setDuration(d / 1000));
-      widget.bind((window as any).SC.Widget.Events.FINISH, playNext);
-      widget.bind((window as any).SC.Widget.Events.PLAY, () => setIsPlaying(true));
-      widget.bind((window as any).SC.Widget.Events.PAUSE, () => setIsPlaying(false));
-      widget.bind((window as any).SC.Widget.Events.PLAY_PROGRESS, (data: { currentPosition: number }) => {
-        if (!isSeeking) setProgress(data.currentPosition / 1000);
-      });
-      // Initial play is handled by auto_play=true
-    };
-    
-    widget.bind((window as any).SC.Widget.Events.READY, onReady);
-
-    return () => {
-      try {
-        if (widgetRef.current) {
-          widgetRef.current.unbind((window as any).SC.Widget.Events.READY);
-          widgetRef.current.unbind((window as any).SC.Widget.Events.PLAY);
-          widgetRef.current.unbind((window as any).SC.Widget.Events.PAUSE);
-          widgetRef.current.unbind((window as any).SC.Widget.Events.FINISH);
-          widgetRef.current.unbind((window as any).SC.Widget.Events.PLAY_PROGRESS);
-        }
-        iframe.remove();
-      } catch (e) { /* Suppress errors */ }
-    };
-  }, [song.id, song.url, playNext, setDuration, setProgress, isSeeking, setIsPlaying]);
-
-  // Effect for controlling playback (play/pause)
-  useEffect(() => {
-    const widget = widgetRef.current;
-    if (widget) {
-        widget.isPaused((paused: boolean) => {
-            if (isPlaying && paused) {
-                widget.play();
-            } else if (!isPlaying && !paused) {
-                widget.pause();
-            }
-        });
-    }
-  }, [isPlaying]);
-
-  return null; // The iframe is managed directly in the DOM
-};
-
-
-const UrlPlayer = ({ song }: { song: Song }) => {
-  const { isPlaying, setProgress, setDuration, isSeeking, playNext, setIsPlaying } = usePlayer();
-
-  useEffect(() => {
-    let player = new Audio(song.url);
-
-    const handleTimeUpdate = () => {
-      if (!isSeeking) setProgress(player.currentTime);
-    };
-    const handleDurationChange = () => {
-      if (player.duration && isFinite(player.duration)) {
-        setDuration(player.duration);
-      }
-    };
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
-    const handleEnded = () => playNext();
-
-    player.addEventListener('loadedmetadata', handleDurationChange);
-    player.addEventListener('timeupdate', handleTimeUpdate);
-    player.addEventListener('play', handlePlay);
-    player.addEventListener('pause', handlePause);
-    player.addEventListener('ended', handleEnded);
-
-    if (isPlaying) {
-      player.play().catch(e => console.error("Audio playback failed:", e));
-    } else {
-      player.pause();
-    }
-
-    return () => {
-      player.removeEventListener('loadedmetadata', handleDurationChange);
-      player.removeEventListener('timeupdate', handleTimeUpdate);
-      player.removeEventListener('play', handlePlay);
-      player.removeEventListener('pause', handlePause);
-      player.removeEventListener('ended', handleEnded);
-      player.pause();
-      player.src = '';
-    };
-  }, [song.url, isPlaying, isSeeking, playNext, setDuration, setIsPlaying, setProgress]);
-
-  return null;
-};
-
-
-export function Player({ song }: { song: Song | null }) {
-  const {
-    isPlaying,
-    playNext,
-    setIsPlaying,
-    setProgress,
-    setDuration,
-    isSeeking,
-    seekTo,
-  } = usePlayer();
-  const youtubePlayerRef = useRef<any>(null);
+// ### YOUTUBE PLAYER ###
+const YouTubePlayerInternal = () => {
+  const { currentSong, isPlaying, _setIsPlaying, playNext, seekTime, _seekTo, _setDuration, _setProgress, _setIsSeeking, isSeeking } = usePlayer();
+  const playerRef = useRef<any>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // This effect handles PLAY/PAUSE commands from the context
+  // Oynatıcıyı hazır olduğunda referansa ata
+  const onReady = (event: any) => {
+    playerRef.current = event.target;
+    // Oynatıcı hazır olduğunda ve çalması gerekiyorsa çal
+    if (isPlaying) {
+      playerRef.current.playVideo();
+    }
+  };
+
+  // Oynatıcı durumu değiştiğinde context'i güncelle
+  const onStateChange = useCallback((event: any) => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+    // Oynatıcı durumları: -1 (başlamadı), 0 (bitti), 1 (çalıyor), 2 (duraklatıldı), 3 (arabelleğe alınıyor), 5 (video sıraya alındı)
+    if (event.data === 1) { // Çalıyor
+      _setIsPlaying(true);
+      _setDuration(playerRef.current.getDuration());
+      // İlerlemeyi takip etmek için interval başlat
+      progressIntervalRef.current = setInterval(() => {
+        if (playerRef.current && !isSeeking) {
+          _setProgress(playerRef.current.getCurrentTime());
+        }
+      }, 250);
+    } else if (event.data === 0) { // Bitti
+      _setIsPlaying(false);
+      playNext();
+    } else { // Duraklatıldı, arabelleğe alınıyor, vb.
+      _setIsPlaying(false);
+    }
+  }, [_setIsPlaying, _setDuration, _setProgress, playNext, isSeeking]);
+
+  // Context'teki `isPlaying` durumu değiştiğinde oynatıcıyı kontrol et
   useEffect(() => {
-    const player = youtubePlayerRef.current;
+    const player = playerRef.current;
     if (player && typeof player.getPlayerState === 'function') {
       const playerState = player.getPlayerState();
-      // 1 = playing, 2 = paused
       if (isPlaying && playerState !== 1) {
         player.playVideo();
       } else if (!isPlaying && playerState === 1) {
         player.pauseVideo();
       }
     }
-  }, [isPlaying]);
+  }, [isPlaying, currentSong]); // currentSong değiştiğinde de kontrol et
 
-  // This effect handles SEEK commands from the context
+  // Context'ten seek komutu geldiğinde çalış
   useEffect(() => {
-    const handleSeek = (time: number) => {
-        if (youtubePlayerRef.current && typeof youtubePlayerRef.current.seekTo === 'function') {
-            youtubePlayerRef.current.seekTo(time, true);
-        }
-    };
-    seekTo(handleSeek);
-  }, [seekTo]);
-
-
-  const onReady = (event: any) => {
-    youtubePlayerRef.current = event.target;
-    // When the player is ready, if the context wants it to play, play it.
-    if (isPlaying) {
-      event.target.playVideo();
+    if (seekTime !== null && playerRef.current) {
+      playerRef.current.seekTo(seekTime, true);
+      _setIsSeeking(false); // Arayüzün kaydırıcıyı serbest bırakması için
     }
-  };
+  }, [seekTime, _setIsSeeking]);
 
-  const onStateChange = (event: any) => {
-    const player = event.target;
-    
-    // Clear any existing interval
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
-
-    // Player states: -1 (unstarted), 0 (ended), 1 (playing), 2 (paused), 3 (buffering), 5 (video cued)
-    if (event.data === 1) { // Playing
-      setIsPlaying(true);
-      setDuration(player.getDuration());
-      // Start polling for progress
-      progressIntervalRef.current = setInterval(() => {
-        if (player && typeof player.getCurrentTime === 'function' && !isSeeking) {
-          setProgress(player.getCurrentTime());
-        }
-      }, 250);
-    } else if (event.data === 0) { // Ended
-      setIsPlaying(false);
-      playNext();
-    } else { // Paused, Buffering, etc.
-      setIsPlaying(false);
-    }
-  };
-  
+  // Component unmount olduğunda interval'i temizle
   useEffect(() => {
-    // Cleanup interval on unmount
     return () => {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
       }
     };
   }, []);
+  
+  if (!currentSong || currentSong.type !== 'youtube' || !currentSong.videoId) return null;
 
-  if (!song) {
+  return (
+    <YouTube
+      key={currentSong.id}
+      videoId={currentSong.videoId}
+      opts={{
+        width: '0',
+        height: '0',
+        playerVars: {
+          autoplay: 1, // Otomatik başlatma yarış durumlarını önler
+          controls: 0,
+          modestbranding: 1,
+          rel: 0,
+        },
+      }}
+      onReady={onReady}
+      onStateChange={onStateChange}
+      className="w-0 h-0"
+    />
+  );
+}
+
+
+// ### SOUNDCLOUD PLAYER ###
+const SoundCloudPlayerInternal = () => {
+    const { currentSong, isPlaying, _setIsPlaying, _setDuration, _setProgress, _setIsSeeking, playNext, seekTime, isSeeking } = usePlayer();
+    const widgetRef = useRef<any>(null);
+
+    // SoundCloud widget'ını oluşturma ve yönetme
+    useEffect(() => {
+        if (!currentSong || currentSong.type !== 'soundcloud' || !(window as any).SC) return;
+
+        const iframeId = `soundcloud-player-${currentSong.id}`;
+        let iframe = document.getElementById(iframeId) as HTMLIFrameElement;
+        if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = iframeId;
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+        }
+        iframe.src = `https://w.soundcloud.com/player/?url=${currentSong.url}&auto_play=true&visual=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false`;
+
+        const widget = (window as any).SC.Widget(iframe);
+        widgetRef.current = widget;
+
+        const onReady = () => {
+            widget.getDuration((d: number) => _setDuration(d / 1000));
+            widget.bind((window as any).SC.Widget.Events.FINISH, playNext);
+            widget.bind((window as any).SC.Widget.Events.PLAY, () => _setIsPlaying(true));
+            widget.bind((window as any).SC.Widget.Events.PAUSE, () => _setIsPlaying(false));
+            widget.bind((window as any).SC.Widget.Events.PLAY_PROGRESS, (data: { currentPosition: number }) => {
+                if (!isSeeking) _setProgress(data.currentPosition / 1000);
+            });
+            if (isPlaying) {
+              widget.play();
+            }
+        };
+
+        widget.bind((window as any).SC.Widget.Events.READY, onReady);
+
+        return () => {
+            if (widgetRef.current) {
+                widgetRef.current.unbind((window as any).SC.Widget.Events.READY);
+                // Diğer unbind'ları da ekleyebilirsiniz.
+            }
+            iframe.remove();
+        };
+    }, [currentSong, _setDuration, playNext, _setIsPlaying, _setProgress, isSeeking]);
+
+    // Oynatma durumunu kontrol etme
+    useEffect(() => {
+        const widget = widgetRef.current;
+        if (widget) {
+            widget.isPaused((paused: boolean) => {
+                if (isPlaying && paused) {
+                    widget.play();
+                } else if (!isPlaying && !paused) {
+                    widget.pause();
+                }
+            });
+        }
+    }, [isPlaying]);
+
+    // Seek işlemini yönetme
+    useEffect(() => {
+        if (seekTime !== null && widgetRef.current) {
+            widgetRef.current.seekTo(seekTime * 1000);
+             _setIsSeeking(false);
+        }
+    }, [seekTime, _setIsSeeking]);
+
     return null;
-  }
+};
+
+
+// ### URL (MP3) PLAYER ###
+const UrlPlayerInternal = () => {
+    const { currentSong, isPlaying, _setIsPlaying, _setDuration, _setProgress, _setIsSeeking, playNext, seekTime, isSeeking } = usePlayer();
+
+    useEffect(() => {
+        if (!currentSong || currentSong.type !== 'url') return;
+        
+        const player = new Audio(currentSong.url);
+
+        const handleTimeUpdate = () => {
+            if (!isSeeking) _setProgress(player.currentTime);
+        };
+        const handleDurationChange = () => {
+            if (player.duration && isFinite(player.duration)) {
+                _setDuration(player.duration);
+            }
+        };
+        const handlePlay = () => _setIsPlaying(true);
+        const handlePause = () => _setIsPlaying(false);
+        const handleEnded = () => playNext();
+
+        player.addEventListener('loadedmetadata', handleDurationChange);
+        player.addEventListener('timeupdate', handleTimeUpdate);
+        player.addEventListener('play', handlePlay);
+        player.addEventListener('pause', handlePause);
+        player.addEventListener('ended', handleEnded);
+
+        if (isPlaying) {
+            player.play().catch(e => console.error("Audio playback failed:", e));
+        } else {
+            player.pause();
+        }
+
+        if (seekTime !== null) {
+            player.currentTime = seekTime;
+            _setIsSeeking(false);
+        }
+
+        return () => {
+            player.removeEventListener('loadedmetadata', handleDurationChange);
+            player.removeEventListener('timeupdate', handleTimeUpdate);
+            player.removeEventListener('play', handlePlay);
+            player.removeEventListener('pause', handlePause);
+            player.removeEventListener('ended', handleEnded);
+            player.pause();
+            player.src = '';
+        };
+    }, [currentSong, isPlaying, seekTime, _setIsPlaying, _setDuration, _setProgress, _setIsSeeking, playNext, isSeeking]);
+
+    return null;
+};
+
+
+// ### ANA PLAYER BILEŞENİ ###
+export function Player({ song }: { song: Song | null }) {
+  if (!song) return null;
 
   const renderPlayer = () => {
     switch (song.type) {
       case 'youtube':
-        return song.videoId ? (
-          <YouTube
-            key={song.id}
-            videoId={song.videoId}
-            opts={{
-              width: '0',
-              height: '0',
-              playerVars: {
-                autoplay: 1, // Autoplay to reduce race conditions
-                controls: 0,
-                modestbranding: 1,
-                rel: 0,
-              },
-            }}
-            onReady={onReady}
-            onStateChange={onStateChange}
-            className="w-0 h-0"
-          />
-        ) : <div className="w-full h-full flex items-center justify-center bg-black text-destructive-foreground p-4">Geçersiz YouTube ID</div>;
+        return <YouTubePlayerInternal />;
       case 'soundcloud':
-        return <SoundCloudPlayer song={song} />;
+        return <SoundCloudPlayerInternal />;
       case 'url':
-        return <UrlPlayer song={song} />;
+        return <UrlPlayerInternal />;
       default:
         return null;
     }
-  }
+  };
 
   return (
     <div id="persistent-player-wrapper">
