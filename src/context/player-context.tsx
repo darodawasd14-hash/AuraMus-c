@@ -318,10 +318,44 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const togglePlayPause = () => {
     if (currentIndex === -1 && playlist.length > 0) {
       playSong(0);
-    } else if (playlist.length > 0) {
-      setIsPlaying(prev => !prev);
-      if (!isPlayerOpen) setIsPlayerOpen(true);
+      return;
     }
+    
+    setIsPlaying(prevIsPlaying => {
+      const newIsPlaying = !prevIsPlaying;
+      const song = playlist[currentIndex];
+  
+      if (!song) return prevIsPlaying; // No song, do nothing
+
+      if (newIsPlaying) {
+        if (song.type === 'youtube' && youtubePlayer) {
+          youtubePlayer.playVideo();
+        } else if (song.type === 'soundcloud' && soundcloudPlayer) {
+          soundcloudPlayer.play();
+        } else if (song.type === 'url' && urlPlayer) {
+          if (urlPlayer.src !== song.url) {
+            urlPlayer.src = song.url;
+          }
+          urlPlayer.play().catch(e => console.error("URL audio playback error:", e));
+        }
+      } else { // Pausing
+        if (song.type === 'youtube' && youtubePlayer) {
+          youtubePlayer.pauseVideo();
+        } else if (song.type === 'soundcloud' && soundcloudPlayer) {
+          soundcloudPlayer.pause();
+        } else if (song.type === 'url' && urlPlayer) {
+          if (!urlPlayer.paused) {
+            urlPlayer.pause();
+          }
+        }
+      }
+      
+      if (!isPlayerOpen && newIsPlaying) {
+        setIsPlayerOpen(true);
+      }
+
+      return newIsPlaying;
+    });
   };
 
   const playNext = useCallback(() => {
@@ -337,54 +371,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
-
-  // --- START: REFACTORED PLAYER LOGIC ---
-
-  // Effect for handling YouTube player
-  useEffect(() => {
-    if (!youtubePlayer) return;
-    const shouldPlay = isPlaying && currentSong?.type === 'youtube';
-    if (shouldPlay) {
-      youtubePlayer.playVideo();
-    } else {
-      youtubePlayer.pauseVideo();
-    }
-  }, [isPlaying, currentSong, youtubePlayer]);
-
-  // Effect for handling SoundCloud player
-  useEffect(() => {
-    if (!soundcloudPlayer) return;
-    const shouldPlay = isPlaying && currentSong?.type === 'soundcloud';
-    if (shouldPlay) {
-      soundcloudPlayer.play();
-    } else {
-      soundcloudPlayer.pause();
-    }
-  }, [isPlaying, currentSong, soundcloudPlayer]);
-
-  // Effect for handling URL player
-  useEffect(() => {
-    if (!urlPlayer) return;
-    
-    // Ensure the source is correct before playing
-    if (currentSong && currentSong.type === 'url' && urlPlayer.src !== currentSong.url) {
-        urlPlayer.src = currentSong.url;
-    }
-
-    const shouldPlay = isPlaying && currentSong?.type === 'url';
-
-    if (shouldPlay) {
-      if (urlPlayer.src) {
-        urlPlayer.play().catch(e => console.error("URL audio playback error:", e));
-      }
-    } else {
-      if (!urlPlayer.paused) {
-        urlPlayer.pause();
-      }
-    }
-  }, [isPlaying, currentSong, urlPlayer]);
-
-  // --- END: REFACTORED PLAYER LOGIC ---
 
   const value: PlayerContextType = {
     playlist,
@@ -426,5 +412,3 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
-
-    
