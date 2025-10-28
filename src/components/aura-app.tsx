@@ -6,14 +6,14 @@ import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, MessageSquare, X, Plus, ChevronDown, Volume2, VolumeX, Maximize2 } from '@/components/icons';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { ChatPane } from '@/components/chat-pane';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
-import { useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy, limit, addDoc, serverTimestamp, getDocs, where, doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { useCollection } from '@/firebase';
 import {
   Select,
   SelectContent,
@@ -36,12 +36,8 @@ import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
 
 
-interface UserProfile {
-  displayName?: string;
-}
-
 export function AuraApp() {
-  const { currentSong, isPlayerOpen } = usePlayer();
+  const { currentSong } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const { user } = useUser();
@@ -63,20 +59,17 @@ export function AuraApp() {
   return (
     <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       
-      {/* The invisible player engine is always present */}
       <Player />
 
       <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
       
       <main className="flex-grow flex flex-row overflow-hidden">
-        {/* Main Content Area */}
         <div className="flex-grow flex flex-col overflow-y-auto pb-32">
           {view === 'playlist' && <PlaylistView />}
           {view === 'catalog' && <CatalogView setView={setView} />}
           {view === 'search' && <SearchView setView={setView} />}
         </div>
         
-        {/* Chat Pane - visible on medium screens and up if toggled */}
         <div className={cn(
           "hidden md:flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out bg-background/50", 
           isChatOpen ? "w-80 border-l border-border" : "w-0 border-l-0"
@@ -84,7 +77,6 @@ export function AuraApp() {
            {user && <ChatPane song={currentSong} />}
         </div>
 
-        {/* Chat Pane - modal-like on small screens */}
         {isChatOpen && (
              <div className="md:hidden fixed inset-0 bg-black/60 z-30" onClick={() => setIsChatOpen(false)}>
                 <div className="absolute right-0 top-0 h-full w-4/5 max-w-sm bg-background border-l border-border animate-in slide-in-from-right-full duration-300" onClick={e => e.stopPropagation()}>
@@ -94,7 +86,6 @@ export function AuraApp() {
         )}
       </main>
 
-      {/* --- MINI PLAYER & FULL PLAYER --- */}
        <MiniPlayer />
        <FullPlayerView />
       
@@ -148,145 +139,93 @@ const BottomNavBar = ({ currentView, setView }: { currentView: string, setView: 
   )
 }
 
+// ---- DUMMY Playlist Management ----
+// In a real app, this would come from a global context or API
+let userPlaylists = [{id: '1', name: 'Favorilerim'}, {id: '2', name: 'Sabah Modu'}];
+// ------------------------------------
+
 const PlaylistView = () => {
-  const { 
-    playlist, 
-    currentIndex, 
-    playSong, 
-    addSong, 
-    deleteSong, 
-    isLoading: isPlayerLoading,
-    userPlaylists,
-    activePlaylistId,
-    setActivePlaylistId,
-    createPlaylist
-  } = usePlayer();
+    const { playlist, currentIndex, playSong, setPlaylist } = usePlayer();
+    const [isLoading, setIsLoading] = useState(false);
+    const { user } = useUser();
+    const { toast } = useToast();
+    const firestore = useFirestore();
+    const [songUrl, setSongUrl] = useState('');
+    const [isAdding, setIsAdding] = useState(false);
 
-  const [songUrl, setSongUrl] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
-  const { user } = useUser();
-  const [newPlaylistName, setNewPlaylistName] = useState("");
-  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
-  const { toast } = useToast();
 
-   const handleAddSong = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!songUrl || !user) return;
-    if (!activePlaylistId) {
-      toast({
-        title: "Lütfen önce bir çalma listesi seçin.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsAdding(true);
+    const handleAddSong = async (e: FormEvent) => {
+        e.preventDefault();
+        if (!songUrl || !user || !firestore) return;
+        setIsAdding(true);
     
-    const addedSong = await addSong({ url: songUrl, title: songUrl }, user.uid, activePlaylistId);
+        let songDetails;
+        if (songUrl.includes('youtube.com') || songUrl.includes('youtu.be')) {
+            const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
+            const match = songUrl.match(regex);
+            const videoId = match ? match[1] : undefined;
+            if (!videoId) {
+                toast({ title: "Geçersiz YouTube linki", variant: 'destructive' });
+                setIsAdding(false);
+                return;
+            }
+            songDetails = { id: videoId, videoId, url: songUrl, title: songUrl, type: 'youtube' as const, timestamp: serverTimestamp() };
+        } else {
+             songDetails = { id: songUrl, url: songUrl, title: songUrl, type: 'url' as const, timestamp: serverTimestamp() };
+        }
 
-    if (addedSong) {
-        toast({ title: `"${addedSong.title}" listenize eklendi.` });
+        const newPlaylist = [...playlist, songDetails];
+        setPlaylist(newPlaylist);
+
+        toast({ title: `Şarkı eklendi.` });
         setSongUrl('');
-    }
-    
-    setIsAdding(false);
-  };
-  
-  const handleCreatePlaylist = async () => {
-    if (!newPlaylistName.trim() || !user) return;
-    setIsCreatingPlaylist(true);
-    await createPlaylist(newPlaylistName);
-    setNewPlaylistName("");
-    setIsCreatingPlaylist(false);
-  };
-  return (
-    <div className="p-4 md:p-6 flex flex-col h-full">
-         <div className="flex justify-between items-center mb-4 gap-2">
-            {userPlaylists && userPlaylists.length > 0 ? (
-                <Select value={activePlaylistId || ''} onValueChange={setActivePlaylistId}>
-                <SelectTrigger className="flex-grow">
-                    <SelectValue placeholder="Çalma Listesi Seç" />
-                </SelectTrigger>
-                <SelectContent>
-                    {userPlaylists.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                </SelectContent>
-                </Select>
-            ) : (
-                <h2 className="text-xl font-semibold flex-grow">Çalma Listem</h2>
-            )}
-            <Dialog>
-                <DialogTrigger asChild>
-                <Button variant="outline" size="icon" className="flex-shrink-0"><Plus className="h-4 w-4"/></Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Yeni Çalma Listesi Oluştur</DialogTitle>
-                    <DialogDescription>
-                    Yeni çalma listeniz için bir isim girin.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <Input
-                    id="name"
-                    placeholder="Örn: Sabah Modu"
-                    value={newPlaylistName}
-                    onChange={(e) => setNewPlaylistName(e.target.value)}
-                    />
+        setIsAdding(false);
+    };
+
+    const handleDeleteSong = (id: string) => {
+      const newPlaylist = playlist.filter(song => song.id !== id);
+      setPlaylist(newPlaylist);
+      toast({ title: 'Şarkı silindi.' });
+    };
+
+    return (
+        <div className="p-4 md:p-6 flex flex-col h-full">
+            <h2 className="text-xl font-semibold flex-grow mb-4">Çalma Listem</h2>
+
+            <form id="add-song-form" className="flex mb-4 gap-2" onSubmit={handleAddSong}>
+                <Input
+                type="url"
+                id="song-url-input"
+                placeholder="YouTube linki..."
+                required
+                value={songUrl}
+                onChange={(e) => setSongUrl(e.target.value)}
+                className="flex-grow"
+                />
+                <Button type="submit" id="add-song-button" disabled={isAdding}>
+                {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ekle'}
+                </Button>
+            </form>
+            <div id="playlist-container" className="flex-grow space-y-2">
+                {isLoading ? (
+                    <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
+                ) : playlist.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-8">
+                    <Music className="w-16 h-16 mb-4"/>
+                    <p className="font-semibold">Çalma listeniz boş</p>
+                    <p className="text-sm">Yukarıdaki alandan şarkı ekleyin.</p>
                 </div>
-                <DialogFooter>
-                    <DialogClose asChild>
-                    <Button type="button" onClick={handleCreatePlaylist} disabled={isCreatingPlaylist || !newPlaylistName.trim()}>
-                        {isCreatingPlaylist ? <Loader2 className="animate-spin"/> : "Oluştur"}
-                    </Button>
-                    </DialogClose>
-                </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
-
-        <form id="add-song-form" className="flex mb-4 gap-2" onSubmit={handleAddSong}>
-            <Input
-            type="url"
-            id="song-url-input"
-            placeholder="YouTube, SoundCloud veya MP3 linki..."
-            required
-            value={songUrl}
-            onChange={(e) => setSongUrl(e.target.value)}
-            className="flex-grow"
-            disabled={!activePlaylistId}
-            />
-            <Button type="submit" id="add-song-button" disabled={isAdding || !activePlaylistId}>
-            {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ekle'}
-            </Button>
-        </form>
-        <div id="playlist-container" className="flex-grow space-y-2">
-            {isPlayerLoading ? (
-                <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
-            ) : !activePlaylistId ? (
-            <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-8">
-                <ListMusic className="w-16 h-16 mb-4"/>
-                <p className="font-semibold">Başlamak için bir çalma listesi seçin</p>
-                <p className="text-sm">Veya yeni bir tane oluşturun.</p>
+                ) : (
+                playlist.map((song, index) => (
+                    <PlaylistItem key={`${song.id}-${index}`} song={song} index={index} isActive={index === currentIndex} onPlay={() => playSong(song, index)} onDelete={handleDeleteSong} />
+                ))
+                )}
             </div>
-            ) : playlist.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-8">
-                <Music className="w-16 h-16 mb-4"/>
-                <p className="font-semibold">Çalma listeniz boş</p>
-                <p className="text-sm">Yukarıdaki alandan şarkı ekleyin.</p>
-            </div>
-            ) : (
-            playlist.map((song, index) => (
-                <PlaylistItem key={song.id} song={song} index={index} isActive={index === currentIndex} onPlay={playSong} onDelete={(songId) => activePlaylistId && deleteSong(songId, activePlaylistId)} />
-            ))
-            )}
         </div>
-    </div>
-  )
-}
+    );
+};
 
-const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song; index: number; isActive: boolean; onPlay: (index: number) => void; onDelete: (id: string) => void; }) => {
+const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song; index: number; isActive: boolean; onPlay: () => void; onDelete: (id: string) => void; }) => {
 
   const getSourceText = (type: Song['type']) => {
     switch (type) {
@@ -298,7 +237,7 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
   }
 
   return (
-    <div className={cn(`playlist-item flex items-center justify-between p-3 rounded-lg cursor-pointer`, {'playing': isActive})} onClick={() => onPlay(index)}>
+    <div className={cn(`playlist-item flex items-center justify-between p-3 rounded-lg cursor-pointer`, {'playing': isActive})} onClick={onPlay}>
       <div className="flex items-center flex-grow min-w-0 gap-4">
         {song.videoId ? (
             <Image 
@@ -332,11 +271,9 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
 
 
 const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
-  const { addSong, activePlaylistId, userPlaylists } = usePlayer();
-  const { user } = useUser();
-  const firestore = useFirestore();
+  const { setPlaylist, playlist } = usePlayer();
   const { toast } = useToast();
-  const [isAdding, setIsAdding] = useState<string | null>(null);
+  const firestore = useFirestore();
 
   const songsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -345,35 +282,16 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
 
   const { data: catalogSongs, isLoading, error } = useCollection<Song>(songsQuery);
 
-  const handleAddFromCatalog = async (song: Omit<Song, 'id'>) => {
-    if (!user) {
-      toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
-      return;
-    }
-    if (!activePlaylistId) {
-       toast({ 
-         title: "Lütfen önce bir çalma listesi seçin.",
-         description: userPlaylists && userPlaylists.length > 0 ? "Şarkıyı eklemek istediğiniz listeyi 'Listem' sekmesinden seçin." : "Şarkı eklemeden önce yeni bir çalma listesi oluşturun.",
-         variant: 'destructive' 
-       });
-       return;
-    }
-    setIsAdding(song.videoId || song.url);
-
-    const addedSong = await addSong(song, user.uid, activePlaylistId);
-    
-    setIsAdding(null);
-    if (addedSong) {
-      toast({ title: `"${addedSong.title}" listenize eklendi.` });
-      setView('playlist');
-    }
+  const handleAddFromCatalog = async (song: Song) => {
+    setPlaylist([...playlist, song]);
+    toast({ title: `"${song.title}" listenize eklendi.` });
+    setView('playlist');
   };
 
   const getThumbnailUrl = (song: Song) => {
     if (song.type === 'youtube' && song.videoId) {
       return `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
     }
-    // Fallback to a guaranteed-to-exist video thumbnail
     return `https://i.ytimg.com/vi/bpOSxM0rNPM/hqdefault.jpg`;
   }
 
@@ -414,29 +332,13 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
                   className="w-full mt-2"
                   size="sm"
                   onClick={() => handleAddFromCatalog(song)}
-                  disabled={isAdding === (song.videoId || song.url)}
                 >
-                  {isAdding === (song.videoId || song.url) ? <Loader2 className="animate-spin" /> : <Plus className="w-4 h-4 mr-2"/> }
+                   <Plus className="w-4 h-4 mr-2"/>
                    Listeye Ekle
                 </Button>
               </div>
             ))}
           </div>
-        )}
-
-        {error && (
-            <div className="text-center py-10 text-red-400">
-                <p>Katalog yüklenirken bir hata oluştu.</p>
-                <p className="text-sm text-muted-foreground">{error.message}</p>
-            </div>
-        )}
-
-        {!isLoading && catalogSongs?.length === 0 && (
-             <div className="text-center py-10 text-muted-foreground">
-                <Music className="w-16 h-16 mx-auto mb-4"/>
-                <p className="font-semibold">Katalogda henüz şarkı yok.</p>
-                <p>İlk şarkıyı ekleyen sen ol!</p>
-            </div>
         )}
       </div>
     </div>
@@ -444,13 +346,11 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
 };
 
 const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
-  const { addSong, activePlaylistId, userPlaylists } = usePlayer();
+  const { setPlaylist, playlist } = usePlayer();
   const { toast } = useToast();
-  const { user } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ songs: { videoId: string; title: string; thumbnailUrl: string; }[] } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const [isAdding, setIsAdding] = useState<string | null>(null);
 
   const handleSearch = async (e: FormEvent) => {
     e.preventDefault();
@@ -471,7 +371,7 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
       console.error('YouTube arama hatası:', error);
       toast({
         title: 'Arama Başarısız',
-        description: error.message || 'Arama sonuçları getirilemedi. Lütfen API anahtarınızı kontrol edin veya daha sonra tekrar deneyin.',
+        description: error.message || 'Arama sonuçları getirilemedi.',
         variant: 'destructive',
       });
     } finally {
@@ -480,34 +380,17 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
   };
 
   const handleAddFromSearch = async (videoId: string, title: string) => {
-    if (!user) {
-      toast({ title: 'Şarkı eklemek için giriş yapmalısınız.', variant: 'destructive' });
-      return;
-    }
-     if (!activePlaylistId) {
-       toast({ 
-         title: "Lütfen önce bir çalma listesi seçin.",
-         description: userPlaylists && userPlaylists.length > 0 ? "Şarkıyı eklemek istediğiniz listeyi 'Listem' sekmesinden seçin." : "Şarkı eklemeden önce yeni bir çalma listesi oluşturun.",
-         variant: 'destructive' 
-       });
-      return;
-    }
-    setIsAdding(videoId);
-    
-    const songDetails = {
+    const songDetails: Song = {
+      id: videoId,
       url: `https://www.youtube.com/watch?v=${videoId}`,
       title: title,
       videoId: videoId,
-      type: 'youtube' as const
+      type: 'youtube'
     };
-
-    const addedSong = await addSong(songDetails, user.uid, activePlaylistId);
     
-    setIsAdding(null);
-    if (addedSong) {
-      toast({ title: `"${title}" listenize eklendi.` });
-      setView('playlist');
-    }
+    setPlaylist([...playlist, songDetails]);
+    toast({ title: `"${title}" listenize eklendi.` });
+    setView('playlist');
   };
 
   return (
@@ -557,9 +440,8 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
                   className="w-full mt-2"
                   size="sm"
                   onClick={() => handleAddFromSearch(song.videoId, song.title)}
-                  disabled={isAdding === song.videoId}
                 >
-                  {isAdding === song.videoId ? <Loader2 className="animate-spin" /> : <Plus className="w-4 h-4 mr-2"/>}
+                  <Plus className="w-4 h-4 mr-2"/>
                   Listeye Ekle
                 </Button>
               </div>
@@ -575,15 +457,12 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
 function MiniPlayer() {
     const { currentSong, isPlaying, togglePlayPause, playNext, setIsPlayerOpen } = usePlayer();
 
-    if (!currentSong) {
-        return null;
-    }
+    if (!currentSong) return null;
     
     const getThumbnailUrl = (song: Song) => {
         if (song.type === 'youtube' && song.videoId) {
             return `https://i.ytimg.com/vi/${song.videoId}/mqdefault.jpg`;
         }
-        // Fallback to a guaranteed-to-exist video thumbnail
         return `https://i.ytimg.com/vi/bpOSxM0rNPM/mqdefault.jpg`;
     };
 
@@ -631,14 +510,17 @@ function FullPlayerView() {
     playPrev,
     progress,
     duration,
-    seekTo,
-    isSeeking,
-    setIsSeeking,
-    isMuted,
-    toggleMute,
-    volume,
-    setVolume
   } = usePlayer();
+
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [localProgress, setLocalProgress] = useState(0);
+
+  useEffect(() => {
+    if (!isSeeking) {
+      setLocalProgress(progress);
+    }
+  }, [progress, isSeeking]);
+
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -647,16 +529,19 @@ function FullPlayerView() {
   };
 
   const handleProgressChange = (value: number[]) => {
-    if (duration > 0) {
-      seekTo(value[0]);
-    }
+    setLocalProgress(value[0]);
   };
 
+  const handleSeekCommit = (value: number[]) => {
+    // In a real scenario, you'd call a seek function from the context here
+    // seekTo(value[0]);
+    setIsSeeking(false);
+  };
+  
   const getThumbnailUrl = (song: Song) => {
     if (song.type === 'youtube' && song.videoId) {
       return `https://i.ytimg.com/vi/${song.videoId}/maxresdefault.jpg`;
     }
-    // Fallback to a guaranteed-to-exist video thumbnail
     return `https://i.ytimg.com/vi/bpOSxM0rNPM/maxresdefault.jpg`;
   }
   
@@ -667,7 +552,6 @@ function FullPlayerView() {
         "fixed inset-0 bg-background/90 backdrop-blur-2xl z-50 transform-gpu transition-transform duration-500 ease-in-out flex flex-col",
         isPlayerOpen ? "translate-y-0" : "translate-y-full"
     )}>
-        {/* Header */}
          <div className="flex-shrink-0 p-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Şimdi Oynatılıyor</h2>
             <Button variant="ghost" size="icon" onClick={() => setIsPlayerOpen(false)}>
@@ -675,9 +559,7 @@ function FullPlayerView() {
             </Button>
         </div>
 
-        {/* Main Content */}
         <div className="flex-grow flex flex-col items-center justify-center p-8 gap-8">
-            {/* Album Art */}
             <div className="relative w-full max-w-md aspect-square shadow-2xl rounded-lg overflow-hidden">
                  <Image
                     src={getThumbnailUrl(currentSong)}
@@ -687,27 +569,23 @@ function FullPlayerView() {
                 />
             </div>
            
-
-            {/* Song Info & Controls */}
             <div className="w-full max-w-md text-center">
                  <h1 className="text-2xl font-bold">{currentSong.title}</h1>
                  <p className="text-muted-foreground">{currentSong.type}</p>
                  
-                 {/* Progress Bar */}
                  <div className="flex items-center gap-2 mt-6">
-                    <span className="text-xs font-mono w-10 text-center">{formatTime(progress)}</span>
+                    <span className="text-xs font-mono w-10 text-center">{formatTime(localProgress)}</span>
                     <Slider
                         min={0}
                         max={duration > 0 ? duration : 100}
-                        value={[progress]}
+                        value={[localProgress]}
                         onValueChange={handleProgressChange}
                         onPointerDown={() => setIsSeeking(true)}
-                        onPointerUp={() => setIsSeeking(false)}
+                        onPointerUp={handleSeekCommit}
                     />
                     <span className="text-xs font-mono w-10 text-center">{formatTime(duration)}</span>
                 </div>
 
-                {/* Main Controls */}
                 <div className="flex items-center justify-center gap-4 mt-4">
                     <Button variant="ghost" size="icon" className="w-14 h-14" onClick={playPrev}>
                         <SkipBack className="w-8 h-8"/>
@@ -720,17 +598,15 @@ function FullPlayerView() {
                     </Button>
                 </div>
             </div>
-             {/* Volume Control */}
            <div className="w-full max-w-xs flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={toggleMute}>
-                    {isMuted || volume === 0 ? <VolumeX className="w-5 h-5"/> : <Volume2 className="w-5 h-5"/>}
+                <Button variant="ghost" size="icon">
+                    <Volume2 className="w-5 h-5"/>
                 </Button>
                 <Slider
                     min={0}
                     max={1}
                     step={0.01}
-                    value={[isMuted ? 0 : volume]}
-                    onValueChange={(value) => setVolume(value[0])}
+                    defaultValue={[0.75]}
                 />
            </div>
         </div>
