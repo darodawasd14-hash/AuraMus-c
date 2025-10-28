@@ -18,7 +18,6 @@ const YouTubePlayerInternal = () => {
   
   const onReady = useCallback((event: any) => {
     console.log("Oynatıcı hazır. SESSİZ oynatılıyor ve GLOBALE kaydediliyor.");
-    event.target.mute();
     event.target.playVideo();
     (window as any).myGlobalPlayer = event.target;
   }, []);
@@ -189,37 +188,36 @@ const UrlPlayerInternal = () => {
     const urlPlayerRef = useRef<HTMLAudioElement | null>(null);
     
     useEffect(() => {
-        if (currentSong && currentSong.type === 'url' && currentSong.url) {
-            
-            const player = urlPlayerRef.current ?? new Audio();
-            if (!urlPlayerRef.current) urlPlayerRef.current = player;
-            
-            if (player.src !== currentSong.url) {
-                player.src = currentSong.url;
-            }
-
-            const handleLoadedMetadata = () => _setDuration(player.duration);
-            const handleTimeUpdate = () => {
-                if (!isSeeking) _setProgress(player.currentTime);
-            };
-            const handlePlay = () => _setIsPlaying(true);
-            const handlePause = () => _setIsPlaying(false);
-            const handleEnded = () => playNext();
-
-            player.addEventListener('loadedmetadata', handleLoadedMetadata);
-            player.addEventListener('timeupdate', handleTimeUpdate);
-            player.addEventListener('play', handlePlay);
-            player.addEventListener('pause', handlePause);
-            player.addEventListener('ended', handleEnded);
-
-            return () => {
-                player.removeEventListener('loadedmetadata', handleLoadedMetadata);
-                player.removeEventListener('timeupdate', handleTimeUpdate);
-                player.removeEventListener('play', handlePlay);
-                player.removeEventListener('pause', handlePause);
-                player.removeEventListener('ended', handleEnded);
-            };
+        const player = urlPlayerRef.current ?? new Audio();
+        if (!urlPlayerRef.current) {
+            urlPlayerRef.current = player;
         }
+
+        if (currentSong && currentSong.type === 'url' && currentSong.url && player.src !== currentSong.url) {
+            player.src = currentSong.url;
+        }
+
+        const handleLoadedMetadata = () => _setDuration(player.duration);
+        const handleTimeUpdate = () => {
+            if (!isSeeking) _setProgress(player.currentTime);
+        };
+        const handlePlay = () => _setIsPlaying(true);
+        const handlePause = () => _setIsPlaying(false);
+        const handleEnded = () => playNext();
+
+        player.addEventListener('loadedmetadata', handleLoadedMetadata);
+        player.addEventListener('timeupdate', handleTimeUpdate);
+        player.addEventListener('play', handlePlay);
+        player.addEventListener('pause', handlePause);
+        player.addEventListener('ended', handleEnded);
+
+        return () => {
+            player.removeEventListener('loadedmetadata', handleLoadedMetadata);
+            player.removeEventListener('timeupdate', handleTimeUpdate);
+            player.removeEventListener('play', handlePlay);
+            player.removeEventListener('pause', handlePause);
+            player.removeEventListener('ended', handleEnded);
+        };
     }, [currentSong, _setDuration, _setProgress, _setIsPlaying, playNext, isSeeking]);
 
      useEffect(() => {

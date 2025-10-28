@@ -327,20 +327,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // --- EN ÖNEMLİ KISIM ---
-    // Kullanıcı butona bastığı için artık sesi açma iznimiz var.
-    // Eğer oynatıcı sessizse, sesi aç.
     if (player.isMuted()) {
       player.unMute();
-      player.setVolume(100); // Garanti olsun diye sesi %100 yap
     }
   
-    // Oynatıcının mevcut durumunu al (1: Oynatılıyor, 2: Duraklatıldı)
     const currentState = player.getPlayerState();
   
-    if (currentState === 1) { // Eğer oynatılıyorsa
+    if (currentState === 1) { // Oynatılıyorsa
       player.pauseVideo();
-    } else { // Eğer duraklatılmışsa veya başka bir durumdaysa
+    } else { // Duraklatıldıysa veya başka bir durumdaysa
       player.playVideo();
     }
   };
