@@ -41,7 +41,7 @@ interface UserProfile {
 }
 
 export function AuraApp() {
-  const { currentSong, isPlaying, togglePlayPause, playNext, playPrev, isPlayerOpen, setIsPlayerOpen, progress, duration, _seekTo, _setIsSeeking } = usePlayer();
+  const { currentSong, isPlaying, togglePlayPause, playNext, playPrev, isPlayerOpen, setIsPlayerOpen, progress, duration, seekTo, setIsSeeking } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const { user } = useUser();
@@ -109,8 +109,8 @@ export function AuraApp() {
           onClick={handleTogglePlayer}
           progress={progress}
           duration={duration}
-          onSeek={_seekTo}
-          onSeeking={_setIsSeeking}
+          onSeek={seekTo}
+          onSeeking={setIsSeeking}
         />
       )}
       
@@ -246,7 +246,7 @@ const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onPrev, onClick, prog
 }
 
 const FullPlayerView = ({ song, onClose }: { song: Song | null, onClose: () => void }) => {
-    const { isPlaying, togglePlayPause, playNext, playPrev, progress, duration, _seekTo, _setIsSeeking } = usePlayer();
+    const { isPlaying, togglePlayPause, playNext, playPrev, progress, duration, seekTo, setIsSeeking } = usePlayer();
 
     if (!song) return null;
     
@@ -260,12 +260,12 @@ const FullPlayerView = ({ song, onClose }: { song: Song | null, onClose: () => v
     }, [progress, isSeeking]);
 
     const handleSeekCommit = (value: number[]) => {
-        _seekTo(value[0]);
-        _setIsSeeking(false);
+        seekTo(value[0]);
+        setIsSeeking(false);
     };
     
     const handlePointerDown = () => {
-        _setIsSeeking(true);
+        setIsSeeking(true);
     }
 
     const handleValueChange = (value: number[]) => {

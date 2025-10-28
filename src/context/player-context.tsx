@@ -26,6 +26,9 @@ export interface Song {
 
 export type SongDetails = Omit<Song, 'id' | 'timestamp'>;
 
+// This is the "Brain" of the player.
+// It only holds state and exposes functions to INTEND to change the state.
+// It does NOT directly control any player.
 type PlayerContextType = {
   // STATE
   playlist: Song[];
@@ -51,13 +54,13 @@ type PlayerContextType = {
   setIsPlayerOpen: (isOpen: boolean) => void;
   setActivePlaylistId: (id: string | null) => void;
   createPlaylist: (name: string) => Promise<void>;
-  _seekTo: (time: number) => void; 
+  seekTo: (time: number) => void; 
   
   // STATE UPDATERS (called by Player Engine)
   _setIsPlaying: (isPlaying: boolean) => void;
   _setProgress: (progress: number) => void;
   _setDuration: (duration: number) => void;
-  _setIsSeeking: (isSeeking: boolean) => void;
+  setIsSeeking: (isSeeking: boolean) => void;
   _clearSeek: () => void;
 };
 
@@ -74,7 +77,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
   
-  // Player state managed by the player engine
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
@@ -113,6 +115,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       const newIndex = activePlaylistSongs.findIndex(s => s.id === currentSongId);
       
       if (newIndex === -1 && currentIndex !== -1) {
+         // Current song was removed from playlist
          setIsPlaying(false);
          setCurrentIndex(-1);
          setProgress(0); 
@@ -179,8 +182,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
                     videoId,
                     type: 'youtube'
                 };
+                // Ensure song exists in central catalog
                 const centralSongRef = doc(collection(firestore, 'songs'), videoId || song.id);
                 await setDoc(centralSongRef, { ...songDetails, id: centralSongRef.id, timestamp: serverTimestamp() }, { merge: true });
+                
+                // Add song to user's new playlist
                 const userPlaylistSongRef = doc(firestore, 'users', user.uid, 'playlists', playlistDocRef.id, 'songs', centralSongRef.id);
                 await setDoc(userPlaylistSongRef, { ...songDetails, id: centralSongRef.id, timestamp: serverTimestamp() });
             }
@@ -197,6 +203,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         }
       };
 
+      // Only setup for new, non-anonymous users
       if (!user.isAnonymous) {
           setupInitialPlaylist();
       }
@@ -212,6 +219,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     let songDetails: SongDetails;
     const { url } = songInfo;
 
+    // Logic to determine song type and extract videoId
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
         const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/;
         const match = url.match(regex);
@@ -230,6 +238,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const songsCollectionRef = collection(firestore, 'songs');
+    // Use videoId for YouTube, URL for others as the unique identifier in the 'songs' collection
     const queryIdentifier = songDetails.videoId || songDetails.url;
     const queryProperty = songDetails.type === 'youtube' ? "videoId" : "url";
     const q = query(songsCollectionRef, where(queryProperty, "==", queryIdentifier), limit(1));
@@ -239,6 +248,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         let centralSongRef;
 
         if (querySnapshot.empty) {
+            // Song doesn't exist in the central catalog, create it
+            // Use videoId for YouTube as document ID for easy lookup, or generate new ID for others
             const newSongId = songDetails.videoId || doc(songsCollectionRef).id;
             centralSongRef = doc(songsCollectionRef, newSongId);
             await setDoc(centralSongRef, {
@@ -247,9 +258,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
                 timestamp: serverTimestamp(),
             });
         } else {
+            // Song already exists, use its reference
             centralSongRef = querySnapshot.docs[0].ref;
         }
 
+        // Add the song reference to the user's playlist
         const userPlaylistSongRef = doc(firestore, 'users', userId, 'playlists', playlistId, 'songs', centralSongRef.id);
         const docSnap = await getDoc(userPlaylistSongRef);
 
@@ -314,6 +327,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         setIsPlaying(true);
       }
     } else {
+      // If index is invalid, stop playing
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
@@ -338,7 +352,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlaying(true);
   };
   
-  const _seekTo = (time: number) => {
+  const seekTo = (time: number) => {
       setSeekTime(time);
   };
   
@@ -368,12 +382,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlayerOpen,
     setActivePlaylistId,
     createPlaylist,
-    _seekTo,
+    seekTo,
     _clearSeek,
     _setIsPlaying: setIsPlaying,
     _setProgress: setProgress,
     _setDuration: setDuration,
-    _setIsSeeking: setIsSeeking,
+    setIsSeeking: setIsSeeking,
   };
 
   return (
