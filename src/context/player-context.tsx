@@ -319,50 +319,40 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const togglePlayPause = () => {
-    console.log("Butona tıklandı. 'window.myGlobalPlayer' aranıyor...");
-
-    const player = window.myGlobalPlayer;
+    console.log("--- BUTONA TIKLANDI ---");
+    
+    const player = (window as any).myGlobalPlayer;
   
+    // 1. OYNATICIYI KONTROL ET
     if (!player || !player.getPlayerState) {
       console.error("HATA: Global oynatıcı 'window.myGlobalPlayer' bulunamadı!");
-      // If there is no global player, maybe we can just toggle the state for other player types
-      if (currentSong && currentSong.type !== 'youtube') {
-        setIsPlaying(prev => !prev);
-      }
       return;
     }
-    
-    console.log("Global oynatıcı bulundu. Mevcut durum:", player.getPlayerState());
   
+    // 2. SESİ KONTROL ET (Her tıklamada sesi açmayı dene)
     if (player.isMuted()) {
-      console.log("Global oynatıcıda sesi açıyor...");
+      console.log("Oynatıcı sessizdi. 'unMute()' ve 'setVolume(100)' komutları gönderiliyor.");
       player.unMute();
-      player.setVolume(100); 
+      player.setVolume(100); // Garanti olsun
+    } else {
+      console.log("Oynatıcının sesi zaten açık.");
     }
   
-    const playerState = player.getPlayerState();
-    
-    // State 1 = Playing
-    if (playerState === 1) { 
-      console.log("Global oynatıcıyı durduruluyor...");
+    // 3. MEVCUT DURUMU AL (EN ÖNEMLİ KISIM)
+    // Durumlar: 1 = Oynatılıyor, 2 = Duraklatıldı
+    const currentState = player.getPlayerState();
+    console.log("Oynatıcının mevcut durumu:", currentState);
+  
+    // 4. OYNAT / DURDUR MANTIĞI
+    if (currentState === 1) {
+      // EĞER OYNATILIYORSA (Durum 1), DURDUR.
+      console.log("Mevcut durum '1' (Oynatılıyor). 'pauseVideo()' komutu gönderiliyor.");
       player.pauseVideo();
-    } else { 
-      // State 2 = Paused (or 0, 3, 5)
-      console.log("Global oynatıcıyı oynatıyor...");
+    } else {
+      // EĞER DURAKLATILDIYSA (Durum 2) veya başka bir durumdaysa, OYNAT.
+      console.log("Mevcut durum '1' DEĞİL (Muhtemelen '2'). 'playVideo()' komutu gönderiliyor.");
       player.playVideo();
     }
-  
-    setTimeout(() => {
-      if (window.myGlobalPlayer) {
-        console.log("--- 1 saniye sonra ---");
-        const muted = window.myGlobalPlayer.isMuted();
-        const state = window.myGlobalPlayer.getPlayerState();
-        console.log("Hala sessiz mi?:", muted);
-        console.log("Durum ne?:", state);
-        // Sync React state with the actual player state
-        setIsPlaying(state === 1);
-      }
-    }, 1000);
   };
 
   const playNext = useCallback(() => {
