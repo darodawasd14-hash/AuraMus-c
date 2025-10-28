@@ -26,10 +26,9 @@ export interface Song {
 
 export type SongDetails = Omit<Song, 'id' | 'timestamp'>;
 
-// Context artık sadece durumu ve durumu değiştirecek "niyet" fonksiyonlarını tutar.
-// Oynatıcıyı doğrudan kontrol eden hiçbir şey burada yer almaz.
+// This context only manages STATE. It does not directly control any players.
 type PlayerContextType = {
-  // DURUM (STATE)
+  // STATE
   playlist: Song[];
   userPlaylists: Playlist[] | null;
   activePlaylistId: string | null;
@@ -41,8 +40,9 @@ type PlayerContextType = {
   isSeeking: boolean;
   progress: number;
   duration: number;
+  seekTime: number | null; // A "command" for the player engine to seek
 
-  // NİYET (INTENT) FONKSİYONLARI
+  // INTENT FUNCTIONS (called by UI)
   addSong: (songDetails: Omit<SongDetails, 'type' | 'videoId'>, userId: string, playlistId: string) => Promise<Song | null>;
   deleteSong: (songId: string, playlistId: string) => Promise<void>;
   playSong: (index: number) => void;
@@ -52,14 +52,13 @@ type PlayerContextType = {
   setIsPlayerOpen: (isOpen: boolean) => void;
   setActivePlaylistId: (id: string | null) => void;
   createPlaylist: (name: string) => Promise<void>;
-
-  // DOĞRUDAN STATE GÜNCELLEYİCİLER (Sadece player.tsx tarafından kullanılır)
+  _seekTo: (time: number | null) => void; // Renamed to clarify it's a command
+  
+  // STATE UPDATERS (called by Player Engine)
   _setIsPlaying: (isPlaying: boolean) => void;
   _setProgress: (progress: number) => void;
   _setDuration: (duration: number) => void;
   _setIsSeeking: (isSeeking: boolean) => void;
-  _seekTo: (time: number) => void;
-  seekTime: number | null;
 };
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -74,6 +73,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
   const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+  
+  // Player state managed by the player engine
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
@@ -111,16 +112,23 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setPlaylist(activePlaylistSongs);
       const newIndex = activePlaylistSongs.findIndex(s => s.id === currentSongId);
       
+      // If the currently playing song is removed from the playlist
       if (newIndex === -1 && currentIndex !== -1) {
          setIsPlaying(false);
          setCurrentIndex(-1);
+         setProgress(0); // Reset progress
+         setDuration(0); // Reset duration
       } else {
         setCurrentIndex(newIndex);
       }
       
     } else if (!activePlaylistId) {
+      // If no playlist is active, clear everything
       setPlaylist([]);
       setCurrentIndex(-1);
+      setIsPlaying(false);
+      setProgress(0);
+      setDuration(0);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePlaylistSongs, activePlaylistId]);
@@ -302,12 +310,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playSong = (index: number) => {
     if (index >= 0 && index < playlist.length) {
       if (index === currentIndex) {
+        // If the same song is clicked, toggle play/pause
         togglePlayPause();
       } else {
+        // If a new song is clicked, play it
         setCurrentIndex(index);
         setIsPlaying(true);
       }
     } else {
+      // If index is invalid, stop playing
       setCurrentIndex(-1);
       setIsPlaying(false);
     }
@@ -330,13 +341,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
     setCurrentIndex(prevIndex);
     setIsPlaying(true);
-  };
-  
-  const seekTo = (time: number) => {
-    if (!currentSong) return;
-    setSeekTime(time);
-    // Let the player component handle the seek and reset the value
-    setTimeout(() => setSeekTime(null), 50);
   };
 
   const value: PlayerContextType = {
@@ -361,7 +365,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlayerOpen,
     setActivePlaylistId,
     createPlaylist,
-    _seekTo: seekTo,
+    _seekTo: setSeekTime,
     _setIsPlaying: setIsPlaying,
     _setProgress: setProgress,
     _setDuration: setDuration,

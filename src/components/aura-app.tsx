@@ -68,9 +68,8 @@ export function AuraApp() {
   return (
     <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       
-      <div className="w-0 h-0 overflow-hidden">
-          <Player song={currentSong} />
-      </div>
+      {/* The invisible player engine is always present */}
+      <Player />
 
       <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
       
@@ -105,7 +104,8 @@ export function AuraApp() {
           song={currentSong} 
           isPlaying={isPlaying} 
           onPlayPause={togglePlayPause} 
-          onNext={playNext} 
+          onNext={playNext}
+          onPrev={playPrev}
           onClick={handleTogglePlayer}
           progress={progress}
           duration={duration}
@@ -175,7 +175,7 @@ const formatTime = (seconds: number) => {
 };
 
 
-const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick, progress, duration, onSeek, onSeeking }: { song: Song, isPlaying: boolean, onPlayPause: () => void, onNext: () => void, onClick: () => void, progress: number, duration: number, onSeek: (time: number) => void, onSeeking: (isSeeking: boolean) => void}) => {
+const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onPrev, onClick, progress, duration, onSeek, onSeeking }: { song: Song, isPlaying: boolean, onPlayPause: () => void, onNext: () => void, onPrev: () => void, onClick: () => void, progress: number, duration: number, onSeek: (time: number) => void, onSeeking: (isSeeking: boolean) => void}) => {
   const [sliderValue, setSliderValue] = useState(progress);
   const { isSeeking } = usePlayer();
 
@@ -217,6 +217,9 @@ const PlayerBar = ({ song, isPlaying, onPlayPause, onNext, onClick, progress, du
           </div>
         </div>
         <div className="flex items-center gap-2 pl-4">
+          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onPrev(); }}>
+              <SkipBack className="w-6 h-6"/>
+          </Button>
           <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onPlayPause(); }}>
               {isPlaying ? <PauseIcon className="w-6 h-6"/> : <PlayIcon className="w-6 h-6"/>}
           </Button>
