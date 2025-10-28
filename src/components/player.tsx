@@ -6,7 +6,7 @@ import { usePlayer } from '@/context/player-context';
 
 const YouTubePlayerInternal = () => {
   const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress } = usePlayer();
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<any>(null); // This is the 'remote control' box
 
   const onReady = useCallback((event: any) => {
     playerRef.current = event.target;
@@ -14,8 +14,11 @@ const YouTubePlayerInternal = () => {
     if (duration) {
       _setDuration(duration);
     }
-    // Don't auto-play here, let the useEffect handle it based on isPlaying state
-  }, [_setDuration]);
+    // Autoplay if isPlaying is already true when player becomes ready
+    if (isPlaying) {
+        event.target.playVideo();
+    }
+  }, [_setDuration, isPlaying]);
 
   const onStateChange = useCallback((event: any) => {
     // The player's state changed, so we report back to the context.
@@ -39,10 +42,12 @@ const YouTubePlayerInternal = () => {
     if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
     }
-    if (isPlaying && playerRef.current) {
+    if (isPlaying && playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
         progressIntervalRef.current = setInterval(() => {
             const progress = playerRef.current.getCurrentTime();
-            _setProgress(progress);
+            if (typeof progress === 'number') {
+                _setProgress(progress);
+            }
         }, 250);
     }
 
@@ -81,7 +86,7 @@ const YouTubePlayerInternal = () => {
         width: '0',
         height: '0',
         playerVars: {
-          autoplay: 1, 
+          autoplay: isPlaying ? 1 : 0, 
           controls: 0,
           modestbranding: 1,
           rel: 0,
@@ -89,6 +94,7 @@ const YouTubePlayerInternal = () => {
       }}
       onReady={onReady}
       onStateChange={onStateChange}
+      onError={(e) => console.error('YouTube Player Error:', e)}
       className="hidden"
     />
   );
@@ -104,11 +110,13 @@ const SoundCloudPlayerInternal = () => {
 
         const iframeId = `soundcloud-player-${currentSong.id}`;
         let iframe = document.getElementById(iframeId) as HTMLIFrameElement;
+        let created = false;
         if (!iframe) {
             iframe = document.createElement('iframe');
             iframe.id = iframeId;
             iframe.style.display = 'none';
             document.body.appendChild(iframe);
+            created = true;
         }
         
         iframe.src = `https://w.soundcloud.com/player/?url=${currentSong.url}&auto_play=false&visual=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false`;
@@ -178,13 +186,29 @@ const SoundCloudPlayerInternal = () => {
 
 const UrlPlayerInternal = () => {
     const { currentSong, isPlaying, playNext, seekTime, _clearSeek, _setIsPlaying, _setDuration, _setProgress, isSeeking } = usePlayer();
+    const audioRef = useRef<HTMLAudioElement | null>(null);
     
     useEffect(() => {
         if (!currentSong || currentSong.type !== 'url' || !currentSong.url) {
+            // Cleanup previous audio element if song changes or becomes null
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current = null;
+            }
             return;
         }
 
-        let player: HTMLAudioElement | null = new Audio(currentSong.url);
+        let player = audioRef.current;
+        
+        if (!player) {
+            player = new Audio(currentSong.url);
+            audioRef.current = player;
+        }
+
+        // If the src is different, update it.
+        if(player.src !== currentSong.url) {
+            player.src = currentSong.url;
+        }
 
         const handleDurationChange = () => {
             if (player && player.duration && isFinite(player.duration)) {
@@ -227,8 +251,7 @@ const UrlPlayerInternal = () => {
                 player.removeEventListener('pause', handlePause);
                 player.removeEventListener('ended', handleEnded);
                 player.pause();
-                player.src = '';
-                player = null;
+                // Don't set src to '', just detach listeners
             }
         };
     }, [currentSong, isPlaying, seekTime, _setIsPlaying, _setDuration, _setProgress, _clearSeek, playNext, isSeeking]);
