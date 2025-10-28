@@ -9,11 +9,11 @@ export const Player = () => {
   const { 
     currentSong, 
     isPlaying,
-    seekTo,
     _playerSetIsPlaying,
     _playerSetProgress,
     _playerSetDuration,
     _playerOnEnd,
+    _playerRegisterControls,
   } = usePlayer();
   
   const youtubePlayerRef = useRef<YouTubePlayer | null>(null);
@@ -32,46 +32,57 @@ export const Player = () => {
     progressIntervalRef.current = setInterval(() => {
         if (youtubePlayerRef.current) {
             const player = youtubePlayerRef.current;
-            if (typeof player.getCurrentTime === 'function') {
-                _playerSetProgress(player.getCurrentTime());
-                _playerSetDuration(player.getDuration());
+            if (typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
+                const currentTime = player.getCurrentTime();
+                const duration = player.getDuration();
+                 if (duration > 0) { // Only update if duration is valid
+                    _playerSetProgress(currentTime);
+                    _playerSetDuration(duration);
+                }
             }
         }
     }, 500);
   }, [_playerSetProgress, _playerSetDuration, stopProgressTracking]);
 
 
-  // Effect to control playback (play/pause)
+  useEffect(() => {
+    _playerRegisterControls({
+      seek: (time) => {
+        if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
+          youtubePlayerRef.current.seekTo(time, true);
+        } else if (reactPlayerRef.current) {
+          reactPlayerRef.current.seekTo(time, 'seconds');
+        }
+      },
+      unmute: () => {
+        if (currentSong?.type === 'youtube' && youtubePlayerRef.current && youtubePlayerRef.current.isMuted()) {
+          youtubePlayerRef.current.unMute();
+        }
+        // ReactPlayer's volume is controlled by props, context handles it
+      }
+    });
+  }, [_playerRegisterControls, currentSong?.type]);
+
+
   useEffect(() => {
     if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
       const player = youtubePlayerRef.current;
       if (isPlaying) {
         player.playVideo();
-        startYoutubeProgressTracking();
       } else {
         player.pauseVideo();
-        stopProgressTracking();
       }
     }
-    // SoundCloud is controlled via the 'playing' prop, so no effect needed here for it.
-  }, [isPlaying, currentSong, startYoutubeProgressTracking, stopProgressTracking]);
-
-  // Effect to load a new song
-  useEffect(() => {
-    if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
-      youtubePlayerRef.current.loadVideoById(currentSong.videoId);
-    }
-    // SoundCloud/URL is handled by the URL prop change
-     return () => {
-      stopProgressTracking();
-    };
-  }, [currentSong, stopProgressTracking]);
+  }, [isPlaying, currentSong?.type]);
 
   const handleYoutubeReady = (event: { target: YouTubePlayer }) => {
     youtubePlayerRef.current = event.target;
-    youtubePlayerRef.current.setVolume(75);
-    if(isPlaying) {
-      youtubePlayerRef.current.playVideo();
+    youtubePlayerRef.current.setVolume(75); // Set a default volume
+    youtubePlayerRef.current.mute(); // Mute by default to allow autoplay
+    if (currentSong?.videoId) {
+        // When ready, load and play the video. It will autoplay because it's muted.
+        youtubePlayerRef.current.loadVideoById(currentSong.videoId);
+        youtubePlayerRef.current.playVideo();
     }
   };
   
@@ -91,13 +102,12 @@ export const Player = () => {
     reactPlayerRef.current = player;
   }
 
-  const handleReactPlayerProgress = (state: { played: number, playedSeconds: number, loaded: number, loadedSeconds: number }) => {
+  const handleReactPlayerProgress = (state: { playedSeconds: number }) => {
       _playerSetProgress(state.playedSeconds);
       if(reactPlayerRef.current) {
         _playerSetDuration(reactPlayerRef.current.getDuration());
       }
   }
-
 
   if (!currentSong) {
     return null;
@@ -107,9 +117,10 @@ export const Player = () => {
     height: '0',
     width: '0',
     playerVars: {
-      autoplay: 1, 
+      autoplay: 0, // We control playback manually
       controls: 0,
-      playsinline: 1
+      playsinline: 1,
+      mute: 1 // Start muted to ensure autoplay works
     },
   };
   
@@ -118,6 +129,7 @@ export const Player = () => {
         case 'youtube':
             return (
                 <YouTube
+                    key={currentSong.id} // Add key to force re-render on song change
                     videoId={currentSong.videoId}
                     opts={youtubeOpts}
                     onReady={handleYoutubeReady}
@@ -131,6 +143,7 @@ export const Player = () => {
         case 'url':
             return (
                 <ReactPlayer
+                    key={currentSong.id} // Add key to force re-render
                     ref={reactPlayerRef}
                     url={currentSong.url}
                     playing={isPlaying}
@@ -138,7 +151,7 @@ export const Player = () => {
                     onPause={() => _playerSetIsPlaying(false)}
                     onEnded={_playerOnEnd}
                     onProgress={handleReactPlayerProgress}
-                    onDuration={_playerSetDuration}
+                    onDuration={(d) => _playerSetDuration(d)}
                     onReady={handleReactPlayerReady}
                     width="0"
                     height="0"

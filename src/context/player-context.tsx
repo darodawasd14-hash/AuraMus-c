@@ -11,6 +11,10 @@ export interface Song {
   timestamp?: any;
 }
 
+interface PlayerControls {
+  seek: (time: number) => void;
+  unmute: () => void;
+}
 
 interface PlayerContextType {
   playlist: Song[];
@@ -27,19 +31,16 @@ interface PlayerContextType {
   playNext: () => void;
   playPrev: () => void;
   setIsPlayerOpen: (isOpen: boolean) => void;
-  seekTo: (time: number) => void; // Allow UI to request a seek
+  seekTo: (time: number) => void;
 
-  // Callbacks for the Player component
   _playerSetIsPlaying: (playing: boolean) => void;
   _playerSetProgress: (progress: number) => void;
   _playerSetDuration: (duration: number) => void;
   _playerOnEnd: () => void;
+  _playerRegisterControls: (controls: PlayerControls) => void;
 }
 
 export const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
-
-// This type is for the reference to the function that the player will expose
-type SeekFunction = (time: number) => void;
 
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [playlist, setPlaylist] = useState<Song[]>([]);
@@ -48,55 +49,56 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isPlayerOpen, setIsPlayerOpen] = useState<boolean>(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isMutedByAutoplay, setIsMutedByAutoplay] = useState(false);
 
-  const seekRef = useRef<SeekFunction | null>(null);
+  const playerControlsRef = useRef<PlayerControls | null>(null);
 
   const currentSong = currentIndex > -1 ? playlist[currentIndex] : null;
 
   const playSong = (song: Song, index: number) => {
-    // If it's a new song, always start playing.
-    if (currentIndex !== index) {
-      setCurrentIndex(index);
-      setIsPlaying(true);
-    } else {
-      // If it's the same song, just toggle.
-      togglePlayPause();
-    }
+    setCurrentIndex(index);
+    setIsPlaying(true);
+    setIsMutedByAutoplay(true); // Assume new song will start muted
+    setProgress(0); // Reset progress for new song
+    setDuration(0); // Reset duration for new song
   };
 
   const togglePlayPause = () => {
     if (!currentSong) return;
+    
+    // First user interaction unmutes the player
+    if (isMutedByAutoplay) {
+      playerControlsRef.current?.unmute();
+      setIsMutedByAutoplay(false);
+    }
+    
     setIsPlaying(prev => !prev);
   };
 
   const playNext = useCallback(() => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
-    setCurrentIndex(nextIndex);
-    setIsPlaying(true);
-  }, [currentIndex, playlist.length]);
+    playSong(playlist[nextIndex], nextIndex);
+  }, [currentIndex, playlist]);
 
   const playPrev = () => {
     if (playlist.length === 0) return;
     const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-    setCurrentIndex(prevIndex);
-    setIsPlaying(true);
+    playSong(playlist[prevIndex], prevIndex);
   };
   
   const seekTo = (time: number) => {
-    // This is a "request" to seek. The actual seek happens in the Player component.
-    // We'll use a ref to pass this function down to the Player.
-    // For now, we can update the local progress for a snappy UI response.
     setProgress(time);
-    seekRef.current?.(time);
+    playerControlsRef.current?.seek(time);
   }
 
-  // Callbacks for the Player component to update the context
   const _playerSetIsPlaying = (playing: boolean) => setIsPlaying(playing);
   const _playerSetProgress = (p: number) => setProgress(p);
   const _playerSetDuration = (d: number) => setDuration(d);
   const _playerOnEnd = () => playNext();
-
+  const _playerRegisterControls = (controls: PlayerControls) => {
+    playerControlsRef.current = controls;
+  }
 
   const value = {
     playlist,
@@ -112,12 +114,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playNext,
     playPrev,
     setIsPlayerOpen,
-    seekTo, // Expose the seek function
-    // Pass internal setters to the context
+    seekTo,
     _playerSetIsPlaying,
     _playerSetProgress,
     _playerSetDuration,
     _playerOnEnd,
+    _playerRegisterControls,
   };
 
   return (
@@ -135,5 +137,3 @@ export const usePlayer = (): PlayerContextType => {
   }
   return context;
 };
-
-    
