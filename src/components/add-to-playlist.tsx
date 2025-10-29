@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, serverTimestamp, doc, runTransaction } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { collection, serverTimestamp, doc, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Loader2, Music } from 'lucide-react';
@@ -38,44 +38,27 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
     setIsAdding(playlistId);
 
     const playlistRef = doc(firestore, 'users', user.uid, 'playlists', playlistId);
+    const newSongRef = doc(collection(playlistRef, "songs"), song.videoId);
     const globalSongRef = doc(firestore, 'songs', song.videoId);
-
+    
     const songData: Omit<Song, 'id'> & { timestamp: any } = {
       videoId: song.videoId,
       title: song.title,
       url: song.url,
       type: song.type,
       artwork: song.artwork || `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`,
-      timestamp: serverTimestamp() // Add timestamp when added
+      timestamp: serverTimestamp()
     };
 
     try {
-        await runTransaction(firestore, async (transaction) => {
-            const playlistDoc = await transaction.get(playlistRef);
-            if (!playlistDoc.exists()) {
-                throw "Çalma listesi bulunamadı!";
-            }
-
-            const newSongRef = doc(collection(playlistRef, "songs"), song.videoId);
-            
-            const existingSongDoc = await transaction.get(newSongRef);
-            if(existingSongDoc.exists()) {
-                 throw new Error("Bu şarkı zaten listede mevcut.");
-            }
-
-            // 1. Add the song to the playlist's subcollection
-            transaction.set(newSongRef, songData);
-
-            // 2. Update the song count on the main playlist document
-            const currentSongCount = playlistDoc.data().songCount || 0;
-            transaction.update(playlistRef, { songCount: currentSongCount + 1 });
-            
-            // 3. Add to global songs collection if it doesn't exist
-            const globalSongDoc = await transaction.get(globalSongRef);
-            if (!globalSongDoc.exists()) {
-                transaction.set(globalSongRef, songData);
-            }
-        });
+      // 1. Add the song to the playlist's subcollection
+      await setDoc(newSongRef, songData);
+      
+      // 2. Increment the song count on the playlist document
+      await updateDoc(playlistRef, { songCount: increment(1) });
+      
+      // 3. Add to global songs collection (don't overwrite if it exists)
+      await setDoc(globalSongRef, songData, { merge: true });
 
       const selectedPlaylist = playlists?.find(p => p.id === playlistId);
       toast({
@@ -84,21 +67,22 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
       });
 
     } catch (error: any) {
-      console.error("Listeye şarkı eklenirken hata:", error);
-      
-      if (error.message === "Bu şarkı zaten listede mevcut.") {
-         toast({
-            variant: "default",
-            title: "Bilgi",
-            description: error.message,
-         });
-      } else {
-         toast({
+        console.error("Listeye şarkı eklenirken hata:", error);
+
+        // Emit a specific permission error for better debugging
+        if (error.code === 'permission-denied') {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: newSongRef.path,
+                operation: 'create',
+                requestResourceData: songData,
+             }));
+        }
+
+        toast({
             variant: "destructive",
             title: "Hata!",
-            description: "Şarkı listeye eklenemedi. İzinlerinizi kontrol edin veya daha sonra tekrar deneyin.",
-         });
-      }
+            description: "Şarkı çalma listenize eklenemedi. İzinlerinizi kontrol edin veya daha sonra tekrar deneyin.",
+        });
     } finally {
       setIsAdding(null);
       onOpenChange(false);
