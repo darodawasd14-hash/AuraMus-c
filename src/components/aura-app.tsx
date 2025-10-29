@@ -18,10 +18,11 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { getYoutubeVideoId } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
+import ReactPlayer from 'react-player';
 
 
 export function AuraApp() {
-  const { currentSong } = usePlayer();
+  const { currentSong, isPlaying } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const { user } = useUser();
@@ -43,7 +44,8 @@ export function AuraApp() {
   return (
     <div id="app-container" className="relative h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       
-      <Player /> {/* Bu oynatıcı artık görünmez, sadece mantığı çalıştırır */}
+      {/* The single, hidden player that powers the entire app */}
+      <Player />
 
       <div className="flex-grow flex flex-row overflow-hidden">
         <aside className="hidden md:flex flex-col w-64 bg-secondary/30 border-r border-border p-4 space-y-4">
@@ -100,11 +102,12 @@ export function AuraApp() {
 const Header = ({ isChatOpen, setIsChatOpen }: { isChatOpen: boolean, setIsChatOpen: (isOpen: boolean) => void }) => {
   const { user } = useUser();
   return (
-    <header className="flex md:hidden items-center justify-between p-4 bg-secondary/30 border-b border-border shadow-md backdrop-blur-sm z-20 flex-shrink-0">
-      <div className="flex items-center gap-2">
+    <header className="flex items-center justify-between p-4 border-b border-border shadow-sm backdrop-blur-sm z-10 flex-shrink-0">
+      <div className="flex items-center gap-2 md:hidden">
         <AuraLogo className="w-8 h-8" />
         <span className="text-xl font-bold tracking-tight">Aura</span>
       </div>
+      <div className="hidden md:flex"></div>
       
       <div className="flex items-center gap-2">
         {user && (
@@ -123,10 +126,10 @@ const Header = ({ isChatOpen, setIsChatOpen }: { isChatOpen: boolean, setIsChatO
 };
 
 const PlayerBar = () => {
-    const { currentSong, isPlaying, progress, duration, volume, isMuted, togglePlayPause, playNext, playPrevious, setVolume, toggleMute } = usePlayer();
-    const playerRef = useRef<ReactPlayer>(null);
+    const { currentSong, isPlaying, progress, duration, volume, isMuted, togglePlayPause, playNext, playPrevious, seek, setVolume, toggleMute, playerRef } = usePlayer();
 
     const formatTime = (seconds: number) => {
+        if (isNaN(seconds) || seconds === Infinity) return '0:00';
         const date = new Date(seconds * 1000);
         const hh = date.getUTCHours();
         const mm = date.getUTCMinutes();
@@ -139,9 +142,7 @@ const PlayerBar = () => {
 
     const handleSeek = (value: number[]) => {
         const newProgress = value[0];
-        if (playerRef.current) {
-             playerRef.current.seekTo(newProgress, 'fraction');
-        }
+        seek(newProgress);
     };
 
     return (
@@ -212,7 +213,7 @@ const PlayerBar = () => {
 };
 
 const PlaylistView = () => {
-    const { playlist, currentIndex, playSong, setPlaylist, addSong } = usePlayer();
+    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying } = usePlayer();
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
     const [songUrl, setSongUrl] = useState('');
@@ -251,7 +252,7 @@ const PlaylistView = () => {
             };
     
             addSong(newSong);
-            toast({ title: `"${videoTitle}" eklendi ve çalınıyor.` });
+            toast({ title: `"${videoTitle}" eklendi.` });
         } else if (songUrl.includes('soundcloud.com')) {
              const newSong: Song = {
                 id: btoa(songUrl),
@@ -261,7 +262,7 @@ const PlaylistView = () => {
                 timestamp: serverTimestamp()
             };
             addSong(newSong);
-            toast({ title: `SoundCloud linki eklendi ve çalınıyor.` });
+            toast({ title: `SoundCloud linki eklendi.` });
 
         } else {
              toast({ title: `Geçersiz veya desteklenmeyen link.`, variant: 'destructive' });
@@ -279,7 +280,30 @@ const PlaylistView = () => {
 
     return (
         <div className="p-4 md:p-6 flex flex-col h-full">
-            <h2 className="text-xl md:text-3xl font-semibold tracking-tight flex-grow mb-4">Çalma Listem</h2>
+            <h2 className="text-xl md:text-3xl font-semibold tracking-tight mb-4">Çalma Listem</h2>
+            
+            <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
+              {currentSong?.type === 'youtube' && isPlaying ? (
+                <div className="w-full h-full">
+                   <ReactPlayer
+                      url={currentSong.url}
+                      playing={true} // Bu oynatıcı sadece gösterim amaçlı, kontrol Player'da
+                      controls={false}
+                      width="100%"
+                      height="100%"
+                      volume={0} // Sesi ana oynatıcıdan alacağı için bu sessiz
+                      muted={true}
+                    />
+                </div>
+              ) : (
+                <div className="text-muted-foreground flex flex-col items-center gap-2">
+                  <Music className="w-12 h-12"/>
+                  <p>Oynatıcı Alanı</p>
+                  <p className="text-xs">Çalan şarkı burada görünecek.</p>
+                </div>
+              )}
+            </div>
+
 
             <form id="add-song-form" className="flex mb-4 gap-2" onSubmit={handleAddSong}>
                 <Input
@@ -295,7 +319,7 @@ const PlaylistView = () => {
                 {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ekle'}
                 </Button>
             </form>
-            <div id="playlist-container" className="flex-grow space-y-2">
+            <div id="playlist-container" className="flex-grow space-y-2 overflow-y-auto">
                 {isLoading ? (
                     <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
                 ) : playlist.length === 0 ? (
@@ -376,7 +400,7 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
       artwork: song.videoId ? `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg` : `https://picsum.photos/seed/${song.id}/168/94`,
     }
     addSong(songToAdd);
-    toast({ title: `"${song.title}" listenize eklendi ve çalınıyor.` });
+    toast({ title: `"${song.title}" listenize eklendi.` });
     setView('playlist');
   };
 
@@ -482,7 +506,7 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
     };
     
     addSong(songDetails);
-    toast({ title: `"${title}" listenize eklendi ve çalınıyor.` });
+    toast({ title: `"${title}" listenize eklendi.` });
     setView('playlist');
   };
 

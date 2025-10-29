@@ -1,6 +1,7 @@
 'use client';
-import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, useRef } from 'react';
 import type { OnProgressProps } from 'react-player/base';
+import type ReactPlayer from 'react-player';
 
 export interface Song { 
   id: string;
@@ -30,6 +31,9 @@ interface PlayerContextType {
   volume: number; // 0-1 arası
   isMuted: boolean;
 
+  // Kontrol Referansı
+  playerRef: React.RefObject<ReactPlayer> | null;
+
   // Temel Kontroller
   playSong: (song: Song, index: number) => void;
   togglePlayPause: () => void;
@@ -46,11 +50,11 @@ interface PlayerContextType {
   seek: (progress: number) => void;
 
   // Dahili Oynatıcı Raporlama Fonksiyonları (Dışarıdan kullanılmamalı)
+  _playerOnReady: () => void;
   _playerSetIsPlaying: (playing: boolean) => void;
   _playerOnProgress: (data: OnProgressProps) => void;
   _playerOnDuration: (duration: number) => void;
   _playerOnEnded: () => void;
-  _playerSetReady: (ready: boolean) => void;
 }
 
 export const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -72,6 +76,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   // Ses
   const [volume, setVolumeState] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
+  const [isMutedByAutoplay, setIsMutedByAutoplay] = useState(true);
+
+  // Player Referansı
+  const playerRef = useRef<ReactPlayer>(null);
 
   // === KONTROL FONKSİYONLARI ===
 
@@ -81,10 +89,19 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlaying(true);
     setProgress(0);
     setDuration(0);
+    setIsMutedByAutoplay(true); // Yeni şarkı yüklendiğinde, autoplay için sessize al
   };
 
   const togglePlayPause = () => {
     if (!currentSong || !isReady) return;
+    
+    // Eğer tarayıcı otomatik oynatmayı engellediği için sessizdeyse,
+    // ilk oynat tuşuna basıldığında sesi aç.
+    if (isMutedByAutoplay) {
+      setIsMuted(false);
+      setIsMutedByAutoplay(false);
+    }
+    
     setIsPlaying(prev => !prev);
   };
 
@@ -93,6 +110,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (existingIndex !== -1) {
       if(currentIndex !== existingIndex) {
         playSong(song, existingIndex);
+      } else {
+        // Zaten çalan şarkıysa, sadece çalmaya başla/devam et
+        togglePlayPause();
       }
     } else {
       const newPlaylist = [...playlist, song];
@@ -115,23 +135,34 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const setVolume = (newVolume: number) => {
     setVolumeState(Math.min(Math.max(newVolume, 0), 1));
-    if (newVolume > 0) setIsMuted(false);
+    if (newVolume > 0) {
+      setIsMuted(false);
+      setIsMutedByAutoplay(false); // Kullanıcı sesi manuel olarak açtı
+    }
   };
 
   const toggleMute = () => {
-    setIsMuted(prev => !prev);
+    const newMutedState = !isMuted;
+    setIsMuted(newMutedState);
+    if (!newMutedState) {
+        setIsMutedByAutoplay(false); // Kullanıcı sesi manuel olarak açtı
+    }
   };
 
   const seek = (newProgress: number) => {
-     // Bu fonksiyon direkt ReactPlayer'a komut göndermeli
-     // Ancak context'in kendisi bunu yapamaz. Bu nedenle bu işlevsellik
-     // ReactPlayer bileşeninin içinde yönetilmelidir.
-     // Şimdilik sadece progress state'ini güncelleyelim.
-     setProgress(newProgress);
-     // Gerçek seek işlemi Player bileşeninde ele alınacak.
+     if (playerRef.current) {
+        playerRef.current.seekTo(newProgress, 'fraction');
+        setProgress(newProgress); // Arayüzü anında güncelle
+     }
   };
 
   // === OYNATICIDAN GELEN RAPORLARI İŞLEYEN FONKSİYONLAR ===
+
+  const _playerOnReady = () => {
+    setIsReady(true);
+    // Yeni şarkı hazır olduğunda, autoplay için sessiz durumda başlat
+    setIsMuted(true);
+  };
 
   const _playerSetIsPlaying = (playing: boolean) => {
     setIsPlaying(playing);
@@ -149,9 +180,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playNext();
   };
 
-  const _playerSetReady = (ready: boolean) => {
-    setIsReady(ready);
-  };
 
   const value: PlayerContextType = {
     currentSong,
@@ -163,6 +191,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     duration,
     volume,
     isMuted,
+    playerRef,
     playSong,
     togglePlayPause,
     addSong,
@@ -172,11 +201,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setVolume,
     toggleMute,
     seek,
+    _playerOnReady,
     _playerSetIsPlaying,
     _playerOnProgress,
     _playerOnDuration,
     _playerOnEnded,
-    _playerSetReady
   };
 
   return (

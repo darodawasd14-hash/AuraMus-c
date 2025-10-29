@@ -1,5 +1,5 @@
 'use client';
-import React, { useRef, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import ReactPlayer from 'react-player/lazy';
 import { usePlayer } from '@/context/player-context';
 
@@ -9,39 +9,39 @@ export const Player = () => {
     isPlaying,
     volume,
     isMuted,
+    _playerOnReady,
     _playerSetIsPlaying,
     _playerOnProgress,
     _playerOnDuration,
     _playerOnEnded,
-    _playerSetReady,
+    playerRef
   } = usePlayer();
-  const playerRef = useRef<ReactPlayer>(null);
 
-  // Oynatıcıyı dışarıdan kontrol etmek için (örneğin sonraki şarkıya geçme)
   useEffect(() => {
-    if (currentSong && playerRef.current) {
-        // Bu, şarkı değiştiğinde oynatıcının doğru konuma atlamasını sağlar.
-        // Genellikle ReactPlayer bunu otomatik yapar ama bir güvence katmanı.
+    // Bu useEffect, şarkı değiştiğinde oynatıcının doğru konuma atlamasını sağlar.
+    // Özellikle bir şarkı bittiğinde veya kullanıcı listeden farklı bir şarkı seçtiğinde gereklidir.
+    if (playerRef.current && currentSong) {
+      // O anki `progress` değeriyle seek yapmaya çalışmak yerine,
+      // şarkı değiştiğinde oynatıcının sıfırdan başlamasına izin vermek daha güvenilirdir.
+      // ReactPlayer `url` prop'u değiştiğinde bunu otomatik olarak yönetir.
     }
-  }, [currentSong]);
+  }, [currentSong, playerRef]);
 
-
-  if (!currentSong) {
-    return null; // Çalacak şarkı yoksa oynatıcıyı render etme
-  }
-
+  // Bu bileşen artık görünür bir şey render etmiyor, sadece mantığı çalıştırıyor.
+  // Bu nedenle, currentSong yoksa bile render edilebilir, çünkü ReactPlayer
+  // url null olduğunda bir şey yapmaz.
   return (
     <div className="player-wrapper" style={{ display: 'none' }}>
       <ReactPlayer
         ref={playerRef}
-        url={currentSong.url}
+        url={currentSong?.url}
         playing={isPlaying}
         volume={volume}
         muted={isMuted}
-        controls={false} // Kendi kontrollerimizi kullanacağız
+        controls={false}
         width="100%"
         height="100%"
-        onReady={() => _playerSetReady(true)}
+        onReady={_playerOnReady}
         onStart={() => _playerSetIsPlaying(true)}
         onPlay={() => _playerSetIsPlaying(true)}
         onPause={() => _playerSetIsPlaying(false)}
