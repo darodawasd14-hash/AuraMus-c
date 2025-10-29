@@ -131,14 +131,15 @@
       },
       "Chat": {
         "title": "Chat",
-        "description": "Represents a private chat session between users.",
+        "description": "Represents a private chat session between users. IMPORTANT: This collection should only be queryable with a 'where' clause on 'participantIds' using 'array-contains'. Listing the entire collection is a security risk and should be disallowed.",
         "type": "object",
         "properties": {
           "participantIds": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "An array containing the UIDs of all participants in the chat."
           },
           "lastMessage": {
             "type": "string"
@@ -161,55 +162,55 @@
       "schema": {
         "$ref": "#/entities/User"
       },
-      "description": "Stores user profile information. Each user has a document identified by their unique user ID."
+      "description": "Stores user profile information. Each user has a document identified by their unique user ID. Reading should be allowed by any authenticated user, but writing should be restricted to the owner."
     },
     "/users/{userId}/playlists/{playlistId}": {
       "schema": {
         "$ref": "#/entities/Playlist"
       },
-      "description": "Stores the metadata for user-created playlists."
+      "description": "Stores the metadata for user-created playlists. Reading should be allowed by any authenticated user, but writing should be restricted to the owner."
     },
     "/users/{userId}/playlists/{playlistId}/songs/{songId}": {
         "schema": {
             "$ref": "#/entities/Song"
         },
-        "description": "Sub-collection storing the songs for a specific playlist."
+        "description": "Sub-collection storing the songs for a specific playlist. Reading and writing should be restricted to the owner."
     },
     "/songs/{songId}": {
       "schema": {
         "$ref": "#/entities/Song"
       },
-      "description": "Stores all songs added by any user, forming a global catalog."
+      "description": "Stores all songs added by any user, forming a global catalog. All authenticated users should be able to read and write."
     },
     "/songs/{songId}/messages/{messageId}": {
       "schema": {
         "$ref": "#/entities/Message"
       },
-      "description": "Sub-collection storing the chat messages for a specific song."
+      "description": "Sub-collection storing the chat messages for a specific song. All authenticated users should be able to read and write."
     },
      "/users/{userId}/followers/{followerId}": {
         "schema": {
           "$ref": "#/entities/Follow"
         },
-        "description": "A list of users who are following the user specified by {userId}."
+        "description": "A list of users who are following the user specified by {userId}. Reading should be allowed by any authenticated user. Writing is complex (see rules)."
       },
       "/users/{userId}/following/{followingId}": {
         "schema": {
           "$ref": "#/entities/Follow"
         },
-        "description": "A list of users that the user specified by {userId} is following."
+        "description": "A list of users that the user specified by {userId} is following. Reading should be allowed by any authenticated user, but only the owner can write."
       },
       "/chats/{chatId}": {
         "schema": {
           "$ref": "#/entities/Chat"
         },
-        "description": "Represents a private chat room between two or more users."
+        "description": "Represents a private chat room between two or more users. Reading a single document and all writes should be restricted to participants. Listing the collection should only be allowed with a query filtering by the current user's ID in 'participantIds'."
       },
       "/chats/{chatId}/messages/{messageId}": {
         "schema": {
           "$ref": "#/entities/Message"
         },
-        "description": "Stores the messages for a specific private chat room."
+        "description": "Stores the messages for a specific private chat room. All operations should be restricted to participants of the parent chat."
       }
   }
 }

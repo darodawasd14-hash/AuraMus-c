@@ -1,6 +1,6 @@
 'use client';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, orderBy } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -86,10 +86,18 @@ export default function ChatsPage() {
   const chatsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     // GÜVENLİ SORGUSU: Yalnızca mevcut kullanıcının 'participantIds' dizisinde olduğu sohbetleri getir.
-    return query(collection(firestore, 'chats'), where('participantIds', 'array-contains', user.uid));
+    return query(
+        collection(firestore, 'chats'), 
+        where('participantIds', 'array-contains', user.uid),
+        orderBy('lastMessageTimestamp', 'desc')
+    );
   }, [user, firestore]);
 
-  const { data: chats, isLoading: areChatsLoading } = useCollection<Chat>(chatsQuery);
+  const { data: chats, isLoading: areChatsLoading, error } = useCollection<Chat>(chatsQuery);
+
+  if (error) {
+      console.error("Güvenli sohbet sorgusu başarısız:", error);
+  }
 
   const isLoading = isUserLoading || areChatsLoading;
 
@@ -114,7 +122,6 @@ export default function ChatsPage() {
           ) : chats && chats.length > 0 ? (
             <div className="space-y-3">
               {chats
-                .sort((a, b) => (b.lastMessageTimestamp?.seconds ?? 0) - (a.lastMessageTimestamp?.seconds ?? 0))
                 .map(chat => (
                     <ChatListItem key={chat.id} chat={chat} />
                 ))}
