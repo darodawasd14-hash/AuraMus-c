@@ -109,8 +109,13 @@ export function AuraApp() {
 
     // ---------- YOUTUBE'DAN GELEN SİNYALLER ----------
     const onPlayerReady = (event: { target: YouTubePlayer }) => {
-        console.log("Kumanda (Player) hazır.");
-        setPlayer(event.target);
+        const newPlayer = event.target;
+        setPlayer(newPlayer);
+        // Her yeni video hazır olduğunda, hafızadaki ses ayarlarımızı uygula
+        if (soundActivated) {
+            newPlayer.unMute();
+            newPlayer.setVolume(volume);
+        }
     };
 
     const onPlayerStateChange = (event: { data: number }) => {
@@ -201,9 +206,11 @@ export function AuraApp() {
             if (newVolume > 0 && isMuted) {
                 setIsMuted(false);
                 if(!soundActivated) setSoundActivated(true);
+                 player.unMute();
             }
             if (newVolume === 0 && !isMuted) {
                 setIsMuted(true);
+                player.mute();
             }
         }
     };
@@ -233,6 +240,7 @@ export function AuraApp() {
                         {currentSong?.videoId && (
                             <>
                                 <YouTube
+                                    key={currentSong.id}
                                     videoId={currentSong.videoId}
                                     opts={videoOptions}
                                     onReady={onPlayerReady}
