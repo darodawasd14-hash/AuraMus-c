@@ -301,11 +301,11 @@ const PlaylistView = () => {
                    <ReactPlayer
                       url={currentSong.url}
                       playing={isPlaying}
-                      muted={true}
+                      muted={isPlaying}
                       controls={false}
                       width="100%"
                       height="100%"
-                      // volume and other props are controlled by the main player
+                      volume={0}
                     />
                 </div>
               ) : (
