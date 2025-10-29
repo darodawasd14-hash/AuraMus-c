@@ -9,6 +9,8 @@ export const Player = () => {
   const { 
     currentSong, 
     isPlaying,
+    volume,
+    isMuted,
     _playerSetIsPlaying,
     _playerSetProgress,
     _playerSetDuration,
@@ -68,11 +70,23 @@ export const Player = () => {
           reactPlayerRef.current.seekTo(time, 'seconds');
         }
       },
+      setVolume: (newVolume) => {
+        if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
+          youtubePlayerRef.current.setVolume(newVolume * 100);
+        }
+        // ReactPlayer's volume is controlled by props
+      },
+      mute: () => {
+        if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
+          youtubePlayerRef.current.mute();
+        }
+        // ReactPlayer's mute is controlled by props
+      },
       unmute: () => {
-        if (currentSong?.type === 'youtube' && youtubePlayerRef.current && typeof youtubePlayerRef.current.isMuted === 'function' && youtubePlayerRef.current.isMuted()) {
+        if (currentSong?.type === 'youtube' && youtubePlayerRef.current) {
           youtubePlayerRef.current.unMute();
         }
-        // ReactPlayer's volume is controlled by props, context handles it
+        // ReactPlayer's mute is controlled by props
       }
     });
   }, [_playerRegisterControls, currentSong?.type]);
@@ -82,7 +96,13 @@ export const Player = () => {
     youtubePlayerRef.current = event.target;
     // Oynatıcı hazır olduğunda, Context'ten gelen isPlaying durumuna göre
     // ve tarayıcı politikaları için sessiz bir şekilde oynatmayı dene.
-    event.target.playVideo();
+    event.target.setVolume(volume * 100);
+    if(isMuted) {
+        event.target.mute();
+    }
+    if(isPlaying) {
+      event.target.playVideo();
+    }
   };
   
   const handleYoutubeStateChange = (event: { data: number }) => {
@@ -126,7 +146,6 @@ export const Player = () => {
       autoplay: 1, 
       controls: 0,
       playsinline: 1,
-      mute: 1 // Her zaman sessiz başla, kullanıcı etkileşimiyle ses açılacak
     },
   };
   
@@ -153,6 +172,8 @@ export const Player = () => {
                     ref={reactPlayerRef}
                     url={currentSong.url}
                     playing={isPlaying}
+                    volume={volume}
+                    muted={isMuted}
                     onPlay={() => _playerSetIsPlaying(true)}
                     onPause={() => _playerSetIsPlaying(false)}
                     onEnded={_playerOnEnd}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect } from 'react';
 
 // 1. Şarkı nesnesinin nasıl görüneceğini tanımlayalım
 export interface Song { 
@@ -16,6 +16,8 @@ interface PlayerControls {
   play: () => void;
   pause: () => void;
   seek: (time: number) => void;
+  setVolume: (volume: number) => void;
+  mute: () => void;
   unmute: () => void;
 }
 
@@ -28,6 +30,8 @@ interface PlayerContextType {
   isPlayerOpen: boolean;
   progress: number;
   duration: number;
+  volume: number;
+  isMuted: boolean;
   
   playSong: (song: Song, index: number) => void;
   togglePlayPause: () => void;
@@ -37,6 +41,8 @@ interface PlayerContextType {
   seekTo: (time: number) => void;
   playNext: () => void;
   playPrev: () => void;
+  setVolume: (volume: number) => void;
+  toggleMute: () => void;
 
   _playerSetIsPlaying: (playing: boolean) => void;
   _playerSetProgress: (progress: number) => void;
@@ -57,17 +63,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [isPlayerOpen, setIsPlayerOpen] = useState<boolean>(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [isMutedByAutoplay, setIsMutedByAutoplay] = useState(false);
+  const [volume, setVolumeState] = useState(0.75);
+  const [isMuted, setIsMuted] = useState(false);
   const playerControlsRef = React.useRef<PlayerControls | null>(null);
-
 
   // === MANTIK FONKSİYONLARI ===
 
   const playSong = useCallback((song: Song, index: number) => {
     setCurrentSong(song);
     setCurrentIndex(index);
-    setIsPlaying(true); // Oynatıcının otomatik başlamasını tetikler (ama sessiz)
-    setIsMutedByAutoplay(true); // Oynatıcı sessiz başlayacak, ilk tıklamada ses açılacak
+    setIsPlaying(true); 
     setProgress(0);
     setDuration(0);
   }, []);
@@ -88,30 +93,20 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
    const togglePlayPause = () => {
     if (!currentSong || !playerControlsRef.current) return;
     
-    // Eğer tarayıcı engeli nedeniyle sessizdeyse, ilk tıklamada sesi aç
-    if (isMutedByAutoplay) {
-      playerControlsRef.current.unmute();
-      setIsMutedByAutoplay(false);
-    }
-    
-    // Gerçek oynatıcıya komut gönder
     if (isPlaying) {
       playerControlsRef.current.pause();
     } else {
       playerControlsRef.current.play();
     }
-    // NOT: isPlaying state'i buradan DEĞİŞTİRİLMİYOR.
-    // Oynatıcıdan gelen raporla (onStateChange -> _playerSetIsPlaying) değişecek.
   };
 
   const addSong = (song: Song) => {
-    // Şarkının zaten listede olup olmadığını kontrol et
     if (playlist.some(s => s.id === song.id)) {
-        // Eğer listedeyse, sadece o şarkıyı çal
         const existingIndex = playlist.findIndex(s => s.id === song.id);
-        playSong(song, existingIndex);
+        if(currentIndex !== existingIndex) {
+          playSong(song, existingIndex);
+        }
     } else {
-        // Eğer listede değilse, listeye ekle ve çal
         const newPlaylist = [...playlist, song];
         setPlaylist(newPlaylist);
         playSong(song, newPlaylist.length - 1);
@@ -124,6 +119,32 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         playerControlsRef.current.seek(time);
     }
   }
+
+  const setVolume = (newVolume: number) => {
+    setVolumeState(newVolume);
+    if(isMuted && newVolume > 0) {
+      setIsMuted(false);
+    }
+     if (playerControlsRef.current) {
+        playerControlsRef.current.setVolume(newVolume);
+        if(isMuted && newVolume > 0) {
+            playerControlsRef.current.unmute();
+        }
+    }
+  };
+
+  const toggleMute = () => {
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    if (playerControlsRef.current) {
+        if(newMuted) {
+            playerControlsRef.current.mute();
+        } else {
+            playerControlsRef.current.unmute();
+        }
+    }
+  };
+
 
   // Oynatıcıdan gelen raporları işleyen fonksiyonlar
   const _playerSetIsPlaying = (playing: boolean) => setIsPlaying(playing);
@@ -142,6 +163,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     isPlayerOpen,
     progress,
     duration,
+    volume,
+    isMuted,
     playSong,
     togglePlayPause,
     addSong, 
@@ -150,6 +173,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     seekTo,
     playNext,
     playPrev,
+    setVolume,
+    toggleMute,
     _playerSetIsPlaying,
     _playerSetProgress,
     _playerSetDuration,

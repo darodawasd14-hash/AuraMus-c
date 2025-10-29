@@ -161,10 +161,13 @@ const PlaylistView = () => {
         if (videoId) {
             let videoTitle = `Yeni Şarkı (${videoId.substring(0, 5)}...)`;
             try {
+                // Using a CORS proxy for client-side oEmbed fetching
                 const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
                 if (oembedResponse.ok) {
                     const oembedData = await oembedResponse.json();
                     videoTitle = oembedData.title;
+                } else {
+                     console.error("Failed to fetch YouTube oEmbed data, status:", oembedResponse.status);
                 }
             } catch (error) {
                 console.error("Could not fetch YouTube video title:", error);
@@ -529,6 +532,10 @@ function FullPlayerView() {
     progress,
     duration,
     seekTo,
+    volume,
+    isMuted,
+    setVolume,
+    toggleMute,
   } = usePlayer();
 
   const [isSeeking, setIsSeeking] = useState(false);
@@ -557,12 +564,17 @@ function FullPlayerView() {
     setIsSeeking(false);
   };
   
-  const getThumbnailUrl = (song: Song) => {
-    if (song.type === 'youtube' && song.videoId) {
+  const getThumbnailUrl = (song: Song | null) => {
+    if (song && song.type === 'youtube' && song.videoId) {
+      // Use maxresdefault for higher quality, fallback to hqdefault
       return `https://i.ytimg.com/vi/${song.videoId}/maxresdefault.jpg`;
     }
-    return `https://picsum.photos/seed/${song.id}/640/640`;
+    return `https://picsum.photos/seed/${song?.id}/640/640`;
   }
+
+  const handleVolumeChange = (value: number[]) => {
+    setVolume(value[0]);
+  };
   
   if (!currentSong) {
     return null;
@@ -613,14 +625,15 @@ function FullPlayerView() {
             </div>
 
             <div className="flex items-center justify-end gap-2 flex-1 min-w-0">
-                 <Button variant="ghost" size="icon">
-                    <Volume2 className="w-5 h-5"/>
+                 <Button variant="ghost" size="icon" onClick={toggleMute}>
+                    {isMuted || volume === 0 ? <VolumeX className="w-5 h-5"/> : <Volume2 className="w-5 h-5"/>}
                 </Button>
                 <Slider
                     min={0}
                     max={1}
                     step={0.01}
-                    defaultValue={[0.75]}
+                    value={[isMuted ? 0 : volume]}
+                    onValueChange={handleVolumeChange}
                     className="w-24"
                 />
                  <Button variant="ghost" size="icon" onClick={() => setIsPlayerOpen(true)}>
@@ -651,6 +664,13 @@ function FullPlayerView() {
                     alt={currentSong.title}
                     fill
                     className="object-cover"
+                    onError={(e) => {
+                      // If maxresdefault fails, try hqdefault
+                      const target = e.target as HTMLImageElement;
+                      if (currentSong?.videoId && !target.src.includes('hqdefault')) {
+                        target.src = `https://i.ytimg.com/vi/${currentSong.videoId}/hqdefault.jpg`;
+                      }
+                    }}
                 />
             </div>
            
@@ -684,14 +704,15 @@ function FullPlayerView() {
                 </div>
             </div>
            <div className="w-full max-w-xs flex items-center gap-2">
-                <Button variant="ghost" size="icon">
-                    <Volume2 className="w-5 h-5"/>
+                 <Button variant="ghost" size="icon" onClick={toggleMute}>
+                    {isMuted || volume === 0 ? <VolumeX className="w-5 h-5"/> : <Volume2 className="w-5 h-5"/>}
                 </Button>
                 <Slider
                     min={0}
                     max={1}
                     step={0.01}
-                    defaultValue={[0.75]}
+                    value={[isMuted ? 0 : volume]}
+                    onValueChange={handleVolumeChange}
                 />
            </div>
         </div>
