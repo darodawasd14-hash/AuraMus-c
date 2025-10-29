@@ -85,16 +85,6 @@ const CreatePlaylistDialog = ({ open, onOpenChange, onCreate }: { open: boolean,
 
 const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist }: { playlist: Playlist, onSelect: (playlist: Playlist) => void, onDeletePlaylist: (playlistId: string) => void }) => {
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const { user } = useUser();
-    const firestore = useFirestore();
-
-    // This query is for fetching songs of the *selected* playlist.
-    const songsRef = useMemoFirebase(() => {
-        if (!user || !firestore) return null;
-        return query(collection(firestore, 'users', user.uid, 'playlists', playlist.id, 'songs'), orderBy('timestamp', 'asc'));
-    }, [user, firestore, playlist.id]);
-
-    const { data: songs, isLoading: areSongsLoading } = useCollection<Song>(songsRef);
 
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent card click event from firing
@@ -102,11 +92,7 @@ const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist }: { playlist: Play
         setDeleteDialogOpen(false);
     }
     
-    const songCount = songs?.length ?? 0;
-    
-    // This is a placeholder. The actual first song artwork should be fetched differently if needed.
-    // For now, we'll just show a generic music icon.
-    const artworkPlaceholder = "/placeholder.png";
+    const songCount = playlist.songCount ?? 0;
 
     return (
         <>
