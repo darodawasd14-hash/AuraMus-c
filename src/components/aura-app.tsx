@@ -254,14 +254,17 @@ const PlaylistView = () => {
             let videoTitle = `Yeni Şarkı (${videoId.substring(0, 5)}...)`;
             let artwork = getYouTubeThumbnail(videoId);
             try {
+                // First try official oembed
                 const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
                 if (oembedResponse.ok) {
                     const oembedData = await oembedResponse.json();
                     videoTitle = oembedData.title;
                     if(oembedData.thumbnail_url) {
+                       // Prefer sddefault for better quality than hqdefault
                        artwork = oembedData.thumbnail_url.replace('hqdefault.jpg', 'sddefault.jpg');
                     }
                 } else {
+                   // Fallback to noembed if official fails
                    const fallbackOembed = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
                    if(fallbackOembed.ok) {
                         const fallbackData = await fallbackOembed.json();
@@ -296,7 +299,7 @@ const PlaylistView = () => {
                 timestamp: serverTimestamp()
             };
             addSong(newSong);
-            toast({ title: `SoundCloud linki eklendi.` });
+toast({ title: `SoundCloud linki eklendi.` });
 
         } else {
              toast({ title: `Geçersiz veya desteklenmeyen link.`, variant: 'destructive' });
@@ -315,36 +318,33 @@ const PlaylistView = () => {
     return (
         <div className="p-4 md:p-6 flex flex-col h-full">
             
-             <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative pointer-events-none">
-                {currentSong && (
-                    <ReactPlayer
-                        url={currentSong.url}
-                        playing={isPlaying}
-                        controls={false}
-                        width="100%"
-                        height="100%"
-                        volume={0}
-                        muted={true}
-                    />
-                )}
-                
-                {currentSong && isReady && !hasInteracted && (
-                    <div 
-                        className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center transition-opacity opacity-75 hover:opacity-100 cursor-pointer pointer-events-auto"
+             <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
+                {currentSong && !hasInteracted && (
+                     <div 
+                        className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center transition-opacity opacity-75 hover:opacity-100 cursor-pointer z-10"
                         onClick={activateSound}
                     >
-                        <PlayIcon className="w-16 h-16 text-white" />
-                        <p className="text-white font-semibold mt-2">Oynatmak için Tıklayın</p>
+                        {currentSong.artwork ? (
+                             <Image src={currentSong.artwork} alt={currentSong.title} layout="fill" objectFit="cover" className="opacity-30" />
+                        ) : null}
+                         <div className="relative z-20 flex flex-col items-center justify-center text-white">
+                            <PlayIcon className="w-16 h-16" />
+                            <p className="font-semibold mt-2">Oynatmak için Tıklayın</p>
+                        </div>
                     </div>
                 )}
                 
-                {!currentSong && (
+                {(!currentSong) && (
                     <div className="text-muted-foreground flex flex-col items-center gap-2">
                         <Music className="w-12 h-12"/>
                         <p>Oynatıcı Alanı</p>
                         <p className="text-xs">Çalan şarkı burada görünecek.</p>
                     </div>
                 )}
+                 {/* The actual player is hidden but always rendered to be ready */}
+                 <div className="absolute inset-0 pointer-events-none">
+                    <Player/>
+                 </div>
             </div>
 
 

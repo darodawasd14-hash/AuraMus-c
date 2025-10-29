@@ -42,8 +42,7 @@ interface PlayerContextType {
   setPlaylist: (playlist: Song[]) => void;
   playNext: () => void;
   playPrevious: () => void;
-  setHasInteracted: (interacted: boolean) => void; // İzin durumu ayarlayıcı
-
+  
   // Ses Kontrolleri
   setVolume: (volume: number) => void;
   toggleMute: () => void;
@@ -80,17 +79,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   // Ses
   const [volume, setVolumeState] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(true); // Start muted
+  const [isMuted, setIsMuted] = useState(true); // Always start muted
   
   const playerRef = useRef<ReactPlayer>(null);
 
   const activateSound = useCallback(() => {
-    if (isReady && !hasInteracted) {
+    if (!hasInteracted) {
       console.log("Interaction detected, activating sound.");
-      setIsMuted(false);
       setHasInteracted(true);
+      // Unmute and ensure playback
+      setIsMuted(false);
+      if (playerRef.current && !isPlaying) {
+          setIsPlaying(true);
+      }
     }
-  }, [isReady, hasInteracted]);
+  }, [hasInteracted, isPlaying]);
 
   const playSong = (song: Song, index: number) => {
     setCurrentSong(song);
@@ -99,8 +102,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setDuration(0);
     setIsPlaying(true); // Attempt to play automatically
     setIsReady(false); // Player is not ready until the new song loads
-    setIsMuted(true); // Always start new songs muted
-    setHasInteracted(false); // Require new interaction for each song
+    
+    // Only unmute if user has already interacted with the site
+    if (hasInteracted) {
+        setIsMuted(false);
+    } else {
+        setIsMuted(true);
+    }
   };
   
   const togglePlayPause = () => {
@@ -108,6 +116,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
     if (!hasInteracted) {
         activateSound();
+        return; // Let activateSound handle starting playback
     }
 
     setIsPlaying(prev => !prev);
@@ -165,6 +174,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const _playerOnProgress = (data: OnProgressProps) => {
+    // Only update progress if we are in a playing state
     if (isPlaying) {
       setProgress(data.played);
     }
@@ -175,11 +185,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const _playerOnPlay = () => {
-    setIsPlaying(true);
+    // This is the signal that the player is truly playing. Sync our state.
+    if (!isPlaying) {
+        setIsPlaying(true);
+    }
   };
 
   const _playerOnPause = () => {
-    setIsPlaying(false);
+    // This is the signal that the player is truly paused. Sync our state.
+     if (isPlaying) {
+        setIsPlaying(false);
+    }
   };
 
   const _playerOnEnded = () => {
@@ -204,7 +220,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setPlaylist,
     playNext,
     playPrevious,
-    setHasInteracted,
     setVolume,
     toggleMute,
     activateSound,

@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import React from 'react';
 import ReactPlayer from 'react-player/lazy';
 import { usePlayer } from '@/context/player-context';
 
@@ -9,22 +9,25 @@ export const Player = () => {
     isPlaying,
     volume,
     isMuted,
+    playerRef,
     _playerOnReady,
     _playerOnProgress,
     _playerOnDuration,
     _playerOnEnded,
     _playerOnPlay,
     _playerOnPause,
-    playerRef
   } = usePlayer();
 
+  // The Player is now always rendered in the background, but only plays
+  // when currentSong is not null. It's visually hidden via CSS/styling.
+  // The UI for playback (play/pause overlay) is handled in PlaylistView.
   return (
-    <div className="player-wrapper" style={{ display: 'none' }}>
+    <div className="player-wrapper" style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
       {currentSong && (
           <ReactPlayer
             key={currentSong.id} // Important for re-mounting when song changes
             ref={playerRef}
-            url={currentSong?.url}
+            url={currentSong.url}
             playing={isPlaying}
             volume={volume}
             muted={isMuted}
