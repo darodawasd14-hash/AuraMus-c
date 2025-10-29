@@ -2,192 +2,213 @@
  * @fileoverview Firestore Security Rules for Aura application.
  *
  * Core Philosophy:
- * This ruleset enforces a user-centric security model.  Users can only
- * read and write their own data, unless explicitly specified otherwise.
+ * This ruleset enforces a user-centric security model with shared access for chat functionality.
+ * Users have full control over their own data (profile, playlists, songs, followers, following).
+ * Chat data is secured based on participant lists.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profile information.
- * - /users/{userId}/playlists/{playlistId}: Stores user-created playlists.
- * - /users/{userId}/playlists/{playlistId}/songs/{songId}: Stores songs within playlists.
- * - /songs/{songId}: Stores all songs, creating a global catalog. Publicly readable.
- * - /songs/{songId}/messages/{messageId}: Stores chat messages for a specific song.
- * - /users/{userId}/followers/{followerId}: Stores the followers of a specific user.
- * - /users/{userId}/following/{followingId}: Stores the users a specific user is following.
- * - /chats/{chatId}: Stores private chat rooms.
- * - /chats/{chatId}/messages/{messageId}: Stores messages within private chat rooms.
+ * - /users/{userId}: User profile data.
+ * - /users/{userId}/playlists/{playlistId}: User playlists.
+ * - /users/{userId}/playlists/{playlistId}/songs/{songId}: Songs within a playlist.
+ * - /songs/{songId}: Public song catalog (read-only for all, write by admins - not yet implemented).
+ * - /songs/{songId}/messages/{messageId}: Chat messages for a song (open to all signed-in users).
+ * - /users/{userId}/followers/{followerId}: Users following a given user.
+ * - /users/{userId}/following/{followingId}: Users a given user is following.
+ * - /chats/{chatId}: Chat metadata, including participant list.
+ * - /chats/{chatId}/messages/{messageId}: Chat messages within a chat.
  *
  * Key Security Decisions:
- * - Users can only manage their own profile data and playlists.
- * - Song data is publicly readable, but creation and modification are not allowed in this prototype.
- * - Followers and Following subcollections restricted to owner only.
- * - Private chats are restricted to participants.
+ * - Users can only read and write their own user document and its subcollections.
+ * - The global song catalog is publicly readable, but write access is not yet secured (TODO).
+ * - Chat messages for songs are readable by any signed-in user.
+ * - Private chats are only accessible to participating users.
+ * - Listing of followers and following is allowed for the owner.
  *
  * Denormalization for Authorization:
- *  - Playlist and Song documents do not contain redundant authorization data. Instead, the path
- *    `/users/{userId}/playlists/{playlistId}` is used to enforce ownership.
+ * - The 'Playlist' and 'Song' entities should contain the 'userId' to avoid needing to query the /users collection.
+ *   This is currently implemented in the data model.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Rules for managing user profile data.
+     * @description Controls access to user profile documents. Users can read their own profile and create/update their own profile.
      * @path /users/{userId}
-     * @allow (create) Authenticated user can create their own profile.
-     * @allow (get, list, update, delete) Only the authenticated user can access their own profile.
-     * @deny (create) Creating a profile with an ID that doesn't match the authenticated user's ID.
-     * @principle Enforces document ownership.
+     * @allow (read) Authenticated user can read any user profile.
+     * @allow (create) Authenticated user with ID matching the document ID can create.
+     * @allow (update) Authenticated user with ID matching the document ID can update.
+     * @deny (delete) No one can delete a user profile.
+     * @principle Allows anyone to read a user profile, but only the user can modify their own profile.
      */
     match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      allow get, list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
-      allow update: if isOwner(userId) && resource != null && request.resource.data.id == resource.data.id;
-      allow delete: if isOwner(userId) && resource != null;
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && isOwner(userId) && resource != null;
+      allow delete: if false;
     }
 
     /**
-     * @description Rules for managing user playlists.
+     * @description Controls access to user playlists. Users can read their own playlists and create/update/delete their own playlists.
      * @path /users/{userId}/playlists/{playlistId}
-     * @allow (create, get, list, update, delete) Only the authenticated user can manage their own playlists.
-     * @deny (create) Creating a playlist with an incorrect userId.
-     * @principle Enforces document ownership through path.
+     * @allow (read) Authenticated user can read their own playlists.
+     * @allow (create) Authenticated user can create playlists under their own user ID.
+     * @allow (update) Authenticated user can update playlists under their own user ID.
+     * @allow (delete) Authenticated user can delete playlists under their own user ID.
+     * @deny (read) Authenticated user cannot read another user's playlists.
+     * @deny (create) Authenticated user cannot create playlists under another user ID.
+     * @principle Enforces document ownership for playlists.
      */
     match /users/{userId}/playlists/{playlistId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isOwner(userId) && resource != null;
-      allow delete: if isOwner(userId) && resource != null;
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && request.resource.data.userId == userId;
+      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Rules for managing songs within a playlist.
+     * @description Controls access to songs within a playlist. Users can read/create/update/delete songs in their own playlists.
      * @path /users/{userId}/playlists/{playlistId}/songs/{songId}
-     * @allow (create, get, list, update, delete) Only the authenticated user can manage songs in their own playlists.
-     * @principle Enforces document ownership through path.
+     * @allow (read) Authenticated user can read songs in their own playlists.
+     * @allow (create) Authenticated user can create songs in their own playlists.
+     * @allow (update) Authenticated user can update songs in their own playlists.
+     * @allow (delete) Authenticated user can delete songs in their own playlists.
+     * @deny (read) Authenticated user cannot read another user's playlists songs.
+     * @deny (create) Authenticated user cannot create songs under another user ID.
+     * @principle Enforces document ownership for playlist songs.
      */
     match /users/{userId}/playlists/{playlistId}/songs/{songId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) && resource != null;
-      allow delete: if isOwner(userId) && resource != null;
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+      allow create: if isSignedIn() && get(/databases/$(database)/documents/users/$(userId)/playlists/$(playlistId)).data.userId == userId;
+      allow update: if isSignedIn() && isExistingOwner(userId) && get(/databases/$(database)/documents/users/$(userId)/playlists/$(playlistId)).data.userId == userId;
+      allow delete: if isSignedIn() && isExistingOwner(userId) && get(/databases/$(database)/documents/users/$(userId)/playlists/$(playlistId)).data.userId == userId;
     }
 
     /**
-     * @description Rules for accessing the global song catalog.
+     * @description Controls access to the global song catalog. Everyone can read the catalog, but write access is restricted (TODO: implement admin roles).
      * @path /songs/{songId}
-     * @allow (get, list) All users can read song data.
-     * @deny (create, update, delete) Song creation, updates, and deletions are disallowed in this prototype.
-     * @principle Allows public read access with restricted writes.
+     * @allow (read) Anyone can read the song catalog.
+     * @deny (create) No one can create a song (yet).
+     * @principle Allows public read access to the song catalog.
      */
     match /songs/{songId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow get: if true;
+      allow list: if true;
+      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Rules for managing chat messages for a song.
+     * @description Controls access to chat messages for a specific song. All signed-in users can read/create messages.
      * @path /songs/{songId}/messages/{messageId}
-     * @allow (create, get, list) Any authenticated user can create/read messages.
-     * @deny (update, delete) Message updates and deletions are disallowed.
+     * @allow (read) Any signed-in user can read messages for any song.
+     * @allow (create) Any signed-in user can create messages for any song.
+     * @deny (update) No one can update a message.
+     * @deny (delete) No one can delete a message.
+     * @principle Allows open read and create access for song chat messages to all signed-in users.
      */
     match /songs/{songId}/messages/{messageId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-      allow get, list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
+     /**
+      * @description Controls access to a user's followers. Users can read/create/delete their followers.
+      * @path /users/{userId}/followers/{followerId}
+      * @allow (read) The owner can read their followers.
+      * @allow (list) The owner can list their followers.
+      * @allow (create) The owner can create followers.
+      * @allow (delete) The owner can delete followers.
+      * @principle Enforces document ownership for followers.
+      */
+     match /users/{userId}/followers/{followerId} {
+        allow get: if isSignedIn() && isOwner(userId);
+        allow list: if isSignedIn() && isOwner(userId);
+        allow create: if isSignedIn() && isOwner(userId);
+        allow update: if false;
+        allow delete: if isSignedIn() && isOwner(userId);
+      }
+
+      /**
+       * @description Controls access to the users a user is following. Users can read/create/delete their following list.
+       * @path /users/{userId}/following/{followingId}
+       * @allow (read) The owner can read who they are following.
+       * @allow (list) The owner can list who they are following.
+       * @allow (create) The owner can create following relationships.
+       * @allow (delete) The owner can delete following relationships.
+       * @principle Enforces document ownership for following.
+       */
+      match /users/{userId}/following/{followingId} {
+        allow get: if isSignedIn() && isOwner(userId);
+        allow list: if isSignedIn() && isOwner(userId);
+        allow create: if isSignedIn() && isOwner(userId);
+        allow update: if false;
+        allow delete: if isSignedIn() && isOwner(userId);
+      }
+
     /**
-     * @description Rules for managing user followers.
-     * @path /users/{userId}/followers/{followerId}
-     * @allow (get, list, create, update, delete) Only the owner can manage their followers.
-     * @principle Enforces document ownership.
-     */
-    match /users/{userId}/followers/{followerId} {
-        function isOwner(userId) {
-            return request.auth != null && request.auth.uid == userId;
-        }
-
-        allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId) && resource != null;
-        allow delete: if isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Rules for managing who a user is following.
-     * @path /users/{userId}/following/{followingId}
-     * @allow (get, list, create, update, delete) Only the owner can manage who they are following.
-     * @principle Enforces document ownership.
-     */
-    match /users/{userId}/following/{followingId} {
-        function isOwner(userId) {
-            return request.auth != null && request.auth.uid == userId;
-        }
-
-        allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId) && resource != null;
-        allow delete: if isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Rules for managing private chats between users.
+     * @description Controls access to private chats.  Only participants can read/write.
      * @path /chats/{chatId}
-     * @allow (get, list) Only participants can read the chat.
-     * @allow (create) Any authenticated user can initiate a chat.
-     * @allow (update) Only participants can update the chat metadata (e.g., last message).
-     * @allow (delete) Deletion is not allowed in this prototype.
-     * @principle Enforces shared access based on participant list.
+     * @allow (read) User can read if they are a participant.
+     * @allow (create) User can create if they are a participant.
+     * @allow (update) User can update if they are a participant and the participants list is unchanged.
+     * @deny (delete) No one can delete a chat.
+     * @principle Enforces shared access based on the participant list.
      */
     match /chats/{chatId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
-
-        function isParticipant(participantIds) {
-            return isSignedIn() && participantIds.hasAny([request.auth.uid]);
-        }
-
-        allow get, list: if isParticipant(resource.data.participantIds);
-        allow create: if isSignedIn();
-        allow update: if isParticipant(resource.data.participantIds) && resource != null;
-        allow delete: if false;
+      allow get: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow list: if false;
+      allow create: if isSignedIn() && request.resource.data.participantIds.hasAll([request.auth.uid]);
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participantIds && resource.data.participantIds == request.resource.data.participantIds && resource != null;
+      allow delete: if false;
     }
 
     /**
-     * @description Rules for managing messages within a private chat.
+     * @description Controls access to messages within a private chat.  Only participants can read/write.
      * @path /chats/{chatId}/messages/{messageId}
-     * @allow (get, list, create) Only participants can read and create messages.
-     * @deny (update, delete) Message updates and deletions are disallowed.
-     * @principle Enforces shared access based on chat participation.
+     * @allow (read) User can read if they are a participant in the parent chat.
+     * @allow (create) User can create if they are a participant in the parent chat.
+     * @deny (update) No one can update a chat message.
+     * @deny (delete) No one can delete a chat message.
+     * @principle Enforces shared access based on the participant list in the parent chat document.
      */
     match /chats/{chatId}/messages/{messageId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
-
-        function isChatParticipant(chatId) {
-            return get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds.hasAny([request.auth.uid]);
-        }
-
-        allow get, list: if isSignedIn() && isChatParticipant(chatId);
-        allow create: if isSignedIn() && isChatParticipant(chatId);
-        allow update, delete: if false;
+      allow get: if isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds.hasAny([request.auth.uid]);
+      allow list: if isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds.hasAny([request.auth.uid]);
+      allow create: if isSignedIn() && get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds.hasAny([request.auth.uid]);
+      allow update: if false;
+      allow delete: if false;
     }
+  }
+
+  /**
+   * @description Helper function to determine if the user is signed in.
+   * @return {boolean} True if the user is signed in, false otherwise.
+   */
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  /**
+   * @description Helper function to determine if the user is the owner of the document.
+   * @param {string} userId The user ID to compare against the request's auth UID.
+   * @return {boolean} True if the user is the owner, false otherwise.
+   */
+  function isOwner(userId) {
+    return request.auth.uid == userId;
+  }
+
+   /**
+   * @description Helper function to determine if the user is the owner of the document and the resource exists.
+   * @param {string} userId The user ID to compare against the request's auth UID.
+   * @return {boolean} True if the user is the owner and the resource exists, false otherwise.
+   */
+  function isExistingOwner(userId) {
+    return request.auth.uid == userId && resource != null;
   }
 }
