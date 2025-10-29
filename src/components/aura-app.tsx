@@ -151,6 +151,12 @@ const PlayerBar = () => {
         }
     };
 
+    const handleProgressChange = (value: number[]) => {
+      if (currentSong) {
+        seek(value[0]);
+      }
+    };
+
     return (
         <div className="h-24 bg-secondary/80 border-t border-border backdrop-blur-xl p-4 flex items-center gap-4 text-foreground">
             {/* Song Info */}
@@ -193,7 +199,7 @@ const PlayerBar = () => {
                         value={[progress]}
                         max={1}
                         step={0.01}
-                        onValueChange={handleSeek}
+                        onValueChange={handleProgressChange}
                         className="flex-grow"
                         disabled={!currentSong}
                     />
@@ -219,7 +225,7 @@ const PlayerBar = () => {
 };
 
 const PlaylistView = () => {
-    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying } = usePlayer();
+    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying, isMuted } = usePlayer();
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
     const [songUrl, setSongUrl] = useState('');
@@ -295,11 +301,11 @@ const PlaylistView = () => {
                    <ReactPlayer
                       url={currentSong.url}
                       playing={isPlaying}
+                      muted={isMuted} // Sync mute state with context
                       controls={false}
                       width="100%"
                       height="100%"
-                      volume={0} 
-                      muted={true}
+                      // volume and other props are controlled by the main player
                     />
                 </div>
               ) : (
@@ -574,6 +580,3 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
     </div>
   );
 };
-
-    
-    
