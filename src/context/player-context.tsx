@@ -66,7 +66,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playSong = useCallback((song: Song, index: number) => {
     setCurrentSong(song);
     setCurrentIndex(index);
-    setIsPlaying(true); // Oynatıcıya "oynat" komutu vermeyecek, sadece UI durumu
+    setIsPlaying(true); // Oynatıcının otomatik başlamasını tetikler (ama sessiz)
     setIsMutedByAutoplay(true); // Oynatıcı sessiz başlayacak, ilk tıklamada ses açılacak
     setProgress(0);
     setDuration(0);
@@ -105,9 +105,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addSong = (song: Song) => {
-    const newPlaylist = [...playlist, song];
-    setPlaylist(newPlaylist);
-    playSong(song, newPlaylist.length - 1);
+    // Şarkının zaten listede olup olmadığını kontrol et
+    if (playlist.some(s => s.id === song.id)) {
+        // Eğer listedeyse, sadece o şarkıyı çal
+        const existingIndex = playlist.findIndex(s => s.id === song.id);
+        playSong(song, existingIndex);
+    } else {
+        // Eğer listede değilse, listeye ekle ve çal
+        const newPlaylist = [...playlist, song];
+        setPlaylist(newPlaylist);
+        playSong(song, newPlaylist.length - 1);
+    }
   };
   
   const seekTo = (time: number) => {

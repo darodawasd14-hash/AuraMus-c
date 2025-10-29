@@ -32,7 +32,7 @@ export const Player = () => {
     progressIntervalRef.current = setInterval(() => {
         if (youtubePlayerRef.current) {
             const player = youtubePlayerRef.current;
-            if (typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
+            if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
                 const currentTime = player.getCurrentTime();
                 const duration = player.getDuration();
                  if (duration > 0) {
@@ -69,7 +69,7 @@ export const Player = () => {
         }
       },
       unmute: () => {
-        if (currentSong?.type === 'youtube' && youtubePlayerRef.current && youtubePlayerRef.current.isMuted()) {
+        if (currentSong?.type === 'youtube' && youtubePlayerRef.current && typeof youtubePlayerRef.current.isMuted === 'function' && youtubePlayerRef.current.isMuted()) {
           youtubePlayerRef.current.unMute();
         }
         // ReactPlayer's volume is controlled by props, context handles it
@@ -80,20 +80,23 @@ export const Player = () => {
 
   const handleYoutubeReady = (event: { target: YouTubePlayer }) => {
     youtubePlayerRef.current = event.target;
-    // Sessiz bir şekilde otomatik oynatmayı başlat.
-    // Tarayıcıların autoplay politikasını aşmak için bu gereklidir.
+    // Oynatıcı hazır olduğunda, Context'ten gelen isPlaying durumuna göre
+    // ve tarayıcı politikaları için sessiz bir şekilde oynatmayı dene.
     event.target.playVideo();
   };
   
   const handleYoutubeStateChange = (event: { data: number }) => {
-    if (event.data === YouTube.PlayerState.PLAYING) {
+    const playerState = event.data;
+    if (playerState === YouTube.PlayerState.PLAYING) {
       _playerSetIsPlaying(true);
       startYoutubeProgressTracking();
-    } else if (event.data === YouTube.PlayerState.PAUSED) {
+    } else if (playerState === YouTube.PlayerState.PAUSED || playerState === YouTube.PlayerState.CUED) {
       _playerSetIsPlaying(false);
       stopProgressTracking();
-    } else if (event.data === YouTube.PlayerState.ENDED) {
+    } else if (playerState === YouTube.PlayerState.ENDED) {
+      _playerSetIsPlaying(false);
       _playerOnEnd();
+      stopProgressTracking();
     }
   }
 
@@ -110,7 +113,7 @@ export const Player = () => {
 
   if (!currentSong) {
     stopProgressTracking();
-    if(youtubePlayerRef.current?.stopVideo){
+    if(youtubePlayerRef.current && typeof youtubePlayerRef.current.stopVideo === 'function'){
       youtubePlayerRef.current.stopVideo();
     }
     return null;
@@ -123,7 +126,7 @@ export const Player = () => {
       autoplay: 1, 
       controls: 0,
       playsinline: 1,
-      mute: 1 // Her zaman sessiz başla
+      mute: 1 // Her zaman sessiz başla, kullanıcı etkileşimiyle ses açılacak
     },
   };
   
