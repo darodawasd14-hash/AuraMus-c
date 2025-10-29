@@ -2,7 +2,6 @@
 import React, { useContext } from 'react';
 import ReactPlayer from 'react-player';
 import { PlayerContext } from '@/context/player-context';
-import type { Song } from '@/lib/types';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { PlayIcon, PauseIcon, SkipBack, SkipForward, Music, Volume2, VolumeX } from '@/components/icons';
@@ -22,49 +21,48 @@ const AuraPlayerView = () => {
   const { 
     currentSong, 
     isPlaying, 
-    isReady, 
-    hasInteracted, 
-    activateSound
+    hasInteracted,
+    activateSound,
+    isReady,
   } = useContext(PlayerContext)!;
 
   return (
-    <div className="flex-grow flex flex-col p-4 md:p-6">
-        <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
-            {currentSong && isReady && (
-              // This is the VISIBLE player, it acts as a "vitrine"
-              // It has no controls and is always muted from its own props
-              // The actual sound comes from the invisible player managed by the context
-              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-                <ReactPlayer
-                    key={`visible-${currentSong.id}`}
-                    url={currentSong.url}
-                    playing={isPlaying}
-                    volume={0}
-                    muted={true}
-                    controls={false}
-                    width="100%"
-                    height="100%"
-                    config={{
-                        youtube: { playerVars: { showinfo: 0, modestbranding: 1, rel: 0 } }
-                    }}
-                />
-              </div>
-            )}
-            
-            {/* This is the invisible "sound activation" layer */}
-            {currentSong && isReady && !hasInteracted && (
-                 <div 
-                    className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center transition-opacity cursor-pointer z-10 hover:bg-black/60"
-                    onClick={activateSound}
-                >
-                   <div className="bg-black/50 rounded-full p-4 hover:bg-black/70 transition-all">
-                     <PlayIcon className="w-12 h-12 text-white" />
-                   </div>
-                   <p className="text-white mt-4 font-semibold">Oynatmak için tıklayın</p>
+    <div className="flex-grow flex flex-col items-center justify-center p-4 md:p-6 bg-background">
+        <div className="w-full max-w-4xl aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative shadow-2xl">
+            {currentSong ? (
+              <>
+                {/* This is the VISIBLE player, it acts as a "vitrine" */}
+                {/* It's always muted from its own props; sound comes from the invisible player */}
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+                  <ReactPlayer
+                      key={`visible-${currentSong.id}`}
+                      url={currentSong.url}
+                      playing={isPlaying}
+                      volume={0}
+                      muted={true}
+                      controls={false}
+                      width="100%"
+                      height="100%"
+                      config={{
+                          youtube: { playerVars: { showinfo: 0, modestbranding: 1, rel: 0 } }
+                      }}
+                  />
                 </div>
-            )}
-            
-            {!currentSong && (
+                
+                {/* This is the invisible "sound activation" layer */}
+                {!hasInteracted && isReady && (
+                     <div 
+                        className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center transition-opacity cursor-pointer z-10 hover:bg-black/60"
+                        onClick={activateSound}
+                    >
+                       <div className="bg-black/50 rounded-full p-4 hover:bg-black/70 transition-all">
+                         <PlayIcon className="w-12 h-12 text-white" />
+                       </div>
+                       <p className="text-white mt-4 font-semibold">Oynatmak için tıklayın</p>
+                    </div>
+                )}
+              </>
+            ) : (
                 <div className="text-muted-foreground flex flex-col items-center gap-2">
                     <Music className="w-12 h-12"/>
                     <p>Oynatıcı Alanı</p>
@@ -72,8 +70,6 @@ const AuraPlayerView = () => {
                 </div>
             )}
         </div>
-
-        {/* You can add a playlist or other components here if needed */}
     </div>
   );
 };
@@ -174,7 +170,7 @@ const PlayerBar = () => {
 export function AuraApp() {
   return (
     <div id="app-container" className="relative h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
-        <main className="flex-grow flex flex-col overflow-y-auto pb-24 md:pb-0">
+        <main className="flex-grow flex flex-col">
             <AuraPlayerView />
         </main>
         <footer className="fixed bottom-0 left-0 right-0 z-40">
