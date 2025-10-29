@@ -18,6 +18,7 @@ interface PlayerContextType {
   currentSong: Song | null;
   isPlaying: boolean;
   isReady: boolean;
+  hasInteracted: boolean; // Tarayıcı izni için
   
   // Çalma Listesi Durumu
   playlist: Song[];
@@ -41,6 +42,7 @@ interface PlayerContextType {
   setPlaylist: (playlist: Song[]) => void;
   playNext: () => void;
   playPrevious: () => void;
+  setHasInteracted: (interacted: boolean) => void; // İzin durumu ayarlayıcı
 
   // Ses Kontrolleri
   setVolume: (volume: number) => void;
@@ -65,6 +67,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isReady, setIsReady] = useState<boolean>(false);
+  const [hasInteracted, setHasInteracted] = useState<boolean>(false); // İzin durumu
 
   // Çalma Listesi
   const [playlist, setPlaylist] = useState<Song[]>([]);
@@ -76,38 +79,33 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   // Ses
   const [volume, setVolumeState] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false); // Başlangıçta sessiz değil
   
   // Player Referansı (Kumandayı televizyona bağlamak için)
   const playerRef = useRef<ReactPlayer>(null);
 
   const playSong = (song: Song, index: number) => {
+    if (song.id !== currentSong?.id) {
+        setHasInteracted(false); // Yeni şarkı, yeni izin gerektirir
+        setIsPlaying(false);
+    }
     setCurrentSong(song);
     setCurrentIndex(index);
     setProgress(0);
     setDuration(0);
-    setIsReady(false); // Yeni şarkı yüklenirken oynatıcı hazır değil
-    // isPlaying'i onPlay callback'i yönetecek.
+    setIsReady(false);
   };
-
+  
   const togglePlayPause = () => {
     if (!currentSong || !isReady) return;
     
-    // Kullanıcının niyeti durumu değiştirmek.
     const newIsPlaying = !isPlaying;
     setIsPlaying(newIsPlaying);
-
-    // Eğer şarkıyı başlatıyorsak ve sessizdeyse, sesi aç.
-    // Bu, kullanıcının ilk etkileşimidir.
-    if (newIsPlaying && isMuted) {
-      setIsMuted(false);
-    }
   };
 
   const addSong = (song: Song) => {
     const newPlaylist = [...playlist, song];
     setPlaylist(newPlaylist);
-    // Eğer o an çalan bir şarkı yoksa, ekleneni hemen çal.
     if (!currentSong) {
       playSong(song, newPlaylist.length - 1);
     }
@@ -146,10 +144,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const _playerOnReady = () => {
     setIsReady(true);
+    // İzin alındıktan sonra onReady tetiklendiği için hemen çal.
+    if (hasInteracted) {
+      setIsPlaying(true);
+    }
   };
   
   const _playerOnProgress = (data: OnProgressProps) => {
-    // Sadece isPlaying durumundayken ilerlemeyi güncelle
     if (isPlaying) {
       setProgress(data.played);
     }
@@ -159,7 +160,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setDuration(newDuration);
   };
   
-  // Bu fonksiyonlar, oynatıcının gerçek durumu değiştiğinde "Beyin"i günceller.
   const _playerOnPlay = () => {
     setIsPlaying(true);
   };
@@ -177,6 +177,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     currentSong,
     isPlaying,
     isReady,
+    hasInteracted,
     playlist,
     currentIndex,
     progress,
@@ -190,6 +191,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setPlaylist,
     playNext,
     playPrevious,
+    setHasInteracted,
     setVolume,
     toggleMute,
     seek,

@@ -230,11 +230,17 @@ const PlayerBar = () => {
 };
 
 const PlaylistView = () => {
-    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying } = usePlayer();
+    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying, hasInteracted, setHasInteracted } = usePlayer();
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
     const [songUrl, setSongUrl] = useState('');
     const [isAdding, setIsAdding] = useState(false);
+
+    const handleInteraction = () => {
+      if (currentSong) {
+        setHasInteracted(true);
+      }
+    };
 
 
     const handleAddSong = async (e: FormEvent) => {
@@ -300,18 +306,24 @@ const PlaylistView = () => {
     return (
         <div className="p-4 md:p-6 flex flex-col h-full">
             
-            <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center pointer-events-none">
-              {currentSong?.type === 'youtube' ? (
+            <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
+              {currentSong?.type === 'youtube' && hasInteracted ? (
                 <div className="w-full h-full">
                    <ReactPlayer
                       url={currentSong.url}
                       playing={isPlaying}
-                      muted={true}
                       controls={false}
                       width="100%"
                       height="100%"
-                      style={{ pointerEvents: 'auto' }}
+                      style={{ pointerEvents: 'none' }}
                     />
+                </div>
+              ) : currentSong?.artwork ? (
+                <div className="w-full h-full relative" onClick={handleInteraction}>
+                  <Image src={currentSong.artwork} alt={currentSong.title} layout="fill" objectFit="cover" />
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center cursor-pointer">
+                    <PlayIcon className="w-16 h-16 text-white/80 hover:text-white transition-colors" />
+                  </div>
                 </div>
               ) : (
                 <div className="text-muted-foreground flex flex-col items-center gap-2">
