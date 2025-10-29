@@ -10,32 +10,32 @@ export interface Song {
   url: string;
   type: 'youtube' | 'soundcloud' | 'url';
   timestamp?: any;
-  artwork?: string; // Küçük resim için
+  artwork?: string;
 }
 
 interface PlayerContextType {
-  // Oynatıcı Durumu
+  // Player State
   currentSong: Song | null;
   isPlaying: boolean;
   isReady: boolean;
-  hasInteracted: boolean; // Tarayıcı izni için
+  hasInteracted: boolean; // For browser permission
   
-  // Çalma Listesi Durumu
+  // Playlist State
   playlist: Song[];
   currentIndex: number;
   
-  // Zaman Durumu
-  progress: number; // 0-1 arası
-  duration: number; // saniye
+  // Time State
+  progress: number; // 0-1
+  duration: number; // seconds
 
-  // Ses Durumu
-  volume: number; // 0-1 arası
+  // Volume State
+  volume: number; // 0-1
   isMuted: boolean;
 
-  // Kontrol Referansı
+  // Control Reference
   playerRef: React.RefObject<ReactPlayer> | null;
 
-  // Temel Kontroller
+  // Core Controls
   playSong: (song: Song, index: number) => void;
   togglePlayPause: () => void;
   addSong: (song: Song) => void;
@@ -43,15 +43,15 @@ interface PlayerContextType {
   playNext: () => void;
   playPrevious: () => void;
   
-  // Ses Kontrolleri
+  // Volume Controls
   setVolume: (volume: number) => void;
   toggleMute: () => void;
   activateSound: () => void;
 
-  // İlerleme Kontrolü
+  // Seek Control
   seek: (progress: number) => void;
 
-  // Dahili Oynatıcı Raporlama Fonksiyonları (Dışarıdan kullanılmamalı)
+  // Internal Player Reporting Functions (not for external use)
   _playerOnReady: () => void;
   _playerOnProgress: (data: OnProgressProps) => void;
   _playerOnDuration: (duration: number) => void;
@@ -63,63 +63,66 @@ interface PlayerContextType {
 export const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export const PlayerProvider = ({ children }: { children: ReactNode }) => {
-  // Oynatıcı Durumu
+  // Player State
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isReady, setIsReady] = useState<boolean>(false);
-  const [hasInteracted, setHasInteracted] = useState<boolean>(false);
+  const [hasInteracted, setHasInteracted] = useState<boolean>(false); // This is the master "permission" switch
 
-  // Çalma Listesi
+  // Playlist
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
 
-  // Zaman
+  // Time
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  // Ses
+  // Volume
   const [volume, setVolumeState] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(true); // Always start muted
+  // Start muted until user interacts. This is key for autoplay policies.
+  const [isMuted, setIsMuted] = useState(true);
   
   const playerRef = useRef<ReactPlayer>(null);
 
   const activateSound = useCallback(() => {
     if (!hasInteracted) {
-      console.log("Interaction detected, activating sound.");
       setHasInteracted(true);
-      // Unmute and ensure playback
+      // This is the first user interaction. Unmute audio for all subsequent plays.
       setIsMuted(false);
-      if (playerRef.current && !isPlaying) {
-          setIsPlaying(true);
+      // If a song is loaded and ready, ensure it plays.
+      if (playerRef.current && currentSong) {
+          playerRef.current.getInternalPlayer()?.unMute();
+          if(!isPlaying){
+            playerRef.current.getInternalPlayer()?.playVideo();
+          }
       }
     }
-  }, [hasInteracted, isPlaying]);
+  }, [hasInteracted, isPlaying, currentSong]);
 
   const playSong = (song: Song, index: number) => {
     setCurrentSong(song);
     setCurrentIndex(index);
     setProgress(0);
     setDuration(0);
-    setIsPlaying(true); // Attempt to play automatically
+    setIsPlaying(false); // Will be set to true by onPlay event from player
     setIsReady(false); // Player is not ready until the new song loads
-    
-    // Only unmute if user has already interacted with the site
-    if (hasInteracted) {
-        setIsMuted(false);
-    } else {
-        setIsMuted(true);
-    }
   };
   
   const togglePlayPause = () => {
     if (!isReady || !currentSong) return;
 
+    // If this is the first interaction, activate sound and let it handle playback.
     if (!hasInteracted) {
         activateSound();
-        return; // Let activateSound handle starting playback
+        return;
     }
-
-    setIsPlaying(prev => !prev);
+    
+    // If already interacted, just toggle play/pause state.
+    if (isPlaying) {
+      playerRef.current?.getInternalPlayer()?.pauseVideo();
+    } else {
+      playerRef.current?.getInternalPlayer()?.playVideo();
+    }
   };
 
   const addSong = (song: Song) => {
@@ -144,10 +147,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const setVolume = (newVolume: number) => {
     setVolumeState(Math.min(Math.max(newVolume, 0), 1));
-    if (newVolume > 0) {
-        if(isReady && hasInteracted){
-             setIsMuted(false);
-        }
+    if (newVolume > 0 && hasInteracted) {
+         setIsMuted(false);
     }
   };
 
@@ -169,12 +170,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
      }
   };
 
+  // --- Internal Callbacks from ReactPlayer ---
   const _playerOnReady = () => {
     setIsReady(true);
   };
   
   const _playerOnProgress = (data: OnProgressProps) => {
-    // Only update progress if we are in a playing state
     if (isPlaying) {
       setProgress(data.played);
     }

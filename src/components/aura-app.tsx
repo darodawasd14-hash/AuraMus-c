@@ -21,11 +21,12 @@ import { Slider } from '@/components/ui/slider';
 import ReactPlayer from 'react-player';
 
 const getYouTubeThumbnail = (videoId: string) => {
+    // sddefault is a good balance of quality and availability
     return `https://i.ytimg.com/vi/${videoId}/sddefault.jpg`;
 };
 
 const getFallbackThumbnail = (id: string) => {
-    return `https://picsum.photos/seed/${id}/168/94`;
+    return `https://picsum.photos/seed/${id}/640/360`;
 }
 
 export function AuraApp() {
@@ -51,6 +52,7 @@ export function AuraApp() {
   return (
     <div id="app-container" className="relative h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       
+      {/* Player is now always rendered, but hidden. It's the "engine". */}
       <Player />
 
       <div className="flex-grow flex flex-row overflow-hidden">
@@ -151,19 +153,13 @@ const PlayerBar = () => {
         return `${mm}:${ss}`;
     };
 
-    const handleSeek = (value: number[]) => {
-        if (currentSong) {
-            seek(value[0]);
-        }
-    };
-
     const handleProgressChange = (value: number[]) => {
       if (currentSong) {
         seek(value[0]);
       }
     };
     
-    const sliderProgress = (progress * duration);
+    const sliderProgress = progress * duration;
 
     return (
         <div className="h-24 bg-secondary/80 border-t border-border backdrop-blur-xl p-4 flex items-center gap-4 text-foreground">
@@ -260,11 +256,9 @@ const PlaylistView = () => {
                     const oembedData = await oembedResponse.json();
                     videoTitle = oembedData.title;
                     if(oembedData.thumbnail_url) {
-                       // Prefer sddefault for better quality than hqdefault
                        artwork = oembedData.thumbnail_url.replace('hqdefault.jpg', 'sddefault.jpg');
                     }
                 } else {
-                   // Fallback to noembed if official fails
                    const fallbackOembed = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
                    if(fallbackOembed.ok) {
                         const fallbackData = await fallbackOembed.json();
@@ -299,7 +293,7 @@ const PlaylistView = () => {
                 timestamp: serverTimestamp()
             };
             addSong(newSong);
-toast({ title: `SoundCloud linki eklendi.` });
+            toast({ title: `SoundCloud linki eklendi.` });
 
         } else {
              toast({ title: `Geçersiz veya desteklenmeyen link.`, variant: 'destructive' });
@@ -319,32 +313,28 @@ toast({ title: `SoundCloud linki eklendi.` });
         <div className="p-4 md:p-6 flex flex-col h-full">
             
              <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
-                {currentSong && !hasInteracted && (
+                 {/* The actual player is always here now, but visually covered if needed */}
+                <div className="absolute inset-0 pointer-events-none">
+                    <Player/>
+                </div>
+                
+                {currentSong && !hasInteracted && isReady && (
                      <div 
                         className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center transition-opacity opacity-75 hover:opacity-100 cursor-pointer z-10"
                         onClick={activateSound}
                     >
-                        {currentSong.artwork ? (
-                             <Image src={currentSong.artwork} alt={currentSong.title} layout="fill" objectFit="cover" className="opacity-30" />
-                        ) : null}
-                         <div className="relative z-20 flex flex-col items-center justify-center text-white">
-                            <PlayIcon className="w-16 h-16" />
-                            <p className="font-semibold mt-2">Oynatmak için Tıklayın</p>
-                        </div>
+                        <PlayIcon className="w-16 h-16 text-white" />
+                        <p className="font-semibold mt-2 text-white">Oynatmak için Tıklayın</p>
                     </div>
                 )}
                 
-                {(!currentSong) && (
+                {!currentSong && (
                     <div className="text-muted-foreground flex flex-col items-center gap-2">
                         <Music className="w-12 h-12"/>
                         <p>Oynatıcı Alanı</p>
                         <p className="text-xs">Çalan şarkı burada görünecek.</p>
                     </div>
                 )}
-                 {/* The actual player is hidden but always rendered to be ready */}
-                 <div className="absolute inset-0 pointer-events-none">
-                    <Player/>
-                 </div>
             </div>
 
 

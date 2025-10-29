@@ -18,9 +18,9 @@ export const Player = () => {
     _playerOnPause,
   } = usePlayer();
 
-  // The Player is now always rendered in the background, but only plays
-  // when currentSong is not null. It's visually hidden via CSS/styling.
-  // The UI for playback (play/pause overlay) is handled in PlaylistView.
+  // The Player is now always rendered in the background. It is the "engine"
+  // that handles all playback, but it's not directly visible.
+  // The 'PlaylistView' component will show a visual representation (like an iframe).
   return (
     <div className="player-wrapper" style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
       {currentSong && (
@@ -43,10 +43,14 @@ export const Player = () => {
             config={{
               youtube: {
                 playerVars: { 
+                  // autoplay: 1 is crucial for this flow to work, as it allows the player to start
+                  // silently, which then allows us to control it programmatically.
                   autoplay: 1, 
                   showinfo: 0,
                   disablekb: 1,
                   iv_load_policy: 3,
+                  rel: 0,
+                  controls: 0,
                 }
               },
               soundcloud: {
