@@ -83,18 +83,27 @@ export default function ChatsPage() {
   const firestore = useFirestore();
   const router = useRouter();
 
+  // MİMARİDEKİ ANAHTAR DEĞİŞİKLİK: GÜVENLİ SORGULAMA
+  // Bu sorgu, 'firestore.rules' dosyasındaki 'allow list' kuralıyla
+  // birebir eşleşir ve yalnızca kullanıcının dahil olduğu sohbetleri getirir.
   const chatsQuery = useMemoFirebase(() => {
+    // Kullanıcı oturum açana kadar veya firestore hazır olana kadar bekle.
     if (!user || !firestore) return null;
-    // GÜVENLİ SORGUSU: Yalnızca mevcut kullanıcının 'participantIds' dizisinde olduğu sohbetleri getir.
+
+    // GÜVENLİ SORGUNUN KENDİSİ:
+    // 'chats' koleksiyonu içinde, 'participantIds' dizisi mevcut kullanıcının
+    // kimliğini ('user.uid') içeren belgeleri getir.
     return query(
-        collection(firestore, 'chats'), 
-        where('participantIds', 'array-contains', user.uid),
+        collection(firestore, "chats"), 
+        where("participantIds", "array-contains", user.uid),
         orderBy('lastMessageTimestamp', 'desc')
     );
   }, [user, firestore]);
 
   const { data: chats, isLoading: areChatsLoading, error } = useCollection<Chat>(chatsQuery);
 
+  // Bu mimariyle, burada "Missing... permissions" hatası görmemeniz gerekir.
+  // Çünkü sorgu, kuralların izin verdiği formatla tam olarak eşleşir.
   if (error) {
       console.error("Güvenli sohbet sorgusu başarısız:", error);
   }

@@ -162,13 +162,13 @@
       "schema": {
         "$ref": "#/entities/User"
       },
-      "description": "Stores user profile information. Any authenticated user can read (get) a profile, but only the owner can write (create, update, delete)."
+      "description": "NİYET: Herkese Açık Profil Okuma. KURAL: Oturum açan (isSignedIn) HERKES başkalarının profilini okuyabilir (get). YAZMA: Sadece profilin SAHİBİ (isOwner) kendi profilini yazabilir (create, update, delete)."
     },
     "/users/{userId}/playlists/{playlistId}": {
       "schema": {
         "$ref": "#/entities/Playlist"
       },
-      "description": "Stores user-created playlists. Any authenticated user can read (get, list) playlists, but only the owner can write."
+      "description": "NİYET: Herkese Açık Çalma Listesi Okuma. KURAL: Oturum açan HERKES başkalarının çalma listelerini okuyabilir (get, list). YAZMA: Sadece SAHİBİ (üst belgenin sahibi) kendi çalma listelerini yazabilir."
     },
     "/users/{userId}/playlists/{playlistId}/songs/{songId}": {
         "schema": {
@@ -192,25 +192,25 @@
         "schema": {
           "$ref": "#/entities/Follow"
         },
-        "description": "List of users following {userId}. Any authenticated user can read this list. Writing is managed by social logic (following/unfollowing)."
+        "description": "NİYET: Herkese Açık Takipçi Listesi Okuma ve Sosyal Yazma. KURAL (OKU): Oturum açan HERKES başkalarının takipçilerini okuyabilir (get, list). KURAL (YAZ): Takip etme işlemini (create) sadece takip eden kişi ({followerId}) kendi adına yapabilir. Takibi bırakma/engelleme (delete) işlemini ise ya profilin sahibi ({userId}) ya da takipçinin kendisi ({followerId}) yapabilir."
       },
       "/users/{userId}/following/{followingId}": {
         "schema": {
           "$ref": "#/entities/Follow"
         },
-        "description": "List of users that {userId} is following. Any authenticated user can read this list, but only the owner can write."
+        "description": "NİYET: Herkese Açık Takip Edilen Listesi Okuma. KURAL (OKU): Oturum açan HERKES başkalarının takip edilen listesini okuyabilir (get, list). KURAL (YAZ): Sadece SAHİBİ ({userId}) kendi 'takip edilen' listesini yönetebilir (create, delete)."
       },
       "/chats/{chatId}": {
         "schema": {
           "$ref": "#/entities/Chat"
         },
-        "description": "Private chat rooms. Reading a single document and all writes are restricted to participants. Listing is only allowed with a query filtering by the current user's ID in 'participantIds'."
+        "description": "MİMARİDEKİ ANAHTAR KURAL (GÜVENLİ LİSTELEME): 'list' işlemine sadece şu koşulda izin ver: İstemci, 'participantIds' alanı üzerinde 'array-contains' ile KENDİ uid'sini arayan bir 'where' sorgusu kullanıyor. Bu, `collection(firestore, 'chats')` gibi GÜVENSİZ sorguları engeller."
       },
       "/chats/{chatId}/messages/{messageId}": {
         "schema": {
           "$ref": "#/entities/Message"
         },
-        "description": "Messages for a private chat. All operations are restricted to participants of the parent chat."
+        "description": "NİYET: Özel Mesaj Okuma/Yazma. KURAL: Sadece sohbetin katılımcıları mesajları okuyabilir (get, list). Mesaj oluşturma (create) sadece katılımcılar tarafından ve kendi adlarına yapılabilir. Güncelleme/Silme (update, delete) sadece mesajın sahibi tarafından yapılabilir."
       }
   }
 }
