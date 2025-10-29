@@ -126,7 +126,7 @@ const Header = ({ isChatOpen, setIsChatOpen }: { isChatOpen: boolean, setIsChatO
 };
 
 const PlayerBar = () => {
-    const { currentSong, isPlaying, progress, duration, volume, isMuted, togglePlayPause, playNext, playPrevious, seek, setVolume, toggleMute, playerRef } = usePlayer();
+    const { currentSong, isPlaying, progress, duration, volume, isMuted, togglePlayPause, playNext, playPrevious, seek, setVolume, toggleMute } = usePlayer();
 
     const formatTime = (seconds: number) => {
         if (isNaN(seconds) || seconds === Infinity) return '0:00';
@@ -141,8 +141,9 @@ const PlayerBar = () => {
     };
 
     const handleSeek = (value: number[]) => {
-        const newProgress = value[0];
-        seek(newProgress);
+        if (currentSong) {
+            seek(value[0]);
+        }
     };
 
     return (
@@ -231,6 +232,8 @@ const PlaylistView = () => {
             let videoTitle = `Yeni Şarkı (${videoId.substring(0, 5)}...)`;
             let artwork = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
             try {
+                // NOTE: This is a client-side fetch and can be blocked by CORS.
+                // A more robust solution would use a server-side API route.
                 const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
                 if (oembedResponse.ok) {
                     const oembedData = await oembedResponse.json();
@@ -238,7 +241,7 @@ const PlaylistView = () => {
                     artwork = oembedData.thumbnail_url;
                 }
             } catch (error) {
-                console.error("Could not fetch YouTube video title:", error);
+                console.warn("Could not fetch YouTube oEmbed data, using fallback.", error);
             }
     
             const newSong: Song = {
@@ -255,7 +258,7 @@ const PlaylistView = () => {
             toast({ title: `"${videoTitle}" eklendi.` });
         } else if (songUrl.includes('soundcloud.com')) {
              const newSong: Song = {
-                id: btoa(songUrl),
+                id: btoa(songUrl).replace(/\//g, '-'), // Make ID URL-safe
                 url: songUrl,
                 title: 'SoundCloud Şarkısı',
                 type: 'soundcloud',
@@ -283,15 +286,15 @@ const PlaylistView = () => {
             <h2 className="text-xl md:text-3xl font-semibold tracking-tight mb-4">Çalma Listem</h2>
             
             <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
-              {currentSong?.type === 'youtube' && isPlaying ? (
+              {currentSong?.type === 'youtube' ? (
                 <div className="w-full h-full">
                    <ReactPlayer
                       url={currentSong.url}
-                      playing={true} // Bu oynatıcı sadece gösterim amaçlı, kontrol Player'da
+                      playing={isPlaying}
                       controls={false}
                       width="100%"
                       height="100%"
-                      volume={0} // Sesi ana oynatıcıdan alacağı için bu sessiz
+                      volume={0} 
                       muted={true}
                     />
                 </div>
