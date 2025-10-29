@@ -1,6 +1,6 @@
 'use client';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -125,13 +125,20 @@ export default function ChatsPage() {
 
         <main>
           {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+             <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i}><CardContent className="p-4 flex items-center gap-4">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="flex-grow space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-48" />
+                  </div>
+                </CardContent></Card>
+              ))}
             </div>
           ) : chats && chats.length > 0 ? (
             <div className="space-y-3">
-              {chats
-                .map(chat => (
+              {chats.map(chat => (
                     <ChatListItem key={chat.id} chat={chat} />
                 ))}
             </div>

@@ -174,19 +174,19 @@
         "schema": {
             "$ref": "#/entities/Song"
         },
-        "description": "Sub-collection for songs in a playlist. Only the owner can read and write."
+        "description": "NİYET: Sadece Sahip Okur/Yazar. KURAL: Bu koleksiyondaki şarkıları SADECE ana çalma listesinin SAHİBİ ({userId}) okuyabilir ve yazabilir."
     },
     "/songs/{songId}": {
       "schema": {
         "$ref": "#/entities/Song"
       },
-      "description": "Global song catalog. All authenticated users can read and write."
+      "description": "NİYET: Küresel Şarkı Kataloğu. KURAL: Oturum açan TÜM kullanıcılar bu koleksiyonu okuyabilir ve bu koleksiyona yazabilir. Bu, şarkıların keşfedilmesini sağlar."
     },
     "/songs/{songId}/messages/{messageId}": {
       "schema": {
         "$ref": "#/entities/Message"
       },
-      "description": "Chat messages for a specific song. All authenticated users can read and write."
+      "description": "NİYET: Herkese Açık Şarkı Sohbeti. KURAL: Oturum açan TÜM kullanıcılar belirli bir şarkı hakkındaki sohbet mesajlarını okuyabilir ve bu sohbete yeni mesajlar yazabilir."
     },
      "/users/{userId}/followers/{followerId}": {
         "schema": {
