@@ -6,7 +6,7 @@ import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Send, ArrowLeft } from 'lucide-react';
-import { collection, addDoc, serverTimestamp, query, orderBy, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, doc, setDoc, getDoc } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Link from 'next/link';
@@ -82,7 +82,6 @@ export default function PrivateChatPage() {
       timestamp: serverTimestamp(),
     };
 
-    // Ensure chat document exists and update last message
     const chatDocRef = doc(firestore, 'chats', chatId);
     const chatData = {
       participantIds: chatId.split('_'),
@@ -90,20 +89,25 @@ export default function PrivateChatPage() {
       lastMessageTimestamp: serverTimestamp(),
     };
 
-    try {
-        await setDoc(chatDocRef, chatData, { merge: true });
-        await addDoc(messagesColRef, messageData);
-        setMessage('');
-    } catch(serverError: any) {
-        const isWriteError = serverError.code === 'permission-denied';
+    // Use non-blocking writes and chain error handling
+    setDoc(chatDocRef, chatData, { merge: true }).catch(serverError => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: isWriteError ? chatDocRef.path : messagesColRef.path,
-            operation: 'create',
-            requestResourceData: isWriteError ? chatData : messageData,
+            path: chatDocRef.path,
+            operation: 'write', // 'merge:true' can be create or update
+            requestResourceData: chatData,
         }));
-    } finally {
-        setIsSending(false);
-    }
+    });
+
+    addDoc(messagesColRef, messageData).catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: messagesColRef.path,
+            operation: 'create',
+            requestResourceData: messageData,
+        }));
+    });
+
+    setMessage('');
+    setIsSending(false);
   };
   
   const isLoading = isUserLoading || areMessagesLoading || isLoadingParticipant;
