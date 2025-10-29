@@ -20,6 +20,14 @@ import { getYoutubeVideoId } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
 import ReactPlayer from 'react-player';
 
+const getYouTubeThumbnail = (videoId: string) => {
+    // YouTube'un farklı kalitedeki thumbnail URL'lerini dener.
+    return `https://i.ytimg.com/vi/${videoId}/sddefault.jpg`;
+};
+
+const getFallbackThumbnail = (id: string) => {
+    return `https://picsum.photos/seed/${id}/168/94`;
+}
 
 export function AuraApp() {
   const { currentSong, isPlaying } = usePlayer();
@@ -166,7 +174,14 @@ const PlayerBar = () => {
             {/* Song Info */}
             <div className="flex items-center gap-3 w-64">
                 {currentSong?.artwork ? (
-                     <Image src={currentSong.artwork} alt={currentSong.title} width={56} height={56} className="rounded-md" />
+                     <Image src={currentSong.artwork} alt={currentSong.title} width={56} height={56} className="rounded-md" 
+                       onError={(e) => {
+                         // Eğer resim yüklenemezse, fallback resmini ayarla
+                         if (currentSong.videoId) {
+                           e.currentTarget.src = getFallbackThumbnail(currentSong.videoId);
+                         }
+                       }}
+                     />
                 ) : (
                     <div className="w-14 h-14 bg-muted rounded-md flex items-center justify-center">
                         <Music className="w-8 h-8 text-muted-foreground"/>
@@ -239,6 +254,7 @@ const PlaylistView = () => {
     const handleInteraction = () => {
       if (currentSong) {
         setHasInteracted(true);
+        playSong(currentSong, currentIndex); // Re-trigger playSong to ensure state is correct
       }
     };
 
@@ -252,7 +268,7 @@ const PlaylistView = () => {
     
         if (videoId) {
             let videoTitle = `Yeni Şarkı (${videoId.substring(0, 5)}...)`;
-            let artwork = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+            let artwork = getYouTubeThumbnail(videoId);
             try {
                 // NOTE: This is a client-side fetch and can be blocked by CORS.
                 // A more robust solution would use a server-side API route.
@@ -260,7 +276,9 @@ const PlaylistView = () => {
                 if (oembedResponse.ok) {
                     const oembedData = await oembedResponse.json();
                     videoTitle = oembedData.title;
-                    artwork = oembedData.thumbnail_url;
+                    if(oembedData.thumbnail_url) {
+                       artwork = oembedData.thumbnail_url;
+                    }
                 }
             } catch (error) {
                 console.warn("Could not fetch YouTube oEmbed data, using fallback.", error);
@@ -307,26 +325,29 @@ const PlaylistView = () => {
         <div className="p-4 md:p-6 flex flex-col h-full">
             
             <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
-              {currentSong?.type === 'youtube' && !hasInteracted ? (
-                 <div className="w-full h-full relative group" onClick={handleInteraction}>
+              {!hasInteracted && currentSong?.type === 'youtube' ? (
+                 <div className="w-full h-full relative group cursor-pointer" onClick={handleInteraction}>
                     {currentSong.artwork && (
-                        <Image src={currentSong.artwork} alt={currentSong.title} layout="fill" objectFit="cover" />
+                        <Image src={currentSong.artwork} alt={currentSong.title} layout="fill" objectFit="cover" 
+                          onError={(e) => { e.currentTarget.src = getFallbackThumbnail(currentSong.id); }}
+                        />
                     )}
-                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center cursor-pointer transition-opacity opacity-75 group-hover:opacity-100">
+                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center transition-opacity opacity-75 group-hover:opacity-100">
                         <PlayIcon className="w-16 h-16 text-white" />
                         <p className="text-white font-semibold mt-2">Oynatmak için Tıklayın</p>
                     </div>
                 </div>
-              ) : currentSong?.type === 'youtube' && hasInteracted ? (
-                <div className="w-full h-full pointer-events-none">
-                   <ReactPlayer
+              ) : currentSong ? (
+                 <ReactPlayer
                       url={currentSong.url}
                       playing={isPlaying}
                       controls={false}
                       width="100%"
                       height="100%"
+                      volume={0} // This player is for visuals only
+                      muted={true}
+                      className="pointer-events-none" // Prevent clicks on this player
                     />
-                </div>
               ) : (
                 <div className="text-muted-foreground flex flex-col items-center gap-2">
                   <Music className="w-12 h-12"/>
@@ -391,6 +412,7 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
                 width={48}
                 height={48}
                 className="rounded"
+                onError={(e) => { e.currentTarget.src = getFallbackThumbnail(song.id); }}
             />
         ) : (
             <div className="w-12 h-12 rounded bg-muted flex items-center justify-center">
@@ -429,7 +451,7 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
   const handleAddFromCatalog = async (song: Song) => {
     const songToAdd: Song = {
       ...song,
-      artwork: song.videoId ? `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg` : `https://picsum.photos/seed/${song.id}/168/94`,
+      artwork: song.videoId ? getYouTubeThumbnail(song.videoId) : getFallbackThumbnail(song.id),
     }
     addSong(songToAdd);
     toast({ title: `"${song.title}" listenize eklendi.` });
@@ -438,9 +460,9 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
 
   const getThumbnailUrl = (song: Song) => {
     if (song.type === 'youtube' && song.videoId) {
-      return `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
+      return getYouTubeThumbnail(song.videoId);
     }
-    return `https://picsum.photos/seed/${song.id}/168/94`;
+    return getFallbackThumbnail(song.id);
   }
 
   return (
@@ -470,6 +492,7 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
                   width={168}
                   height={94}
                   className="rounded-md aspect-video object-cover w-full"
+                  onError={(e) => { e.currentTarget.src = getFallbackThumbnail(song.id); }}
                 />
                 <div className="flex-grow">
                   <p className="font-semibold truncate leading-tight text-sm" title={song.title}>{song.title}</p>
@@ -579,6 +602,7 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
                   width={168}
                   height={94}
                   className="rounded-md aspect-video object-cover w-full"
+                  onError={(e) => { e.currentTarget.src = getFallbackThumbnail(song.videoId); }}
                 />
                 <div className="flex-grow">
                    <p className="font-semibold truncate leading-tight text-sm" title={song.title}>{song.title}</p>

@@ -85,9 +85,16 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playerRef = useRef<ReactPlayer>(null);
 
   const playSong = (song: Song, index: number) => {
+    // If the song is different, we require a new interaction for autoplay to work reliably.
     if (song.id !== currentSong?.id) {
         setHasInteracted(false); 
-        setIsPlaying(false);
+        setIsPlaying(false); // Stop playback until user interacts
+    } else {
+        // If it's the same song, just ensure we try to play it.
+        setIsPlaying(true);
+        if (playerRef.current) {
+            playerRef.current.seekTo(0);
+        }
     }
     setCurrentSong(song);
     setCurrentIndex(index);
@@ -99,20 +106,22 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const togglePlayPause = () => {
     if (!currentSong || !isReady) return;
     
-    // If we have interaction, we can freely toggle play/pause
-    if (hasInteracted) {
-      setIsPlaying(!isPlaying);
-    } else {
-      // If this is the first interaction, force play and unmute
+    // This is the first interaction for this song
+    if (!hasInteracted) {
       setHasInteracted(true);
       setIsPlaying(true);
       setIsMuted(false);
+    } else {
+      // If we already have interaction, just toggle play/pause
+      setIsPlaying(!isPlaying);
     }
   };
 
   const addSong = (song: Song) => {
     const newPlaylist = [...playlist, song];
     setPlaylist(newPlaylist);
+    // If nothing is playing, automatically select the new song.
+    // The user will still need to interact to start playback.
     if (!currentSong) {
       playSong(song, newPlaylist.length - 1);
     }
@@ -155,7 +164,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   
   const _playerOnProgress = (data: OnProgressProps) => {
     // Only update progress if the player is supposed to be playing
-    // This prevents the progress bar from moving when paused.
     if (isPlaying) {
       setProgress(data.played);
     }
