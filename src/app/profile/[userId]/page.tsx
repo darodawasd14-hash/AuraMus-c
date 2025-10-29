@@ -21,6 +21,7 @@ type UserProfile = {
 type Playlist = {
   id: string;
   name: string;
+  songCount?: number;
 };
 
 export default function ProfilePage() {
@@ -224,6 +225,7 @@ export default function ProfilePage() {
                         </div>
                         <div className="p-4">
                           <p className="font-semibold truncate">{playlist.name}</p>
+                           <p className="text-sm text-muted-foreground mt-1">{playlist.songCount ?? 0} şarkı</p>
                         </div>
                       </div>
                   </Card>
