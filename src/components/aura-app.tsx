@@ -215,21 +215,8 @@ export function AuraApp() {
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
     // Navigasyon ve görünüm durumları
-    const [activeView, setActiveView] = useState<ActiveView>('discover');
+    const [activeView, setActiveView] = useState<ActiveView>('playlist');
     const [isChatVisible, setIsChatVisible] = useState(true);
-
-    // ---------- İLK KURULUM (useEffect) ----------
-    useEffect(() => {
-        const songsWithArt = catalog.songs.map(song => ({
-            ...song,
-            artwork: `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`,
-        }));
-        // Keşfet görünümü başlangıçta şarkıları kendisi çekeceği için burayı kaldırıyoruz
-        // setPlaylist(songsWithArt);
-        // if (songsWithArt.length > 0) {
-        //     playSong(songsWithArt[0], 0, songsWithArt);
-        // }
-    }, []);
 
     // ---------- VİDEO AYARLARI ----------
     const videoOptions = {
@@ -261,22 +248,21 @@ export function AuraApp() {
     const onPlayerReady = (event: { target: YouTubePlayer }) => {
         const newPlayer = event.target;
         setPlayer(newPlayer);
-        handleActivateSound();
     };
 
     const onPlayerStateChange = (event: { data: number }) => {
         const state = event.data;
         if (state === 1) { // Oynatılıyor
-            setIsPlaying(true);
-            setDuration(player?.getDuration() ?? 0);
-            if (!soundActivated) {
+             if (!isPlaying) setIsPlaying(true);
+             if (player) setDuration(player.getDuration());
+             if (!soundActivated) {
                 handleActivateSound();
-            }
+             }
         } else if (state === 0) { // Bitti
-            setIsPlaying(false);
+            if (isPlaying) setIsPlaying(false);
             playNext();
         } else { // Durdu, Yüklüyor vs.
-            setIsPlaying(false);
+            if (isPlaying) setIsPlaying(false);
         }
     };
 
@@ -378,8 +364,7 @@ export function AuraApp() {
             case 'discover':
                 return <DiscoverView onPlaySong={playSong} />;
             case 'playlist':
-                 const myPlaylist = catalog.songs.map(song => ({ ...song, artwork: `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg` }));
-                return <PlaylistView playlist={myPlaylist} playSong={(song, index) => playSong(song, index, myPlaylist)} currentSong={currentSong} />;
+                return <PlaylistView playSong={playSong} currentSong={currentSong} />;
             case 'friends':
                 return <FriendsView />;
             default:
@@ -408,17 +393,6 @@ export function AuraApp() {
                             <div className="text-center text-muted-foreground">
                                 <Music className="w-16 h-16 mx-auto mb-4"/>
                                 <p>Başlamak için bir şarkı seçin</p>
-                            </div>
-                        )}
-                        {player && !soundActivated && (
-                             <div 
-                                onClick={handleActivateSound} 
-                                className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center cursor-pointer group"
-                            >
-                                <div className="p-4 rounded-full bg-black/50 group-hover:bg-black/70 transition-colors">
-                                    <PlayIcon className="w-12 h-12 text-white" />
-                                </div>
-                                <p className="text-white font-semibold mt-4 text-lg">Sesi açmak için tıklayınız</p>
                             </div>
                         )}
                    </div>
