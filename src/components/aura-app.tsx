@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import YouTube from 'react-youtube';
 import type { YouTubePlayer } from 'react-youtube';
-import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward } from '@/components/icons';
+import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX } from '@/components/icons';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
 import { ChatPane } from '@/components/chat-pane';
@@ -48,19 +48,38 @@ const formatTime = (seconds: number) => {
   return `${minutes}:${sec < 10 ? '0' : ''}${sec}`;
 };
 
-
 export function AuraApp() {
+    // ---------- HAFIZA (STATES) ----------
     const [playlist, setPlaylist] = useState<Song[]>([]);
     const [currentSong, setCurrentSong] = useState<Song | null>(null);
     const [currentIndex, setCurrentIndex] = useState(-1);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [progress, setProgress] = useState({ playedSeconds: 0, played: 0 });
-    const [duration, setDuration] = useState(0);
+    
+    // 1. YouTube kumandasının kendisi
+    const [player, setPlayer] = useState<YouTubePlayer | null>(null);
+    
+    // 2. Tarayıcı izni (ses açma) alındı mı?
     const [soundActivated, setSoundActivated] = useState(false);
+    
+    // 3. Video oynuyor mu? (Bunu SADECE YouTube'dan gelen sinyal günceller)
+    const [isPlaying, setIsPlaying] = useState(false);
+    
+    // 4. Barın o anki saniyesi
+    const [currentTime, setCurrentTime] = useState(0);
 
-    const playerRef = useRef<YouTubePlayer | null>(null);
-    const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    // 5. Şarkının toplam süresi
+    const [duration, setDuration] = useState(0);
 
+    // 6. Ses seviyesi (0-100)
+    const [volume, setVolume] = useState(100);
+
+    // 7. Ses kapalı mı?
+    const [isMuted, setIsMuted] = useState(true);
+
+    // 8. Barı ilerleten 'motor' (setInterval)
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+
+    // ---------- İLK KURULUM (useEffect) ----------
     useEffect(() => {
         const songsWithArt = catalog.songs.map(song => ({
             ...song,
@@ -68,31 +87,70 @@ export function AuraApp() {
         }));
         setPlaylist(songsWithArt);
         if (songsWithArt.length > 0) {
-          setCurrentSong(songsWithArt[0]);
-          setCurrentIndex(0);
+            setCurrentSong(songsWithArt[0]);
+            setCurrentIndex(0);
         }
     }, []);
 
+    // ---------- VİDEO AYARLARI ----------
+    const videoOptions = {
+        height: '100%',
+        width: '100%',
+        playerVars: {
+            autoplay: 1,
+            controls: 0,
+            rel: 0,
+            showinfo: 0,
+            modestbranding: 1,
+            iv_load_policy: 3,
+            mute: 1, // Başlangıçta sessiz başla
+        },
+    };
+
+    // ---------- YOUTUBE'DAN GELEN SİNYALLER ----------
+    const onPlayerReady = (event: { target: YouTubePlayer }) => {
+        console.log("Kumanda (Player) hazır.");
+        setPlayer(event.target);
+    };
+
+    const onPlayerStateChange = (event: { data: number }) => {
+        const state = event.data;
+        if (state === 1) { // Oynatılıyor
+            setIsPlaying(true);
+            setDuration(player?.getDuration() ?? 0);
+        } else if (state === 0) { // Bitti
+            setIsPlaying(false);
+            playNext();
+        } else { // Durdu, Yüklüyor vs.
+            setIsPlaying(false);
+        }
+    };
+
+    // ---------- BAR İLERLETME MOTORU (useEffect) ----------
+    useEffect(() => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+        }
+        if (isPlaying && player) {
+            intervalRef.current = setInterval(() => {
+                const newTime = Math.floor(player.getCurrentTime());
+                setCurrentTime(newTime);
+            }, 1000);
+        }
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+            }
+        };
+    }, [isPlaying, player]);
+
+    // ---------- BUTON FONKSİYONLARI (DÜZELTİLMİŞ) ----------
     const playSong = (song: Song, index: number) => {
         setCurrentSong(song);
         setCurrentIndex(index);
+        setCurrentTime(0);
     };
-    
-    const togglePlayPause = () => {
-        if (!playerRef.current) return;
 
-        if (!soundActivated) {
-            handleActivateSound();
-            return;
-        }
-
-        if (isPlaying) {
-            playerRef.current.pauseVideo();
-        } else {
-            playerRef.current.playVideo();
-        }
-    };
-    
     const playNext = () => {
         if (playlist.length === 0) return;
         const nextIndex = (currentIndex + 1) % playlist.length;
@@ -105,80 +163,70 @@ export function AuraApp() {
         playSong(playlist[prevIndex], prevIndex);
     };
 
-    const onPlayerReady = (event: { target: YouTubePlayer }) => {
-        playerRef.current = event.target;
-    };
-
-    const onPlayerStateChange = (event: { data: number }) => {
-        if (event.data === 1) { // Playing
-            setIsPlaying(true);
-            setDuration(playerRef.current?.getDuration() ?? 0);
-        } else { // Paused, Ended, etc.
-            setIsPlaying(false);
+    const handleActivateSound = () => {
+        if (player) {
+            player.playVideo();
+            player.unMute();
+            setSoundActivated(true);
+            setIsMuted(false);
         }
-        if (event.data === 0) { // Ended
-            playNext();
+    };
+    
+    const handlePlayPause = () => {
+        if (!player) return;
+        if (isPlaying) {
+            player.pauseVideo();
+        } else {
+            if (!soundActivated) {
+                handleActivateSound();
+            } else {
+                player.playVideo();
+            }
         }
     };
     
     const handleSeek = (value: number[]) => {
-        if (playerRef.current) {
+        if (player) {
             const newTime = value[0];
-            playerRef.current.seekTo(newTime, true);
-            setProgress(prev => ({...prev, playedSeconds: newTime}));
-        }
-    };
-    
-    const handleActivateSound = () => {
-        if (playerRef.current && !soundActivated) {
-            playerRef.current.playVideo();
-            playerRef.current.unMute();
-            setSoundActivated(true);
+            player.seekTo(newTime, true);
+            setCurrentTime(newTime);
         }
     };
 
-
-    useEffect(() => {
-        if (progressIntervalRef.current) {
-            clearInterval(progressIntervalRef.current);
-        }
-        if (isPlaying) {
-            progressIntervalRef.current = setInterval(() => {
-                const playedSeconds = playerRef.current?.getCurrentTime() ?? 0;
-                const currentDuration = playerRef.current?.getDuration() ?? 0;
-                if(currentDuration > 0) {
-                    setProgress({
-                        playedSeconds,
-                        played: playedSeconds / currentDuration,
-                    });
-                }
-            }, 1000);
-        }
-        return () => {
-            if (progressIntervalRef.current) {
-                clearInterval(progressIntervalRef.current);
+    const handleVolumeChange = (value: number[]) => {
+        if (player) {
+            const newVolume = value[0];
+            setVolume(newVolume);
+            player.setVolume(newVolume);
+            if (newVolume > 0 && isMuted) {
+                setIsMuted(false);
+                if(!soundActivated) setSoundActivated(true);
             }
-        };
-    }, [isPlaying]);
+            if (newVolume === 0 && !isMuted) {
+                setIsMuted(true);
+            }
+        }
+    };
 
-
-    const videoOptions = {
-        height: '100%',
-        width: '100%',
-        playerVars: {
-            autoplay: 1, 
-            controls: 0,
-            rel: 0,
-            showinfo: 0,
-            modestbranding: 1,
-            iv_load_policy: 3,
-            mute: 1, // Start muted
-        },
+    const toggleMute = () => {
+        if(player) {
+            if(isMuted) {
+                player.unMute();
+                setIsMuted(false);
+                if (volume === 0) { // If unmuting when volume is 0, set to a default
+                    setVolume(50);
+                    player.setVolume(50);
+                }
+            } else {
+                player.mute();
+                setIsMuted(true);
+            }
+        }
     };
 
     return (
         <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
-            <div className="flex flex-1">
+            <div className="flex flex-1 min-h-0">
                 <SideNav />
                 <main className="flex-1 flex flex-col p-8 gap-8 overflow-y-auto">
                     <div className="w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative shadow-xl">
@@ -191,16 +239,16 @@ export function AuraApp() {
                                     onStateChange={onPlayerStateChange}
                                     className="w-full h-full"
                                 />
-                                {!soundActivated && (
-                                    <div
-                                        onClick={handleActivateSound}
-                                        className="absolute top-0 left-0 w-full h-full bg-transparent cursor-pointer z-10"
-                                    />
+                                {player && !soundActivated && (
+                                  <div
+                                      onClick={handleActivateSound}
+                                      className="absolute top-0 left-0 w-full h-full bg-transparent cursor-pointer z-10"
+                                  />
                                 )}
                             </>
                         )}
                    </div>
-                   <div className="flex-grow flex flex-col">
+                   <div className="flex-grow flex flex-col min-h-0">
                       <PlaylistView playlist={playlist} playSong={playSong} currentSong={currentSong} />
                    </div>
                 </main>
@@ -209,39 +257,58 @@ export function AuraApp() {
                 </aside>
             </div>
             
-             <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-6 py-3 flex items-center gap-4">
-                 {currentSong && (
-                    <Image 
-                        src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
-                        alt={currentSong.title}
-                        width={48}
-                        height={48}
-                        className="rounded-md"
-                    />
-                 )}
-                 <div className="flex-grow flex items-center gap-4">
+             <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-6 py-3 flex items-center gap-6">
+                 <div className="flex items-center gap-4 w-64">
+                     {currentSong && (
+                        <Image 
+                            src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
+                            alt={currentSong.title}
+                            width={48}
+                            height={48}
+                            className="rounded-md"
+                        />
+                     )}
+                     <div>
+                        <p className="font-semibold truncate">{currentSong?.title}</p>
+                     </div>
+                 </div>
+
+                 <div className="flex-grow flex flex-col items-center gap-2">
                      <div className="flex items-center gap-3">
-                         <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!currentSong}>
+                         <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!player}>
                              <SkipBack className="w-5 h-5 fill-current" />
                          </Button>
-                         <Button variant="ghost" size="icon" className="w-10 h-10 bg-primary/20 rounded-full" onClick={togglePlayPause} disabled={!currentSong}>
+                         <Button variant="ghost" size="icon" className="w-10 h-10 bg-primary/20 rounded-full" onClick={handlePlayPause} disabled={!player}>
                              {isPlaying ? <PauseIcon className="w-5 h-5 fill-current" /> : <PlayIcon className="w-5 h-5 fill-current" />}
                          </Button>
-                         <Button variant="ghost" size="icon" onClick={playNext} disabled={!currentSong}>
+                         <Button variant="ghost" size="icon" onClick={playNext} disabled={!player}>
                              <SkipForward className="w-5 h-5 fill-current" />
                          </Button>
                      </div>
-                     <div className="flex-grow flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground w-12 text-right">{formatTime(progress.playedSeconds)}</span>
+                     <div className="flex-grow flex items-center gap-2 w-full max-w-xl">
+                        <span className="text-xs text-muted-foreground w-12 text-right">{formatTime(currentTime)}</span>
                          <Slider
-                             value={[progress.playedSeconds]}
+                             value={[currentTime]}
                              max={duration}
                              onValueChange={handleSeek}
-                             disabled={!currentSong || !playerRef.current}
+                             disabled={!player}
                          />
                          <span className="text-xs text-muted-foreground w-12">{formatTime(duration)}</span>
                      </div>
                  </div>
+
+                 <div className="w-64 flex items-center justify-end gap-3">
+                    <Button variant="ghost" size="icon" onClick={toggleMute} disabled={!player}>
+                        {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                    </Button>
+                    <Slider 
+                        className="w-[100px]"
+                        value={[isMuted ? 0 : volume]}
+                        max={100}
+                        onValueChange={handleVolumeChange}
+                        disabled={!player}
+                    />
+                </div>
             </footer>
         </div>
     );
