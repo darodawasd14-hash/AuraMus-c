@@ -73,14 +73,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  // Ses - Tarayıcı autoplay politikası için başlangıçta sessiz
+  // Ses
   const [volume, setVolumeState] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(true); // Başlangıçta sessiz
+  const [isMuted, setIsMuted] = useState(false);
+  const [isMutedByAutoplay, setIsMutedByAutoplay] = useState(true);
   
   // Player Referansı
   const playerRef = useRef<ReactPlayer>(null);
-
-  // === KONTROL FONKSİYONLARI ===
 
   const playSong = (song: Song, index: number) => {
     setCurrentSong(song);
@@ -88,15 +87,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlaying(true);
     setProgress(0);
     setDuration(0);
-    setIsMuted(true); // Her yeni şarkıda autoplay için sessiz başlat
+    setIsMutedByAutoplay(true); // Always start muted for autoplay
   };
 
   const togglePlayPause = () => {
     if (!currentSong || !isReady) return;
     
-    // Kullanıcının ilk etkileşimi buysa sesi aç
-    if (isMuted) {
-      setIsMuted(false);
+    // First user interaction un-mutes
+    if (isMutedByAutoplay) {
+      setIsMutedByAutoplay(false);
     }
     
     setIsPlaying(prev => !prev);
@@ -105,7 +104,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const addSong = (song: Song) => {
     const newPlaylist = [...playlist, song];
     setPlaylist(newPlaylist);
-    // Eğer çalma listesi boşsa ve ilk şarkı ekleniyorsa oynat
     if (!currentSong) {
       playSong(song, newPlaylist.length - 1);
     }
@@ -115,7 +113,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
     playSong(playlist[nextIndex], nextIndex);
-  }, [currentIndex, playlist]); // playSong'u bağımlılıktan kaldırdık
+  }, [currentIndex, playlist]);
 
   const playPrevious = () => {
     if (playlist.length === 0) return;
@@ -126,32 +124,31 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const setVolume = (newVolume: number) => {
     setVolumeState(Math.min(Math.max(newVolume, 0), 1));
     if (newVolume > 0) {
-      setIsMuted(false); // Ses ayarı yapılırsa sessizden çık
+      setIsMuted(false);
+      setIsMutedByAutoplay(false);
     }
   };
 
   const toggleMute = () => {
-    setIsMuted(prev => !prev);
+    const nextMutedState = !isMuted;
+    setIsMuted(nextMutedState);
+    if (!nextMutedState) {
+       setIsMutedByAutoplay(false);
+    }
   };
 
   const seek = (newProgress: number) => {
      if (playerRef.current) {
         playerRef.current.seekTo(newProgress, 'fraction');
-        setProgress(newProgress); // Arayüzü anında güncelle
+        setProgress(newProgress);
      }
   };
-
-  // === OYNATICIDAN GELEN RAPORLARI İŞLEYEN FONKSİYONLAR ===
 
   const _playerOnReady = () => {
     setIsReady(true);
   };
-
+  
   const _playerSetIsPlaying = (playing: boolean) => {
-    // Bu fonksiyon doğrudan `isPlaying` durumunu set etmemeli,
-    // sadece player'ın kendi iç durumunu yansıtabilir veya
-    // togglePlayPause tarafından yönetilen state'i doğrular.
-    // Şimdilik doğrudan set etme mantığını koruyoruz ama daha karmaşık senaryolarda bu değişebilir.
     setIsPlaying(playing);
   };
 
@@ -167,13 +164,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playNext();
   };
 
-  // playNext'i useCallback ile sarmaladığımız için, playSong'u bağımlılık dizisinden çıkarabiliriz.
-  // Bu, gereksiz yeniden render'ları önler.
-  useEffect(() => {
-      // Bu, playSong'un her render'da değişmemesi için bir güvencedir, ancak
-      // temel fonksiyonlar state'e bağlı olduğu için, playNext gibi fonksiyonları useCallback ile sarmalamak daha etkilidir.
-  }, [playNext]);
-
+  const finalMutedState = isMuted || isMutedByAutoplay;
 
   const value: PlayerContextType = {
     currentSong,
@@ -184,7 +175,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     progress,
     duration,
     volume,
-    isMuted,
+    isMuted: finalMutedState,
     playerRef,
     playSong,
     togglePlayPause,
