@@ -162,13 +162,13 @@
       "schema": {
         "$ref": "#/entities/User"
       },
-      "description": "NİYET: Herkese Açık Profil Okuma. KURAL: Oturum açan (isSignedIn) HERKES başkalarının profilini okuyabilir (get). YAZMA: Sadece profilin SAHİBİ (isOwner) kendi profilini yazabilir (create, update, delete)."
+      "description": "NİYET: Herkese Açık Profil Okuma. KURAL (OKU): Oturum açan (isSignedIn) HERKES başkalarının profilini okuyabilir (get). KURAL (YAZ): Sadece profilin SAHİBİ (isOwner) kendi profilini yazabilir (create, update, delete)."
     },
     "/users/{userId}/playlists/{playlistId}": {
       "schema": {
         "$ref": "#/entities/Playlist"
       },
-      "description": "NİYET: Herkese Açık Çalma Listesi Okuma. KURAL: Oturum açan HERKES başkalarının çalma listelerini okuyabilir (get, list). YAZMA: Sadece SAHİBİ (üst belgenin sahibi) kendi çalma listelerini yazabilir."
+      "description": "NİYET: Herkese Açık Çalma Listesi Okuma. KURAL (OKU): Oturum açan HERKES başkalarının çalma listelerini okuyabilir (get, list). KURAL (YAZMA): Sadece SAHİBİ (üst belgenin sahibi) kendi çalma listelerini yazabilir."
     },
     "/users/{userId}/playlists/{playlistId}/songs/{songId}": {
         "schema": {
