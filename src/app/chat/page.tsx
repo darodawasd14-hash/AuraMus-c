@@ -84,6 +84,7 @@ export default function ChatsPage() {
 
   const chatsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
+    // Güvenli sorgu: Yalnızca mevcut kullanıcının 'participantIds' dizisinde olduğu sohbetleri getir.
     return query(collection(firestore, 'chats'), where('participantIds', 'array-contains', user.uid));
   }, [user, firestore]);
 
