@@ -1,9 +1,9 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from './ui/button';
-import { Loader2, Music, Plus, Play, Trash2 } from 'lucide-react';
+import { Loader2, Music, Plus, Trash2, ArrowLeft } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
-import { collection, addDoc, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import type { Song } from '@/lib/types';
 import { Card } from './ui/card';
@@ -83,29 +83,30 @@ const CreatePlaylistDialog = ({ open, onOpenChange, onCreate }: { open: boolean,
     );
 };
 
-const PlaylistCard = ({ playlist, onPlayPlaylist, onDeletePlaylist, onPlaySongFromPlaylist, currentSong }: { playlist: Playlist, onPlayPlaylist: (playlist: Playlist) => void, onDeletePlaylist: (playlistId: string) => void, onPlaySongFromPlaylist: (song: Song, index: number, p: Playlist) => void, currentSong: Song | null }) => {
+const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist }: { playlist: Playlist, onSelect: (playlist: Playlist) => void, onDeletePlaylist: (playlistId: string) => void }) => {
     const { user } = useUser();
     const firestore = useFirestore();
     
     const songsRef = useMemoFirebase(() => {
         if (!user || !firestore) return null;
-        return collection(firestore, 'users', user.uid, 'playlists', playlist.id, 'songs');
+        return query(collection(firestore, 'users', user.uid, 'playlists', playlist.id, 'songs'), orderBy('timestamp', 'asc'));
     }, [firestore, user, playlist.id]);
     
     const { data: songs } = useCollection<Song>(songsRef);
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-    const handleDelete = () => {
+    const handleDelete = (e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent card click event from firing
         onDeletePlaylist(playlist.id);
         setDeleteDialogOpen(false);
     }
     
     const getArtwork = (song: Song | undefined) => {
-        if (!song || !song.videoId) return "https://i.ytimg.com/vi/null/hqdefault.jpg";
+        if (!song || !song.videoId) return "/placeholder.png";
         return song.artwork || `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
     }
     
-    const populatedPlaylist = useMemoFirebase(() => ({ ...playlist, songs: songs || [] }), [playlist, songs]);
+    const populatedPlaylist = useMemo(() => ({ ...playlist, songs: songs || [] }), [playlist, songs]);
 
     return (
         <>
@@ -118,7 +119,7 @@ const PlaylistCard = ({ playlist, onPlayPlaylist, onDeletePlaylist, onPlaySongFr
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel>İptal</AlertDialogCancel>
+                    <AlertDialogCancel onClick={(e) => e.stopPropagation()}>İptal</AlertDialogCancel>
                     <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                         Sil
                     </AlertDialogAction>
@@ -126,19 +127,14 @@ const PlaylistCard = ({ playlist, onPlayPlaylist, onDeletePlaylist, onPlaySongFr
             </AlertDialogContent>
         </AlertDialog>
 
-        <Card className="overflow-hidden transition-shadow duration-300 hover:shadow-lg hover:shadow-primary/20 flex flex-col">
+        <Card onClick={() => onSelect(populatedPlaylist)} className="overflow-hidden transition-shadow duration-300 hover:shadow-lg hover:shadow-primary/20 flex flex-col cursor-pointer">
             <div className="relative group">
                 <div className="flex aspect-video items-center justify-center bg-gradient-to-br from-secondary to-background p-4">
-                     {songs && songs.length > 0 ? (
+                     {songs && songs.length > 0 && songs[0] ? (
                         <Image src={getArtwork(songs[0])} alt={songs[0].title} layout="fill" objectFit="cover" />
                      ): (
                         <Music className="h-12 w-12 text-muted-foreground/50" />
                      )}
-                </div>
-                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Button variant="ghost" size="icon" className="w-12 h-12 text-white hover:bg-white/20" onClick={() => songs && songs.length > 0 && onPlayPlaylist(populatedPlaylist)}>
-                        <Play className="h-8 w-8 fill-current" />
-                    </Button>
                 </div>
             </div>
             <div className="p-4 flex flex-col flex-grow">
@@ -147,20 +143,10 @@ const PlaylistCard = ({ playlist, onPlayPlaylist, onDeletePlaylist, onPlaySongFr
                         <p className="font-semibold truncate flex-grow">{playlist.name}</p>
                         <p className="text-xs text-muted-foreground mt-1">{playlist.songCount ?? songs?.length ?? 0} şarkı</p>
                     </div>
-                     <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteDialogOpen(true)}>
+                     <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground hover:text-destructive" onClick={(e) => {e.stopPropagation(); setDeleteDialogOpen(true)}}>
                         <Trash2 className="w-4 h-4" />
                     </Button>
                 </div>
-                 {songs && songs.length > 0 && (
-                    <div className="mt-2 space-y-1 overflow-hidden">
-                        {songs.slice(0, 3).map((song, index) => (
-                           <div key={song.id} onClick={() => onPlaySongFromPlaylist(song, index, populatedPlaylist)} className={cn("flex items-center gap-2 text-sm p-1 rounded-md cursor-pointer hover:bg-secondary", currentSong?.id === song.id ? "bg-primary/20" : "")}>
-                               <Image src={getArtwork(song)} alt={song.title} width={24} height={24} className="rounded-sm" />
-                               <span className="truncate">{song.title}</span>
-                           </div>
-                        ))}
-                    </div>
-                )}
             </div>
         </Card>
         </>
@@ -172,6 +158,7 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
     const { user } = useUser();
     const firestore = useFirestore();
     const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
+    const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
 
     const playlistsQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
@@ -216,18 +203,59 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
         }
     };
     
-    const handlePlayPlaylist = (playlist: Playlist) => {
-         const songs = playlist.songs || [];
-         if (songs.length > 0) {
-            playSong(songs[0], 0, songs);
-         }
-    };
-    
-    const handlePlaySongFromPlaylist = (song: Song, index: number, p: Playlist) => {
-        const songs = p.songs || [];
+    const handlePlaySongFromPlaylist = (song: Song, index: number) => {
+        const songs = selectedPlaylist?.songs || [];
          if (songs.length > 0) {
             playSong(song, index, songs);
          }
+    }
+    
+    const getArtwork = (song: Song | undefined) => {
+        if (!song || !song.videoId) return "/placeholder.png";
+        return song.artwork || `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
+    }
+
+    if (selectedPlaylist) {
+        return (
+            <div className="h-full flex flex-col">
+                 <div className="flex justify-between items-center mb-4">
+                    <div>
+                        <Button variant="ghost" onClick={() => setSelectedPlaylist(null)} className="mb-2 -ml-4">
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Geri
+                        </Button>
+                        <h2 className="text-2xl font-bold">{selectedPlaylist.name}</h2>
+                        <p className="text-muted-foreground text-sm">{selectedPlaylist.songs?.length ?? 0} şarkı</p>
+                    </div>
+                </div>
+                <div className="flex-grow overflow-y-auto -mr-8 pr-8">
+                     <div className="space-y-1">
+                        {selectedPlaylist.songs?.map((song, index) => (
+                             <div
+                                key={song.id}
+                                onClick={() => handlePlaySongFromPlaylist(song, index)}
+                                className={cn(
+                                    "flex items-center gap-4 p-2 rounded-md group cursor-pointer transition-colors hover:bg-secondary/50",
+                                    currentSong?.id === song.id && "bg-primary/20 text-primary-foreground"
+                                    )}
+                            >
+                                <Image 
+                                    src={getArtwork(song)}
+                                    alt={song.title}
+                                    width={40} 
+                                    height={40} 
+                                    className="rounded-md aspect-square object-cover" 
+                                />
+                                <div className="flex-grow">
+                                    <p className="font-semibold truncate group-hover:text-primary">{song.title}</p>
+                                    <p className="text-sm text-muted-foreground">{song.type}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )
     }
 
 
@@ -260,10 +288,8 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
                             <PlaylistCard 
                                 key={playlist.id} 
                                 playlist={playlist}
-                                onPlayPlaylist={handlePlayPlaylist}
+                                onSelect={setSelectedPlaylist}
                                 onDeletePlaylist={handleDeletePlaylist}
-                                onPlaySongFromPlaylist={handlePlaySongFromPlaylist}
-                                currentSong={currentSong}
                             />
                         ))}
                     </div>
