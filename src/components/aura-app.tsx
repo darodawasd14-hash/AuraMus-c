@@ -61,7 +61,7 @@ export function AuraApp() {
         </aside>
 
         <main className="flex-grow flex flex-col overflow-y-auto pb-24 md:pb-0">
-          <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
+          <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} setView={setView} view={view} />
           <div className="flex-grow">
             {view === 'playlist' && <PlaylistView />}
             {view === 'catalog' && <CatalogView setView={setView} />}
@@ -99,15 +99,20 @@ export function AuraApp() {
   );
 }
 
-const Header = ({ isChatOpen, setIsChatOpen }: { isChatOpen: boolean, setIsChatOpen: (isOpen: boolean) => void }) => {
+const Header = ({ isChatOpen, setIsChatOpen, setView, view }: { isChatOpen: boolean, setIsChatOpen: (isOpen: boolean) => void, setView: (view: 'playlist' | 'catalog' | 'search') => void, view: string }) => {
   const { user } = useUser();
   return (
     <header className="flex items-center justify-between p-4 border-b border-border shadow-sm backdrop-blur-sm z-10 flex-shrink-0">
-      <div className="flex items-center gap-2 md:hidden">
-        <AuraLogo className="w-8 h-8" />
-        <span className="text-xl font-bold tracking-tight">Aura</span>
+       <div className="flex items-center gap-2">
+         <div className="md:hidden">
+            <AuraLogo className="w-8 h-8" />
+         </div>
+         <nav className="hidden md:flex items-center gap-2">
+            <Button variant={view === 'playlist' ? 'secondary' : 'ghost'} onClick={() => setView('playlist')} className="justify-start">Çalma Listem</Button>
+            <Button variant={view === 'catalog' ? 'secondary' : 'ghost'} onClick={() => setView('catalog')} className="justify-start">Katalog</Button>
+            <Button variant={view === 'search' ? 'secondary' : 'ghost'} onClick={() => setView('search')} className="justify-start">Ara</Button>
+        </nav>
       </div>
-      <div className="hidden md:flex"></div>
       
       <div className="flex items-center gap-2">
         {user && (
@@ -283,14 +288,13 @@ const PlaylistView = () => {
 
     return (
         <div className="p-4 md:p-6 flex flex-col h-full">
-            <h2 className="text-xl md:text-3xl font-semibold tracking-tight mb-4">Çalma Listem</h2>
             
             <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
-              {currentSong?.type === 'youtube' && isPlaying ? (
+              {currentSong?.type === 'youtube' ? (
                 <div className="w-full h-full">
                    <ReactPlayer
                       url={currentSong.url}
-                      playing={true}
+                      playing={isPlaying}
                       controls={false}
                       width="100%"
                       height="100%"
@@ -417,7 +421,6 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
   return (
     <div id="catalog-view" className="p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-8" id="catalog-content">
-        <h2 className="text-3xl font-bold tracking-tight">Müzik Kataloğu</h2>
         
         {isLoading && (
            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -516,7 +519,6 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
   return (
     <div id="search-view" className="p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-8" id="search-content">
-        <h2 className="text-3xl font-bold tracking-tight">YouTube'da Ara</h2>
         <form onSubmit={handleSearch} className="flex gap-2">
           <Input
             type="search"
@@ -572,3 +574,5 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
     </div>
   );
 };
+
+    
