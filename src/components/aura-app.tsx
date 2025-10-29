@@ -225,7 +225,7 @@ const PlayerBar = () => {
 };
 
 const PlaylistView = () => {
-    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying, isMuted } = usePlayer();
+    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying } = usePlayer();
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
     const [songUrl, setSongUrl] = useState('');
@@ -301,7 +301,7 @@ const PlaylistView = () => {
                    <ReactPlayer
                       url={currentSong.url}
                       playing={isPlaying}
-                      muted={isMuted} // Sync mute state with context
+                      muted={true}
                       controls={false}
                       width="100%"
                       height="100%"
