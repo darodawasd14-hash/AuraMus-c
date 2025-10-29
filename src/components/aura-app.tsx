@@ -161,6 +161,7 @@ export function AuraApp() {
         setCurrentSong(song);
         setCurrentIndex(index);
         setCurrentTime(0);
+        setSoundActivated(false); // Her yeni şarkıda ses iznini sıfırla
     };
 
     const playNext = () => {
@@ -212,8 +213,8 @@ export function AuraApp() {
             player.setVolume(newVolume);
             if (newVolume > 0 && isMuted) {
                 setIsMuted(false);
-                if(!soundActivated) setSoundActivated(true);
-                 player.unMute();
+                if(!soundActivated) handleActivateSound();
+                 else player.unMute();
             }
             if (newVolume === 0 && !isMuted) {
                 setIsMuted(true);
