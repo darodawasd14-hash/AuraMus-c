@@ -7,7 +7,6 @@ import { Music, PlayIcon } from '@/components/icons';
 export const AuraPlayerView = () => {
   const context = useContext(PlayerContext);
 
-  // If context is not available, render a loading or fallback state
   if (!context) {
     return (
       <div className="w-full aspect-video bg-muted/50 rounded-lg flex items-center justify-center relative shadow-inner">
@@ -22,8 +21,6 @@ export const AuraPlayerView = () => {
     <div className="w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative shadow-xl">
       {currentSong ? (
         <>
-          {/* This is the VISIBLE player, it acts as a "vitrine" */}
-          {/* It's always muted; sound comes from the invisible player in the provider */}
           <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
             <ReactPlayer
               key={`visible-${currentSong.id}`}
@@ -40,7 +37,6 @@ export const AuraPlayerView = () => {
             />
           </div>
 
-          {/* This is the invisible "sound activation" layer */}
           {!hasInteracted && isReady && (
             <div
               className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center transition-opacity cursor-pointer z-10 hover:bg-black/60"
