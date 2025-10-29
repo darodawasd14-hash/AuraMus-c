@@ -81,16 +81,17 @@ export default function PrivateChatPage() {
       },
       timestamp: serverTimestamp(),
     };
-
+    
     const chatDocRef = doc(firestore, 'chats', chatId);
+    // Ensure participantIds are always present when updating chat document
     const chatData = {
       participantIds: chatId.split('_'),
       lastMessage: trimmedMessage,
       lastMessageTimestamp: serverTimestamp(),
     };
 
-    // Use non-blocking writes and chain error handling
-    setDoc(chatDocRef, chatData, { merge: true }).catch(serverError => {
+    // Chain the promises to handle errors individually
+    const chatUpdatePromise = setDoc(chatDocRef, chatData, { merge: true }).catch(serverError => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: chatDocRef.path,
             operation: 'write', // 'merge:true' can be create or update
@@ -98,13 +99,16 @@ export default function PrivateChatPage() {
         }));
     });
 
-    addDoc(messagesColRef, messageData).catch(serverError => {
+    const messageAddPromise = addDoc(messagesColRef, messageData).catch(serverError => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: messagesColRef.path,
             operation: 'create',
             requestResourceData: messageData,
         }));
     });
+    
+    // Wait for both to complete before finishing the sending state
+    await Promise.all([chatUpdatePromise, messageAddPromise]);
 
     setMessage('');
     setIsSending(false);
