@@ -21,6 +21,8 @@ export const Player = () => {
   // The Player is now always rendered in the background. It is the "engine"
   // that handles all playback, but it's not directly visible.
   // The 'PlaylistView' component will show a visual representation (like an iframe).
+  // The key is to let this player autoplay silently to get the progress bar moving,
+  // while the visible player waits for interaction.
   return (
     <div className="player-wrapper" style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
       {currentSong && (

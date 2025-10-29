@@ -18,7 +18,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { getYoutubeVideoId } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
-import ReactPlayer from 'react-player';
+import ReactPlayer from 'react-player/lazy';
 
 const getYouTubeThumbnail = (videoId: string) => {
     // sddefault is a good balance of quality and availability
@@ -250,8 +250,7 @@ const PlaylistView = () => {
             let videoTitle = `Yeni Şarkı (${videoId.substring(0, 5)}...)`;
             let artwork = getYouTubeThumbnail(videoId);
             try {
-                // First try official oembed
-                const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+                 const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
                 if (oembedResponse.ok) {
                     const oembedData = await oembedResponse.json();
                     videoTitle = oembedData.title;
@@ -313,18 +312,28 @@ const PlaylistView = () => {
         <div className="p-4 md:p-6 flex flex-col h-full">
             
              <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
-                 {/* The actual player is always here now, but visually covered if needed */}
-                <div className="absolute inset-0 pointer-events-none">
-                    <Player/>
-                </div>
+                {/* This is the VISIBLE player. It's always rendered. */}
+                {currentSong && (
+                    <ReactPlayer
+                        key={`visible-${currentSong.id}`}
+                        url={currentSong.url}
+                        playing={isPlaying}
+                        volume={0} // Always muted, sound comes from the hidden player.
+                        muted={true}
+                        controls={false}
+                        width="100%"
+                        height="100%"
+                        style={{pointerEvents: 'none'}} // Clicks go through this player
+                    />
+                )}
                 
-                {currentSong && !hasInteracted && isReady && (
+                {/* The "Invisible Sound Button" overlay */}
+                {isReady && !hasInteracted && (
                      <div 
-                        className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center transition-opacity opacity-75 hover:opacity-100 cursor-pointer z-10"
+                        className="absolute inset-0 bg-transparent flex flex-col items-center justify-center transition-opacity cursor-pointer z-10"
                         onClick={activateSound}
                     >
-                        <PlayIcon className="w-16 h-16 text-white" />
-                        <p className="font-semibold mt-2 text-white">Oynatmak için Tıklayın</p>
+                        {/* This div is now a completely transparent click target */}
                     </div>
                 )}
                 
