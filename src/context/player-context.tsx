@@ -79,14 +79,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   // Ses
   const [volume, setVolumeState] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(false); // Başlangıçta sessiz değil
+  const [isMuted, setIsMuted] = useState(false);
   
   // Player Referansı (Kumandayı televizyona bağlamak için)
   const playerRef = useRef<ReactPlayer>(null);
 
   const playSong = (song: Song, index: number) => {
     if (song.id !== currentSong?.id) {
-        setHasInteracted(false); // Yeni şarkı, yeni izin gerektirir
+        setHasInteracted(false); 
         setIsPlaying(false);
     }
     setCurrentSong(song);
@@ -99,8 +99,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const togglePlayPause = () => {
     if (!currentSong || !isReady) return;
     
-    const newIsPlaying = !isPlaying;
-    setIsPlaying(newIsPlaying);
+    // If we have interaction, we can freely toggle play/pause
+    if (hasInteracted) {
+      setIsPlaying(!isPlaying);
+    } else {
+      // If this is the first interaction, force play and unmute
+      setHasInteracted(true);
+      setIsPlaying(true);
+      setIsMuted(false);
+    }
   };
 
   const addSong = (song: Song) => {
@@ -144,13 +151,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const _playerOnReady = () => {
     setIsReady(true);
-    // İzin alındıktan sonra onReady tetiklendiği için hemen çal.
-    if (hasInteracted) {
-      setIsPlaying(true);
-    }
   };
   
   const _playerOnProgress = (data: OnProgressProps) => {
+    // Only update progress if the player is supposed to be playing
+    // This prevents the progress bar from moving when paused.
     if (isPlaying) {
       setProgress(data.played);
     }

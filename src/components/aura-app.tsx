@@ -307,23 +307,25 @@ const PlaylistView = () => {
         <div className="p-4 md:p-6 flex flex-col h-full">
             
             <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
-              {currentSong?.type === 'youtube' && hasInteracted ? (
-                <div className="w-full h-full">
+              {currentSong?.type === 'youtube' && !hasInteracted ? (
+                 <div className="w-full h-full relative group" onClick={handleInteraction}>
+                    {currentSong.artwork && (
+                        <Image src={currentSong.artwork} alt={currentSong.title} layout="fill" objectFit="cover" />
+                    )}
+                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center cursor-pointer transition-opacity opacity-75 group-hover:opacity-100">
+                        <PlayIcon className="w-16 h-16 text-white" />
+                        <p className="text-white font-semibold mt-2">Oynatmak için Tıklayın</p>
+                    </div>
+                </div>
+              ) : currentSong?.type === 'youtube' && hasInteracted ? (
+                <div className="w-full h-full pointer-events-none">
                    <ReactPlayer
                       url={currentSong.url}
                       playing={isPlaying}
                       controls={false}
                       width="100%"
                       height="100%"
-                      style={{ pointerEvents: 'none' }}
                     />
-                </div>
-              ) : currentSong?.artwork ? (
-                <div className="w-full h-full relative" onClick={handleInteraction}>
-                  <Image src={currentSong.artwork} alt={currentSong.title} layout="fill" objectFit="cover" />
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center cursor-pointer">
-                    <PlayIcon className="w-16 h-16 text-white/80 hover:text-white transition-colors" />
-                  </div>
                 </div>
               ) : (
                 <div className="text-muted-foreground flex flex-col items-center gap-2">

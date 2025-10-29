@@ -9,6 +9,7 @@ export const Player = () => {
     isPlaying,
     volume,
     isMuted,
+    hasInteracted,
     _playerOnReady,
     _playerOnProgress,
     _playerOnDuration,
@@ -32,7 +33,7 @@ export const Player = () => {
       <ReactPlayer
         ref={playerRef} // Connect the ref from the context to this player instance.
         url={currentSong?.url}
-        playing={isPlaying}
+        playing={isPlaying && hasInteracted} // Only play if user has interacted
         volume={volume}
         muted={isMuted}
         controls={false}
@@ -47,7 +48,7 @@ export const Player = () => {
         config={{
           youtube: {
             playerVars: { 
-              autoplay: 1,
+              autoplay: 0, // IMPORTANT: Autoplay is handled by our context logic now
               showinfo: 0,
               disablekb: 1,
               iv_load_policy: 3,
@@ -56,7 +57,7 @@ export const Player = () => {
           soundcloud: {
             options: {
               visual: false,
-              autoplay: true,
+              autoplay: false, // Turn off SC autoplay too
             }
           }
         }}
