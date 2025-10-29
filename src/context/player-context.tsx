@@ -85,11 +85,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playerRef = useRef<ReactPlayer>(null);
 
   const activateSound = useCallback(() => {
-    if (!hasInteracted && playerRef.current) {
+    const internalPlayer = playerRef.current?.getInternalPlayer();
+    if (!hasInteracted && internalPlayer) {
       setHasInteracted(true);
       setIsMuted(false);
       // "CEZAYI EZMEK": Sesi açarken aynı anda OYNAT komutunu da gönder.
-      playerRef.current.getInternalPlayer()?.playVideo();
+      if (typeof internalPlayer.playVideo === 'function') {
+        internalPlayer.playVideo();
+      }
     }
   }, [hasInteracted]);
 
@@ -103,19 +106,35 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const togglePlayPause = () => {
-    if (!isReady || !currentSong) return;
+    if (!isReady || !currentSong || !playerRef.current) return;
+    const internalPlayer = playerRef.current.getInternalPlayer();
+    if (!internalPlayer) return;
 
-    // If this is the first interaction, activate sound and let it handle playback.
-    if (!hasInteracted) {
-        activateSound();
-        return;
-    }
-    
-    // If already interacted, just toggle play/pause state.
+    // 1. Check the INTENTION first, based on the current state.
     if (isPlaying) {
-      playerRef.current?.getInternalPlayer()?.pauseVideo();
+      // INTENTION: PAUSE
+      // If it's playing, just pause it. No need to worry about sound.
+      if (typeof internalPlayer.pauseVideo === 'function') {
+        internalPlayer.pauseVideo();
+      }
     } else {
-      playerRef.current?.getInternalPlayer()?.playVideo();
+      // INTENTION: PLAY
+      // If it's paused, we need to play it.
+      
+      // And if this is the first interaction, we also need to unmute.
+      if (!hasInteracted) {
+         setHasInteracted(true);
+         setIsMuted(false);
+         // Send both commands to "break the penalty"
+         if (typeof internalPlayer.playVideo === 'function') {
+           internalPlayer.playVideo();
+         }
+      } else {
+        // Sound is already active, just play.
+        if (typeof internalPlayer.playVideo === 'function') {
+          internalPlayer.playVideo();
+        }
+      }
     }
   };
 
