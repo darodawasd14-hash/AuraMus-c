@@ -132,7 +132,7 @@ export default function PrivateChatPage() {
               <ArrowLeft className="h-5 w-5" />
           </Button>
           {otherParticipant ? (
-              <Link href={`/profile/${otherParticipant.id}`} className="flex items-center gap-3">
+              <Link href={`/profile/${otherParticipant.id}`} className="flex items-center gap-3 cursor-pointer">
                  <Avatar className="h-10 w-10 border-2 border-primary">
                     <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${otherParticipant.id}`} />
                     <AvatarFallback>{otherParticipant.displayName.charAt(0)}</AvatarFallback>
