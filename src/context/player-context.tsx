@@ -92,29 +92,24 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     } else {
         // If it's the same song, just ensure we try to play it.
         setIsPlaying(true);
-        if (playerRef.current) {
-            playerRef.current.seekTo(0);
-        }
     }
     setCurrentSong(song);
     setCurrentIndex(index);
     setProgress(0);
     setDuration(0);
-    setIsReady(false);
+    setIsReady(false); // Player is not ready until the new song loads.
   };
   
   const togglePlayPause = () => {
+    // Only allow toggle if the player is ready to receive commands.
     if (!currentSong || !isReady) return;
     
     // This is the first interaction for this song
     if (!hasInteracted) {
       setHasInteracted(true);
-      setIsPlaying(true);
-      setIsMuted(false);
-    } else {
-      // If we already have interaction, just toggle play/pause
-      setIsPlaying(!isPlaying);
     }
+
+    setIsPlaying(!isPlaying);
   };
 
   const addSong = (song: Song) => {
@@ -159,6 +154,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const _playerOnReady = () => {
+    // The player is loaded and ready to accept commands.
     setIsReady(true);
   };
   
@@ -174,10 +170,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const _playerOnPlay = () => {
+    // Sync state when player starts playing for any reason
     setIsPlaying(true);
   };
 
   const _playerOnPause = () => {
+    // Sync state when player pauses for any reason
     setIsPlaying(false);
   };
 

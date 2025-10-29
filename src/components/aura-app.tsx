@@ -245,16 +245,17 @@ const PlayerBar = () => {
 };
 
 const PlaylistView = () => {
-    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying, hasInteracted, setHasInteracted } = usePlayer();
+    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying, hasInteracted, setHasInteracted, isReady } = usePlayer();
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
     const [songUrl, setSongUrl] = useState('');
     const [isAdding, setIsAdding] = useState(false);
 
     const handleInteraction = () => {
-      if (currentSong) {
+      if (currentSong && !hasInteracted) {
         setHasInteracted(true);
-        playSong(currentSong, currentIndex); // Re-trigger playSong to ensure state is correct
+        // Re-trigger playSong to ensure the player starts now that interaction has happened.
+        playSong(currentSong, currentIndex); 
       }
     };
 
@@ -277,7 +278,7 @@ const PlaylistView = () => {
                     const oembedData = await oembedResponse.json();
                     videoTitle = oembedData.title;
                     if(oembedData.thumbnail_url) {
-                       artwork = oembedData.thumbnail_url;
+                       artwork = oembedData.thumbnail_url.replace('hqdefault.jpg', 'sddefault.jpg');
                     }
                 }
             } catch (error) {
@@ -324,37 +325,40 @@ const PlaylistView = () => {
     return (
         <div className="p-4 md:p-6 flex flex-col h-full">
             
-            <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
-              {!hasInteracted && currentSong?.type === 'youtube' ? (
-                 <div className="w-full h-full relative group cursor-pointer" onClick={handleInteraction}>
-                    {currentSong.artwork && (
-                        <Image src={currentSong.artwork} alt={currentSong.title} layout="fill" objectFit="cover" 
-                          onError={(e) => { e.currentTarget.src = getFallbackThumbnail(currentSong.id); }}
-                        />
-                    )}
-                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center transition-opacity opacity-75 group-hover:opacity-100">
+             <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
+                {/* Visual Player Area */}
+                {currentSong && (
+                    <ReactPlayer
+                        url={currentSong.url}
+                        playing={isPlaying}
+                        controls={false}
+                        width="100%"
+                        height="100%"
+                        volume={0} // This player is for visuals only
+                        muted={true} // Always muted
+                        className="pointer-events-none"
+                    />
+                )}
+
+                {/* Activation Overlay - shown only if interaction is needed */}
+                {currentSong && !hasInteracted && isReady && (
+                    <div 
+                        className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center transition-opacity opacity-75 hover:opacity-100 cursor-pointer"
+                        onClick={handleInteraction}
+                    >
                         <PlayIcon className="w-16 h-16 text-white" />
                         <p className="text-white font-semibold mt-2">Oynatmak için Tıklayın</p>
                     </div>
-                </div>
-              ) : currentSong ? (
-                 <ReactPlayer
-                      url={currentSong.url}
-                      playing={isPlaying}
-                      controls={false}
-                      width="100%"
-                      height="100%"
-                      volume={0} // This player is for visuals only
-                      muted={true}
-                      className="pointer-events-none" // Prevent clicks on this player
-                    />
-              ) : (
-                <div className="text-muted-foreground flex flex-col items-center gap-2">
-                  <Music className="w-12 h-12"/>
-                  <p>Oynatıcı Alanı</p>
-                  <p className="text-xs">Çalan şarkı burada görünecek.</p>
-                </div>
-              )}
+                )}
+                
+                {/* Placeholder when no song is selected */}
+                {!currentSong && (
+                    <div className="text-muted-foreground flex flex-col items-center gap-2">
+                        <Music className="w-12 h-12"/>
+                        <p>Oynatıcı Alanı</p>
+                        <p className="text-xs">Çalan şarkı burada görünecek.</p>
+                    </div>
+                )}
             </div>
 
 

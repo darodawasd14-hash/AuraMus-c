@@ -19,13 +19,6 @@ export const Player = () => {
     playerRef
   } = usePlayer();
 
-  useEffect(() => {
-    if (playerRef.current && currentSong) {
-      // This effect is no longer needed for seeking, as ReactPlayer handles URL changes automatically.
-      // It can be kept for any future logic if necessary.
-    }
-  }, [currentSong, playerRef]);
-
   // The hidden player that acts as the "engine" for the entire app.
   // It is directly controlled by the state from the PlayerContext.
   return (
@@ -48,7 +41,7 @@ export const Player = () => {
         config={{
           youtube: {
             playerVars: { 
-              autoplay: 0, // IMPORTANT: Autoplay is handled by our context logic now
+              autoplay: 0, // IMPORTANT: Do not autoplay. Playback is controlled by our context.
               showinfo: 0,
               disablekb: 1,
               iv_load_policy: 3,
