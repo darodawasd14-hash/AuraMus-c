@@ -10,6 +10,7 @@ import { collection, addDoc, serverTimestamp, query, orderBy, doc, setDoc, getDo
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Link from 'next/link';
+import { useToast } from '@/hooks/use-toast';
 
 interface Message {
   id: string;
@@ -27,6 +28,7 @@ export default function PrivateChatPage() {
   const router = useRouter();
   const params = useParams();
   const chatId = params.chatId as string;
+  const { toast } = useToast();
 
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -87,40 +89,52 @@ export default function PrivateChatPage() {
       timestamp: serverTimestamp(),
     };
     
-    // Add the message to the subcollection
-    await addDoc(messagesColRef, messageData).catch(serverError => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: messagesColRef.path,
-            operation: 'create',
-            requestResourceData: messageData,
-        }));
-        // Re-throw to stop further execution in the `try` block
-        throw serverError;
-    });
-
-    // After successfully sending a message, also update the parent chat document
-    // for metadata like "last message". This is useful for chat list previews.
     const chatDocRef = doc(firestore, 'chats', chatId);
     const chatData = {
       participantIds: chatId.split('_').sort(),
       lastMessage: trimmedMessage,
       lastMessageTimestamp: serverTimestamp(),
     };
-
-    // This setDoc with merge will create the chat document if it doesn't exist,
-    // or update it if it does.
-    await setDoc(chatDocRef, chatData, { merge: true }).catch(serverError => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: chatDocRef.path,
-            operation: 'write', // 'merge:true' can be create or update
-            requestResourceData: chatData,
-        }));
-        // We don't re-throw here because the message was already sent successfully.
-        // Failing to update metadata is less critical.
-    });
-
+    
     setMessage('');
-    setIsSending(false);
+
+    addDoc(messagesColRef, messageData)
+        .then(() => {
+            // After successfully sending a message, update the parent chat document
+            // This is useful for chat list previews.
+            setDoc(chatDocRef, chatData, { merge: true }).catch(serverError => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: chatDocRef.path,
+                    operation: 'write', // 'merge:true' can be create or update
+                    requestResourceData: chatData,
+                }));
+                // We don't re-throw here because the message was already sent successfully.
+                // Failing to update metadata is less critical, but we still want to know.
+                toast({
+                    variant: "destructive",
+                    title: "Sohbet Güncellenemedi",
+                    description: "Mesajınız gönderildi ancak sohbet önizlemesi güncellenirken bir hata oluştu.",
+                });
+            });
+        })
+        .catch(serverError => {
+            // This is the primary error we want to catch if sending the message fails.
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: messagesColRef.path,
+                operation: 'create',
+                requestResourceData: messageData,
+            }));
+
+            // Let the user know something went wrong without being too technical
+            toast({
+                variant: "destructive",
+                title: "Mesaj Gönderilemedi",
+                description: "Mesajınız gönderilemedi. Lütfen daha sonra tekrar deneyin.",
+            });
+        })
+        .finally(() => {
+            setIsSending(false);
+        });
   };
   
   const isLoading = isUserLoading || areMessagesLoading || isLoadingParticipant;
