@@ -85,19 +85,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playerRef = useRef<ReactPlayer>(null);
 
   const activateSound = useCallback(() => {
-    if (!hasInteracted) {
+    if (!hasInteracted && playerRef.current) {
       setHasInteracted(true);
-      // This is the first user interaction. Unmute audio for all subsequent plays.
       setIsMuted(false);
-      // If a song is loaded and ready, ensure it plays.
-      if (playerRef.current && currentSong) {
-          playerRef.current.getInternalPlayer()?.unMute();
-          if(!isPlaying){
-            playerRef.current.getInternalPlayer()?.playVideo();
-          }
-      }
+      // "CEZAYI EZMEK": Sesi açarken aynı anda OYNAT komutunu da gönder.
+      playerRef.current.getInternalPlayer()?.playVideo();
     }
-  }, [hasInteracted, isPlaying, currentSong]);
+  }, [hasInteracted]);
 
   const playSong = (song: Song, index: number) => {
     setCurrentSong(song);
