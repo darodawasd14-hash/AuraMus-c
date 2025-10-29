@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, serverTimestamp, doc, runTransaction, getDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, runTransaction } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Loader2, Music } from 'lucide-react';
@@ -56,14 +56,10 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
                 throw "Çalma listesi bulunamadı!";
             }
 
-            // Create a reference to the new song document within the playlist's "songs" subcollection
             const newSongRef = doc(collection(playlistRef, "songs"), song.videoId);
             
-             // Check if song already exists in the playlist to avoid duplicates and recount
             const existingSongDoc = await transaction.get(newSongRef);
             if(existingSongDoc.exists()) {
-                // Song is already in the playlist, no need to do anything.
-                // We throw a specific error to notify the user.
                  throw new Error("Bu şarkı zaten listede mevcut.");
             }
 
@@ -90,7 +86,6 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
     } catch (error: any) {
       console.error("Listeye şarkı eklenirken hata:", error);
       
-      // Check for our custom error
       if (error.message === "Bu şarkı zaten listede mevcut.") {
          toast({
             variant: "default",

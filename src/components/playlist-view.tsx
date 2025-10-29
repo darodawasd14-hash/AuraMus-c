@@ -27,7 +27,6 @@ interface Playlist {
     id: string;
     name: string;
     songCount?: number;
-    songs?: Song[]; // Will be populated by the subcollection query
 }
 
 interface PlaylistViewProps {
@@ -83,7 +82,7 @@ const CreatePlaylistDialog = ({ open, onOpenChange, onCreate }: { open: boolean,
     );
 };
 
-const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist }: { playlist: Playlist, onSelect: (playlist: Playlist) => void, onDeletePlaylist: (playlistId: string) => void }) => {
+const PlaylistCard = ({ playlist, songCount, onSelect, onDeletePlaylist }: { playlist: Playlist, songCount: number, onSelect: (playlist: Playlist) => void, onDeletePlaylist: (playlistId: string) => void }) => {
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
     const handleDelete = (e: React.MouseEvent) => {
@@ -91,8 +90,6 @@ const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist }: { playlist: Play
         onDeletePlaylist(playlist.id);
         setDeleteDialogOpen(false);
     }
-    
-    const songCount = playlist.songCount ?? 0;
 
     return (
         <>
@@ -147,16 +144,13 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
         return collection(firestore, 'users', user.uid, 'playlists');
     }, [user, firestore]);
     
-    // This hook fetches the list of playlists.
     const { data: playlists, isLoading } = useCollection<Playlist>(playlistsQuery);
 
-    // This query is for fetching songs of the *selected* playlist.
     const songsQuery = useMemoFirebase(() => {
         if (!user || !firestore || !selectedPlaylist) return null;
         return query(collection(firestore, 'users', user.uid, 'playlists', selectedPlaylist.id, 'songs'), orderBy('timestamp', 'asc'));
     }, [user, firestore, selectedPlaylist]);
 
-    // This hook fetches the songs for the selected playlist.
     const { data: selectedPlaylistSongs, isLoading: areSongsLoading } = useCollection<Song>(songsQuery);
 
     const handleCreatePlaylist = async (name: string) => {
@@ -184,7 +178,9 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
         if (!user || !firestore) return;
         const playlistDocRef = doc(firestore, 'users', user.uid, 'playlists', playlistId);
         try {
-            // We might need to delete subcollections here in the future.
+            // Firestore does not automatically delete subcollections.
+            // For a complete solution, one would need a Cloud Function to delete all songs in the subcollection.
+            // For this client-side only implementation, we just delete the playlist document.
             await deleteDoc(playlistDocRef);
         } catch(serverError: any) {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -294,6 +290,7 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
                             <PlaylistCard 
                                 key={playlist.id} 
                                 playlist={playlist}
+                                songCount={playlist.songCount ?? 0}
                                 onSelect={handleSelectPlaylist}
                                 onDeletePlaylist={handleDeletePlaylist}
                             />
