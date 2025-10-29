@@ -85,12 +85,24 @@ const CreatePlaylistDialog = ({ open, onOpenChange, onCreate }: { open: boolean,
 
 const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist }: { playlist: Playlist, onSelect: (playlist: Playlist) => void, onDeletePlaylist: (playlistId: string) => void }) => {
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const { user } = useUser();
+    const firestore = useFirestore();
+
+    // This query is for fetching songs of the *selected* playlist.
+    const songsRef = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        return query(collection(firestore, 'users', user.uid, 'playlists', playlist.id, 'songs'), orderBy('timestamp', 'asc'));
+    }, [user, firestore, playlist.id]);
+
+    const { data: songs, isLoading: areSongsLoading } = useCollection<Song>(songsRef);
 
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent card click event from firing
         onDeletePlaylist(playlist.id);
         setDeleteDialogOpen(false);
     }
+    
+    const songCount = songs?.length ?? 0;
     
     // This is a placeholder. The actual first song artwork should be fetched differently if needed.
     // For now, we'll just show a generic music icon.
@@ -125,7 +137,7 @@ const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist }: { playlist: Play
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="font-semibold truncate flex-grow">{playlist.name}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{playlist.songCount ?? 0} şarkı</p>
+                        <p className="text-xs text-muted-foreground mt-1">{songCount} şarkı</p>
                     </div>
                      <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground hover:text-destructive" onClick={(e) => {e.stopPropagation(); setDeleteDialogOpen(true)}}>
                         <Trash2 className="w-4 h-4" />
@@ -186,6 +198,7 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
         if (!user || !firestore) return;
         const playlistDocRef = doc(firestore, 'users', user.uid, 'playlists', playlistId);
         try {
+            // We might need to delete subcollections here in the future.
             await deleteDoc(playlistDocRef);
         } catch(serverError: any) {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
