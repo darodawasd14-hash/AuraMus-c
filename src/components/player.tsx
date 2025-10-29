@@ -18,16 +18,11 @@ export const Player = () => {
     _playerOnPause,
   } = usePlayer();
 
-  // The Player is now always rendered in the background. It is the "engine"
-  // that handles all playback, but it's not directly visible.
-  // The 'PlaylistView' component will show a visual representation (like an iframe).
-  // The key is to let this player autoplay silently to get the progress bar moving,
-  // while the visible player waits for interaction.
   return (
     <div className="player-wrapper" style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
       {currentSong && (
           <ReactPlayer
-            key={currentSong.id} // Important for re-mounting when song changes
+            key={currentSong.id}
             ref={playerRef}
             url={currentSong.url}
             playing={isPlaying}
@@ -45,8 +40,6 @@ export const Player = () => {
             config={{
               youtube: {
                 playerVars: { 
-                  // autoplay: 1 is crucial for this flow to work, as it allows the player to start
-                  // silently, which then allows us to control it programmatically.
                   autoplay: 1, 
                   showinfo: 0,
                   disablekb: 1,

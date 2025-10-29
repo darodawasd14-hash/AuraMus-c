@@ -21,7 +21,6 @@ import { Slider } from '@/components/ui/slider';
 import ReactPlayer from 'react-player/lazy';
 
 const getYouTubeThumbnail = (videoId: string) => {
-    // sddefault is a good balance of quality and availability
     return `https://i.ytimg.com/vi/${videoId}/sddefault.jpg`;
 };
 
@@ -30,7 +29,7 @@ const getFallbackThumbnail = (id: string) => {
 }
 
 export function AuraApp() {
-  const { currentSong, isPlaying } = usePlayer();
+  const { currentSong } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const { user } = useUser();
@@ -52,7 +51,6 @@ export function AuraApp() {
   return (
     <div id="app-container" className="relative h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       
-      {/* Player is now always rendered, but hidden. It's the "engine". */}
       <Player />
 
       <div className="flex-grow flex flex-row overflow-hidden">
@@ -69,7 +67,7 @@ export function AuraApp() {
         </aside>
 
         <main className="flex-grow flex flex-col overflow-y-auto pb-24 md:pb-0">
-          <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} setView={setView} view={view} />
+          <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
           <div className="flex-grow">
             {view === 'playlist' && <PlaylistView />}
             {view === 'catalog' && <CatalogView setView={setView} />}
@@ -107,22 +105,16 @@ export function AuraApp() {
   );
 }
 
-const Header = ({ isChatOpen, setIsChatOpen, setView, view }: { isChatOpen: boolean, setIsChatOpen: (isOpen: boolean) => void, setView: (view: 'playlist' | 'catalog' | 'search') => void, view: string }) => {
+const Header = ({ isChatOpen, setIsChatOpen }: { isChatOpen: boolean, setIsChatOpen: (isOpen: boolean) => void }) => {
   const { user } = useUser();
   return (
-    <header className="flex items-center justify-between p-4 border-b border-border shadow-sm backdrop-blur-sm z-10 flex-shrink-0">
-       <div className="flex items-center gap-2">
-         <div className="md:hidden">
-            <AuraLogo className="w-8 h-8" />
-         </div>
-         <nav className="hidden md:flex items-center gap-2">
-            <Button variant={view === 'playlist' ? 'secondary' : 'ghost'} onClick={() => setView('playlist')} className="justify-start">Çalma Listem</Button>
-            <Button variant={view === 'catalog' ? 'secondary' : 'ghost'} onClick={() => setView('catalog')} className="justify-start">Katalog</Button>
-            <Button variant={view === 'search' ? 'secondary' : 'ghost'} onClick={() => setView('search')} className="justify-start">Ara</Button>
-        </nav>
+    <header className="flex items-center justify-between p-4 border-b border-border shadow-sm backdrop-blur-sm z-10 flex-shrink-0 h-16">
+       <div className="flex items-center gap-2 md:hidden">
+          <AuraLogo className="w-8 h-8" />
+          <span className="text-lg font-bold">Aura</span>
       </div>
       
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 ml-auto">
         {user && (
           <Link href={`/profile/${user.uid}`} passHref>
             <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
@@ -130,7 +122,7 @@ const Header = ({ isChatOpen, setIsChatOpen, setView, view }: { isChatOpen: bool
             </Button>
           </Link>
         )}
-        <Button onClick={() => setIsChatOpen(!isChatOpen)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+        <Button onClick={() => setIsChatOpen(!isChatOpen)} variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground md:flex hidden">
           {isChatOpen ? <X /> : <MessageSquare />}
         </Button>
       </div>
@@ -233,7 +225,7 @@ const PlayerBar = () => {
 };
 
 const PlaylistView = () => {
-    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying, hasInteracted, isReady, activateSound } = usePlayer();
+    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying, hasInteracted, activateSound } = usePlayer();
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
     const [songUrl, setSongUrl] = useState('');
@@ -312,28 +304,28 @@ const PlaylistView = () => {
         <div className="p-4 md:p-6 flex flex-col h-full">
             
              <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
-                {/* This is the VISIBLE player. It's always rendered. */}
                 {currentSong && (
                     <ReactPlayer
                         key={`visible-${currentSong.id}`}
                         url={currentSong.url}
                         playing={isPlaying}
-                        volume={0} // Always muted, sound comes from the hidden player.
+                        volume={0}
                         muted={true}
                         controls={false}
                         width="100%"
                         height="100%"
-                        style={{pointerEvents: 'none'}} // Clicks go through this player
+                        style={{pointerEvents: 'none'}}
                     />
                 )}
                 
-                {/* The "Invisible Sound Button" overlay */}
-                {isReady && !hasInteracted && (
+                {currentSong && !hasInteracted && (
                      <div 
                         className="absolute inset-0 bg-transparent flex flex-col items-center justify-center transition-opacity cursor-pointer z-10"
                         onClick={activateSound}
                     >
-                        {/* This div is now a completely transparent click target */}
+                       <div className="bg-black/50 rounded-full p-4 hover:bg-black/70 transition-all">
+                         <PlayIcon className="w-12 h-12 text-white" />
+                       </div>
                     </div>
                 )}
                 
