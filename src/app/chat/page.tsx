@@ -1,6 +1,6 @@
 'use client';
-import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useDoc } from '@/firebase';
 
 interface Chat {
   id: string;
@@ -84,7 +85,7 @@ export default function ChatsPage() {
 
   const chatsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    // Güvenli sorgu: Yalnızca mevcut kullanıcının 'participantIds' dizisinde olduğu sohbetleri getir.
+    // GÜVENLİ SORGUSU: Yalnızca mevcut kullanıcının 'participantIds' dizisinde olduğu sohbetleri getir.
     return query(collection(firestore, 'chats'), where('participantIds', 'array-contains', user.uid));
   }, [user, firestore]);
 
