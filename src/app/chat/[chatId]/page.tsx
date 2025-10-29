@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect, FormEvent, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, useDoc } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Send, ArrowLeft } from 'lucide-react';
-import { collection, addDoc, serverTimestamp, query, orderBy, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, doc, setDoc } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Link from 'next/link';
@@ -22,6 +22,10 @@ interface Message {
   timestamp: any;
 }
 
+interface ParticipantProfile {
+    displayName: string;
+}
+
 export default function PrivateChatPage() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -32,32 +36,20 @@ export default function PrivateChatPage() {
 
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [otherParticipant, setOtherParticipant] = useState<{ id: string; displayName: string } | null>(null);
-  const [isLoadingParticipant, setIsLoadingParticipant] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (chatId && user && firestore) {
-      const participantIds = chatId.split('_');
-      const otherId = participantIds.find(id => id !== user.uid);
-      if (otherId) {
-        const userDocRef = doc(firestore, 'users', otherId);
-        getDoc(userDocRef).then(docSnap => {
-          if (docSnap.exists()) {
-            setOtherParticipant({ id: otherId, displayName: docSnap.data().displayName || `Kullanıcı ${otherId.substring(0,6)}` });
-          } else {
-            setOtherParticipant({ id: otherId, displayName: `Kullanıcı ${otherId.substring(0,6)}` });
-          }
-          setIsLoadingParticipant(false);
-        }).catch(() => {
-          setOtherParticipant({ id: otherId, displayName: `Kullanıcı ${otherId.substring(0,6)}` });
-          setIsLoadingParticipant(false)
-        });
-      } else {
-        setIsLoadingParticipant(false);
-      }
-    }
-  }, [chatId, user, firestore]);
+  const otherParticipantId = useMemo(() => {
+    if (!chatId || !user) return null;
+    const participantIds = chatId.split('_');
+    return participantIds.find(id => id !== user.uid);
+  }, [chatId, user]);
+
+  const otherParticipantRef = useMemoFirebase(() => {
+    if (!firestore || !otherParticipantId) return null;
+    return doc(firestore, 'users', otherParticipantId);
+  }, [firestore, otherParticipantId]);
+
+  const { data: otherParticipant, isLoading: isLoadingParticipant } = useDoc<ParticipantProfile>(otherParticipantRef);
 
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore || !chatId) return null;
@@ -100,16 +92,12 @@ export default function PrivateChatPage() {
 
     addDoc(messagesColRef, messageData)
         .then(() => {
-            // After successfully sending a message, update the parent chat document
-            // This is useful for chat list previews.
             setDoc(chatDocRef, chatData, { merge: true }).catch(serverError => {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({
                     path: chatDocRef.path,
-                    operation: 'write', // 'merge:true' can be create or update
+                    operation: 'write',
                     requestResourceData: chatData,
                 }));
-                // We don't re-throw here because the message was already sent successfully.
-                // Failing to update metadata is less critical, but we still want to know.
                 toast({
                     variant: "destructive",
                     title: "Sohbet Güncellenemedi",
@@ -118,14 +106,11 @@ export default function PrivateChatPage() {
             });
         })
         .catch(serverError => {
-            // This is the primary error we want to catch if sending the message fails.
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: messagesColRef.path,
                 operation: 'create',
                 requestResourceData: messageData,
             }));
-
-            // Let the user know something went wrong without being too technical
             toast({
                 variant: "destructive",
                 title: "Mesaj Gönderilemedi",
@@ -138,6 +123,7 @@ export default function PrivateChatPage() {
   };
   
   const isLoading = isUserLoading || areMessagesLoading || isLoadingParticipant;
+  const otherParticipantName = otherParticipant?.displayName || `Kullanıcı ${otherParticipantId?.substring(0, 6) || ''}`;
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col">
@@ -145,13 +131,13 @@ export default function PrivateChatPage() {
           <Button onClick={() => router.push('/chat')} variant="ghost" size="icon">
               <ArrowLeft className="h-5 w-5" />
           </Button>
-          {otherParticipant ? (
-              <Link href={`/profile/${otherParticipant.id}`} className="flex items-center gap-3 cursor-pointer">
+          {otherParticipantId ? (
+              <Link href={`/profile/${otherParticipantId}`} className="flex items-center gap-3 cursor-pointer">
                  <Avatar className="h-10 w-10 border-2 border-primary">
-                    <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${otherParticipant.id}`} />
-                    <AvatarFallback>{otherParticipant.displayName.charAt(0)}</AvatarFallback>
+                    <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${otherParticipantId}`} />
+                    <AvatarFallback>{otherParticipantName.charAt(0)}</AvatarFallback>
                  </Avatar>
-                 <h2 className="font-semibold text-lg">{otherParticipant.displayName}</h2>
+                 <h2 className="font-semibold text-lg">{isLoading ? 'Yükleniyor...' : otherParticipantName}</h2>
               </Link>
           ) : isLoading ? (
               <div className="flex items-center gap-3">
