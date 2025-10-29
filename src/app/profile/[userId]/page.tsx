@@ -5,7 +5,7 @@ import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmi
 import { doc, collection, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut, Lock, Unlock } from 'lucide-react';
+import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut, Lock } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import Link from 'next/link';
@@ -35,7 +35,6 @@ export default function ProfilePage() {
 
   const profileUserRef = useMemoFirebase(() => (firestore && currentUser) ? doc(firestore, 'users', profileUserId) : null, [firestore, profileUserId, currentUser]);
   
-  // Only create these refs if a user is logged in
   const followersRef = useMemoFirebase(() => (firestore && currentUser) ? collection(firestore, 'users', profileUserId, 'followers') : null, [firestore, profileUserId, currentUser]);
   const followingRef = useMemoFirebase(() => (firestore && currentUser) ? collection(firestore, 'users', profileUserId, 'following') : null, [firestore, profileUserId, currentUser]);
   const playlistsRef = useMemoFirebase(() => (firestore && currentUser) ? collection(firestore, 'users', profileUserId, 'playlists') : null, [firestore, profileUserId, currentUser]);
@@ -50,12 +49,11 @@ export default function ProfilePage() {
   const isOwnProfile = currentUser && currentUser.uid === profileUserId;
   const isLoading = isAuthLoading || isProfileLoading || isFollowersLoading || isFollowingLoading || isPlaylistsLoading;
 
-  const arePlaylistsPublic = profileUser?.arePlaylistsPublic ?? true; // Default to public if not set
+  const arePlaylistsPublic = profileUser?.arePlaylistsPublic ?? true; 
   const canViewPlaylists = isOwnProfile || arePlaylistsPublic;
 
 
   useEffect(() => {
-    // Redirect if auth check is complete and there's no logged-in user
     if (!isAuthLoading && !currentUser) {
       router.push('/');
     }
@@ -117,7 +115,7 @@ export default function ProfilePage() {
   const handleSignOut = async () => {
     if (auth) {
       await signOut(auth);
-      router.push('/'); // Redirect to home/auth page after sign out
+      router.push('/'); 
     }
   };
 
@@ -130,7 +128,6 @@ export default function ProfilePage() {
     );
   }
 
-  // After loading, if profileUser is still null, then the user doesn't exist.
   if (!profileUser && !isLoading) {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-background">

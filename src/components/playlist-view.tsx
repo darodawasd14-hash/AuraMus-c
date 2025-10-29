@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Loader2, Music, Plus, Trash2, ArrowLeft } from 'lucide-react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
-import { collection, addDoc, serverTimestamp, doc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, deleteDoc, query, orderBy, getDocs } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import type { Song } from '@/lib/types';
 import { Card } from './ui/card';
@@ -86,7 +86,7 @@ const PlaylistCard = ({ playlist, songCount, onSelect, onDeletePlaylist }: { pla
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
     const handleDelete = (e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent card click event from firing
+        e.stopPropagation();
         onDeletePlaylist(playlist.id);
         setDeleteDialogOpen(false);
     }
@@ -178,10 +178,16 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
         if (!user || !firestore) return;
         const playlistDocRef = doc(firestore, 'users', user.uid, 'playlists', playlistId);
         try {
-            // Firestore does not automatically delete subcollections.
-            // For a complete solution, one would need a Cloud Function to delete all songs in the subcollection.
-            // For this client-side only implementation, we just delete the playlist document.
+            const songsCollectionRef = collection(playlistDocRef, 'songs');
+            const songsSnapshot = await getDocs(songsCollectionRef);
+            const deletePromises = songsSnapshot.docs.map((songDoc) => deleteDoc(songDoc.ref));
+            await Promise.all(deletePromises);
+            
             await deleteDoc(playlistDocRef);
+
+            if (selectedPlaylist?.id === playlistId) {
+                setSelectedPlaylist(null);
+            }
         } catch(serverError: any) {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: playlistDocRef.path,
@@ -217,6 +223,10 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
                         <h2 className="text-2xl font-bold">{selectedPlaylist.name}</h2>
                         <p className="text-muted-foreground text-sm">{selectedPlaylistSongs?.length ?? 0} şarkı</p>
                     </div>
+                     <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDeletePlaylist(selectedPlaylist.id)}>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Listeyi Sil
+                    </Button>
                 </div>
                 <div className="flex-grow overflow-y-auto -mr-8 pr-8">
                      {areSongsLoading && (
