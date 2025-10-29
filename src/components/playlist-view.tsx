@@ -141,7 +141,7 @@ const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist }: { playlist: Play
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="font-semibold truncate flex-grow">{playlist.name}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{playlist.songCount ?? songs?.length ?? 0} şarkı</p>
+                        <p className="text-xs text-muted-foreground mt-1">{playlist.songCount ?? 0} şarkı</p>
                     </div>
                      <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground hover:text-destructive" onClick={(e) => {e.stopPropagation(); setDeleteDialogOpen(true)}}>
                         <Trash2 className="w-4 h-4" />
