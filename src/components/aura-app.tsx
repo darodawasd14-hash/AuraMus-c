@@ -576,3 +576,4 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
 };
 
     
+    
