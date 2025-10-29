@@ -87,7 +87,8 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
         const playlistData = {
             name: name,
             userId: user.uid,
-            createdAt: serverTimestamp()
+            createdAt: serverTimestamp(),
+            songCount: 0 // Initialize song count
         };
 
         try {

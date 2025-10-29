@@ -1,10 +1,10 @@
 'use client';
 import { useState } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, addDoc, serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, runTransaction, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Loader2, Music, CheckCircle } from 'lucide-react';
+import { Loader2, Music } from 'lucide-react';
 import type { Song } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 
@@ -37,7 +37,8 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
 
     setIsAdding(playlistId);
 
-    const playlistSongsRef = collection(firestore, 'users', user.uid, 'playlists', playlistId, 'songs');
+    const playlistRef = doc(firestore, 'users', user.uid, 'playlists', playlistId);
+    const playlistSongsRef = collection(playlistRef, 'songs');
     const globalSongRef = doc(firestore, 'songs', song.videoId);
 
     const songData: Song = {
@@ -50,30 +51,28 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
     };
 
     try {
-      // Check if song exists in global collection
-      const songDoc = await getDoc(globalSongRef);
-      if (!songDoc.exists()) {
-        // Add to global songs collection if it doesn't exist
-        await setDoc(globalSongRef, songData).catch(serverError => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: globalSongRef.path,
-                operation: 'create',
-                requestResourceData: songData,
-            }));
-            throw serverError; // Propagate error to stop execution
-        });
-      }
+        await runTransaction(firestore, async (transaction) => {
+            // 1. Get the current song count on the playlist
+            const playlistDoc = await transaction.get(playlistRef);
+            if (!playlistDoc.exists()) {
+                throw "Çalma listesi bulunamadı!";
+            }
+            const currentSongCount = playlistDoc.data().songCount || 0;
 
-      // Add song to the specific playlist's subcollection
-      await addDoc(playlistSongsRef, songData).catch(serverError => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: playlistSongsRef.path,
-            operation: 'create',
-            requestResourceData: songData,
-        }));
-        throw serverError; // Propagate error to stop execution
-      });
-      
+            // 2. Add the new song to the songs subcollection
+            const newSongRef = doc(playlistSongsRef); // Create a new doc ref in the subcollection
+            transaction.set(newSongRef, songData);
+
+            // 3. Update the song count on the main playlist document
+            transaction.update(playlistRef, { songCount: currentSongCount + 1 });
+            
+            // 4. Add to global songs collection if it doesn't exist
+            const globalSongDoc = await transaction.get(globalSongRef);
+            if (!globalSongDoc.exists()) {
+                transaction.set(globalSongRef, songData);
+            }
+        });
+
       const selectedPlaylist = playlists?.find(p => p.id === playlistId);
       toast({
         title: "Şarkı Eklendi!",
@@ -82,10 +81,12 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
 
     } catch (error) {
       console.error("Listeye şarkı eklenirken hata:", error);
+      // We don't need to throw permission errors here as transactions handle it,
+      // but a general error toast is good for the user.
       toast({
         variant: "destructive",
         title: "Hata!",
-        description: "Şarkı listeye eklenemedi.",
+        description: "Şarkı listeye eklenemedi. İzinlerinizi kontrol edin.",
       });
     } finally {
       setIsAdding(null);
@@ -132,5 +133,3 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
     </Dialog>
   );
 };
-
-    

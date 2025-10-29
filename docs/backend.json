@@ -40,6 +40,10 @@
         },
         "createdAt": {
           "type": "object"
+        },
+        "songCount": {
+          "type": "number",
+          "description": "The number of songs in the playlist."
         }
       },
       "required": ["name", "userId", "createdAt"]
