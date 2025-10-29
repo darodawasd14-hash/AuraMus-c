@@ -45,7 +45,7 @@ export default function PrivateChatPage() {
             setOtherParticipant({ id: otherId, displayName: docSnap.data().displayName || `Kullanıcı ${otherId.substring(0,6)}` });
           }
           setIsLoadingParticipant(false);
-        });
+        }).catch(() => setIsLoadingParticipant(false));
       } else {
         setIsLoadingParticipant(false);
       }
@@ -83,35 +83,41 @@ export default function PrivateChatPage() {
     };
     
     const chatDocRef = doc(firestore, 'chats', chatId);
-    // Ensure participantIds are always present when updating chat document
+    const participantIds = chatId.split('_').sort();
     const chatData = {
-      participantIds: chatId.split('_'),
+      participantIds: participantIds,
       lastMessage: trimmedMessage,
       lastMessageTimestamp: serverTimestamp(),
     };
 
-    // Chain the promises to handle errors individually
-    const chatUpdatePromise = setDoc(chatDocRef, chatData, { merge: true }).catch(serverError => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: chatDocRef.path,
-            operation: 'write', // 'merge:true' can be create or update
-            requestResourceData: chatData,
-        }));
-    });
+    try {
+        // First, ensure the chat document exists.
+        await setDoc(chatDocRef, chatData, { merge: true }).catch(serverError => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: chatDocRef.path,
+                operation: 'write', // 'merge:true' can be create or update
+                requestResourceData: chatData,
+            }));
+            // Re-throw to stop the message from being sent if chat creation fails
+            throw serverError; 
+        });
 
-    const messageAddPromise = addDoc(messagesColRef, messageData).catch(serverError => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: messagesColRef.path,
-            operation: 'create',
-            requestResourceData: messageData,
-        }));
-    });
-    
-    // Wait for both to complete before finishing the sending state
-    await Promise.all([chatUpdatePromise, messageAddPromise]);
+        // If chat document is ensured, add the message.
+        await addDoc(messagesColRef, messageData).catch(serverError => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: messagesColRef.path,
+                operation: 'create',
+                requestResourceData: messageData,
+            }));
+             throw serverError;
+        });
 
-    setMessage('');
-    setIsSending(false);
+        setMessage('');
+    } catch (error) {
+        console.error("Mesaj gönderilemedi:", error);
+    } finally {
+        setIsSending(false);
+    }
   };
   
   const isLoading = isUserLoading || areMessagesLoading || isLoadingParticipant;
@@ -156,7 +162,7 @@ export default function PrivateChatPage() {
                        )}
                        <div className={`flex flex-col ${msg.sender.uid === user?.uid ? 'items-end' : 'items-start'}`}>
                           <div className={`p-3 rounded-lg max-w-sm md:max-w-md ${msg.sender.uid === user?.uid ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>
-                               <p className="text-xs font-bold mb-1 text-muted-foreground">{msg.sender.displayName}</p>
+                               { msg.sender.uid !== user?.uid && <p className="text-xs font-bold mb-1 text-muted-foreground">{msg.sender.displayName}</p> }
                                <p className="text-sm break-words">{msg.text}</p>
                            </div>
                        </div>
