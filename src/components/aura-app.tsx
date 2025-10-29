@@ -113,9 +113,12 @@ export function AuraApp() {
         setPlayer(newPlayer);
         // Her yeni video hazır olduğunda, hafızadaki ses ayarlarımızı uygula
         if (soundActivated) {
-            newPlayer.unMute();
-            setIsMuted(false);
-            newPlayer.setVolume(volume);
+            if (isMuted) {
+                newPlayer.mute();
+            } else {
+                newPlayer.unMute();
+                newPlayer.setVolume(volume);
+            }
         } else {
             newPlayer.mute();
             setIsMuted(true);
@@ -253,12 +256,12 @@ export function AuraApp() {
                                 />
                                 {player && !soundActivated && (
                                     <div
-                                        onClick={handleActivateSound}
+                                        onDoubleClick={handleActivateSound}
                                         className="absolute top-0 left-0 w-full h-full bg-black/50 backdrop-blur-sm flex items-center justify-center cursor-pointer z-10 transition-opacity duration-300 hover:bg-black/60"
                                     >
                                         <div className="text-center text-white p-4 rounded-lg">
                                             <PlayIcon className="w-16 h-16 text-white/80 mx-auto mb-4 drop-shadow-lg" />
-                                            <p className="text-lg font-semibold tracking-wide">Sesi açmak için tıklayınız</p>
+                                            <p className="text-lg font-semibold tracking-wide">Sesi açmak için çift tıklayınız</p>
                                         </div>
                                     </div>
                                 )}
