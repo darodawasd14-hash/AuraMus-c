@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
 
 // 1. Şarkı nesnesinin nasıl görüneceğini tanımlayalım
 export interface Song { 
@@ -12,13 +12,9 @@ export interface Song {
   timestamp?: any;
 }
 
+// Player'ın iç kontrol fonksiyonları için arayüz. Artık daha basit.
 interface PlayerControls {
-  play: () => void;
-  pause: () => void;
-  seek: (time: number) => void;
-  setVolume: (volume: number) => void;
-  mute: () => void;
-  unmute: () => void;
+  // Gelecekte spesifik kontroller gerekirse buraya eklenebilir, şimdilik boş.
 }
 
 // 2. Context'in içinde hangi bilgilerin olacağını tanımlayalım
@@ -44,6 +40,7 @@ interface PlayerContextType {
   setVolume: (volume: number) => void;
   toggleMute: () => void;
 
+  // Dahili oynatıcı raporlaması için fonksiyonlar. Bunlar arayüz tarafından çağrılmaz.
   _playerSetIsPlaying: (playing: boolean) => void;
   _playerSetProgress: (progress: number) => void;
   _playerSetDuration: (duration: number) => void;
@@ -66,6 +63,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [volume, setVolumeState] = useState(0.75);
   const [isMuted, setIsMuted] = useState(false);
   const playerControlsRef = React.useRef<PlayerControls | null>(null);
+  const internalPlayerRef = React.useRef<{ seekTo: (time: number) => void } | null>(null);
+
 
   // === MANTIK FONKSİYONLARI ===
 
@@ -91,22 +90,22 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
 
    const togglePlayPause = () => {
-    if (!currentSong || !playerControlsRef.current) return;
-    
-    if (isPlaying) {
-      playerControlsRef.current.pause();
-    } else {
-      playerControlsRef.current.play();
-    }
+    if (!currentSong) return;
+    // Sadece isPlaying durumunu değiştiriyoruz. 
+    // ReactPlayer bu prop değişikliğine göre kendi içinde çalma/durdurma işlemini yapar.
+    setIsPlaying(prev => !prev);
   };
 
   const addSong = (song: Song) => {
-    if (playlist.some(s => s.id === song.id)) {
-        const existingIndex = playlist.findIndex(s => s.id === song.id);
+    // Şarkının listede olup olmadığını kontrol et
+    const existingIndex = playlist.findIndex(s => s.id === song.id);
+    if (existingIndex !== -1) {
+        // Eğer şarkı zaten listede ise ve o an çalmıyorsa, onu çal
         if(currentIndex !== existingIndex) {
           playSong(song, existingIndex);
         }
     } else {
+        // Eğer şarkı listede yoksa, listeye ekle ve çal
         const newPlaylist = [...playlist, song];
         setPlaylist(newPlaylist);
         playSong(song, newPlaylist.length - 1);
@@ -114,9 +113,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const seekTo = (time: number) => {
-    if (playerControlsRef.current) {
-        setProgress(time);
-        playerControlsRef.current.seek(time);
+    // ReactPlayer'ın 'seekTo' metodunu doğrudan kullanmak yerine
+    // bu state değişikliği ve player'ın prop'ları üzerinden ilerlemek daha güvenli olabilir.
+    // Şimdilik bu kısmı doğrudan player'a bağlamadan state'i güncelliyoruz.
+    // Daha gelişmiş seek için player'dan ref almak gerekir.
+    setProgress(time);
+    if (internalPlayerRef.current) {
+        internalPlayerRef.current.seekTo(time);
     }
   }
 
@@ -125,24 +128,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if(isMuted && newVolume > 0) {
       setIsMuted(false);
     }
-     if (playerControlsRef.current) {
-        playerControlsRef.current.setVolume(newVolume);
-        if(isMuted && newVolume > 0) {
-            playerControlsRef.current.unmute();
-        }
-    }
   };
 
   const toggleMute = () => {
-    const newMuted = !isMuted;
-    setIsMuted(newMuted);
-    if (playerControlsRef.current) {
-        if(newMuted) {
-            playerControlsRef.current.mute();
-        } else {
-            playerControlsRef.current.unmute();
-        }
-    }
+    setIsMuted(prev => !prev);
   };
 
 
@@ -151,6 +140,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const _playerSetProgress = (p: number) => setProgress(p);
   const _playerSetDuration = (d: number) => setDuration(d);
   const _playerOnEnd = () => playNext();
+  // Bu fonksiyon artık doğrudan bir şey yapmıyor ama uyumluluk için kalabilir.
   const _playerRegisterControls = (controls: PlayerControls) => {
     playerControlsRef.current = controls;
   }
