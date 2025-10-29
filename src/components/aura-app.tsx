@@ -108,6 +108,7 @@ export function AuraApp() {
 
     const handleActivateSound = () => {
         if (player && !soundActivated) {
+            player.pauseVideo();
             player.playVideo();
             player.unMute();
             player.setVolume(volume);
@@ -120,6 +121,13 @@ export function AuraApp() {
     const onPlayerReady = (event: { target: YouTubePlayer }) => {
         const newPlayer = event.target;
         setPlayer(newPlayer);
+        // Her yeni şarkı hazır olduğunda, önceki ses ayarlarımızı uygula
+        if (isMuted) {
+            newPlayer.mute();
+        } else {
+            newPlayer.unMute();
+            newPlayer.setVolume(volume);
+        }
     };
 
     const onPlayerStateChange = (event: { data: number }) => {
@@ -250,6 +258,7 @@ export function AuraApp() {
                                 {player && !soundActivated && (
                                     <div
                                         onClick={handleActivateSound}
+                                        onDoubleClick={handleActivateSound}
                                         className="absolute top-0 left-0 w-full h-full bg-black/50 backdrop-blur-sm flex items-center justify-center cursor-pointer z-10 transition-opacity duration-300 hover:bg-black/60"
                                     >
                                         <div className="text-center text-white p-4 rounded-lg">
