@@ -18,6 +18,11 @@
           "type": "string",
           "description": "User's email address.",
           "format": "email"
+        },
+        "arePlaylistsPublic": {
+          "type": "boolean",
+          "description": "Determines if the user's playlists are visible to others.",
+          "default": true
         }
       },
       "required": [

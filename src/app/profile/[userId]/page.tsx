@@ -2,17 +2,20 @@
 import { useMemo, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError, useAuth } from '@/firebase';
-import { doc, collection, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, collection, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut } from 'lucide-react';
+import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut, Lock, Unlock } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import Link from 'next/link';
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 
 type UserProfile = {
   displayName: string | null;
   email: string | null;
+  arePlaylistsPublic?: boolean;
 };
 
 type Playlist = {
@@ -45,6 +48,9 @@ export default function ProfilePage() {
   
   const isOwnProfile = currentUser && currentUser.uid === profileUserId;
   const isLoading = isAuthLoading || isProfileLoading || isFollowersLoading || isFollowingLoading || isPlaylistsLoading;
+
+  const arePlaylistsPublic = profileUser?.arePlaylistsPublic ?? true; // Default to public if not set
+  const canViewPlaylists = isOwnProfile || arePlaylistsPublic;
 
 
   useEffect(() => {
@@ -93,6 +99,17 @@ export default function ProfilePage() {
             path: followingRefDoc.path,
             operation: 'delete',
         }));
+    });
+  };
+  
+  const handlePlaylistPrivacyToggle = (isPublic: boolean) => {
+    if (!profileUserRef) return;
+    updateDoc(profileUserRef, { arePlaylistsPublic: isPublic }).catch(serverError => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: profileUserRef.path,
+        operation: 'update',
+        requestResourceData: { arePlaylistsPublic: isPublic }
+      }));
     });
   };
 
@@ -163,47 +180,67 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          {currentUser && (
-            <div className="mt-4 md:mt-0">
-              {isOwnProfile ? (
-                 <Button onClick={handleSignOut} variant="outline">
-                  <LogOut className="mr-2 h-4 w-4" /> Çıkış Yap
-                </Button>
-              ) : isFollowing ? (
-                <Button onClick={handleUnfollow} variant="outline">
-                  <UserMinus className="mr-2 h-4 w-4" /> Takipten Çık
-                </Button>
-              ) : (
-                <Button onClick={handleFollow}>
-                  <UserPlus className="mr-2 h-4 w-4" /> Takip Et
-                </Button>
-              )}
-            </div>
-          )}
+          <div className="flex flex-col items-center md:items-end gap-4">
+            {isOwnProfile && (
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="playlists-public" 
+                  checked={arePlaylistsPublic}
+                  onCheckedChange={handlePlaylistPrivacyToggle}
+                />
+                <Label htmlFor="playlists-public" className="text-muted-foreground">Listelerim Herkese Açık</Label>
+              </div>
+            )}
+            {currentUser && (
+              <div className="mt-4 md:mt-0">
+                {isOwnProfile ? (
+                  <Button onClick={handleSignOut} variant="outline">
+                    <LogOut className="mr-2 h-4 w-4" /> Çıkış Yap
+                  </Button>
+                ) : isFollowing ? (
+                  <Button onClick={handleUnfollow} variant="outline">
+                    <UserMinus className="mr-2 h-4 w-4" /> Takipten Çık
+                  </Button>
+                ) : (
+                  <Button onClick={handleFollow}>
+                    <UserPlus className="mr-2 h-4 w-4" /> Takip Et
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </header>
 
         <main className="mt-8">
-          <h2 className="mb-4 text-2xl font-semibold">Herkese Açık Çalma Listeleri</h2>
-          {playlists && playlists.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {playlists.map(playlist => (
-                <Card key={playlist.id} className="overflow-hidden transition-shadow hover:shadow-lg">
-                   <div className="flex cursor-default flex-col">
-                      <div className="relative flex h-32 items-center justify-center bg-gradient-to-br from-primary/20 to-accent/20">
-                        <Music className="h-12 w-12 text-muted-foreground" />
+          <h2 className="mb-4 text-2xl font-semibold">Çalma Listeleri</h2>
+          {canViewPlaylists ? (
+            playlists && playlists.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                {playlists.map(playlist => (
+                  <Card key={playlist.id} className="overflow-hidden transition-shadow hover:shadow-lg">
+                    <div className="flex cursor-default flex-col">
+                        <div className="relative flex h-32 items-center justify-center bg-gradient-to-br from-primary/20 to-accent/20">
+                          <Music className="h-12 w-12 text-muted-foreground" />
+                        </div>
+                        <div className="p-4">
+                          <p className="font-semibold truncate">{playlist.name}</p>
+                        </div>
                       </div>
-                      <div className="p-4">
-                        <p className="font-semibold truncate">{playlist.name}</p>
-                      </div>
-                    </div>
-                </Card>
-              ))}
-            </div>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-12 text-center">
+                <Music className="mb-4 h-12 w-12 text-muted-foreground" />
+                <p className="font-semibold">Henüz çalma listesi yok</p>
+                {isOwnProfile && <p className="text-sm text-muted-foreground">"Çalma Listelerim" sekmesinden yeni bir liste oluştur.</p>}
+              </div>
+            )
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-12 text-center">
-              <Music className="mb-4 h-12 w-12 text-muted-foreground" />
-              <p className="font-semibold">Henüz çalma listesi yok</p>
-              <p className="text-sm text-muted-foreground">Bu kullanıcının herkese açık çalma listesi bulunmuyor.</p>
+             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-12 text-center">
+              <Lock className="mb-4 h-12 w-12 text-muted-foreground" />
+              <p className="font-semibold">Bu Kullanıcının Çalma Listeleri Gizli</p>
+              <p className="text-sm text-muted-foreground">Kullanıcı, çalma listelerini herkese açık olarak paylaşmıyor.</p>
             </div>
           )}
         </main>
