@@ -89,33 +89,35 @@ export default function ChatsPage() {
             </div>
           ) : enrichedChats.length > 0 ? (
             <div className="space-y-3">
-              {enrichedChats.sort((a, b) => (b.lastMessageTimestamp?.seconds ?? 0) - (a.lastMessageTimestamp?.seconds ?? 0)).map(chat => {
-                if (!chat.participantDetails) return null;
-                const otherParticipantId = chat.participantIds.find(pId => pId !== user?.uid);
-                if (!otherParticipantId) return null;
-                const otherParticipantName = chat.participantDetails[otherParticipantId]?.displayName || 'Yükleniyor...';
+              {enrichedChats
+                .sort((a, b) => (b.lastMessageTimestamp?.seconds ?? 0) - (a.lastMessageTimestamp?.seconds ?? 0))
+                .map(chat => {
+                  if (!chat.participantDetails) return null;
+                  const otherParticipantId = chat.participantIds.find(pId => pId !== user?.uid);
+                  if (!otherParticipantId) return null;
+                  const otherParticipantName = chat.participantDetails[otherParticipantId]?.displayName || 'Yükleniyor...';
 
-                return (
-                  <Link href={`/chat/${getChatId(user!.uid, otherParticipantId)}`} key={chat.id}>
-                    <Card className="hover:bg-secondary/50 transition-colors cursor-pointer">
-                      <CardContent className="p-4 flex items-center gap-4">
-                        <Avatar className="h-12 w-12 border-2 border-primary">
-                          <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${otherParticipantId}`} />
-                          <AvatarFallback>{otherParticipantName.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-grow">
-                          <p className="font-semibold">{otherParticipantName}</p>
-                          <p className="text-sm text-muted-foreground truncate">{chat.lastMessage || 'Henüz mesaj yok...'}</p>
-                        </div>
-                        {chat.lastMessageTimestamp && (
-                           <p className="text-xs text-muted-foreground self-start">
-                             {formatDistanceToNow(new Date(chat.lastMessageTimestamp.seconds * 1000), { addSuffix: true, locale: tr })}
-                           </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </Link>
-                );
+                  return (
+                    <Link href={`/chat/${getChatId(user!.uid, otherParticipantId)}`} key={chat.id}>
+                      <Card className="hover:bg-secondary/50 transition-colors cursor-pointer">
+                        <CardContent className="p-4 flex items-center gap-4">
+                          <Avatar className="h-12 w-12 border-2 border-primary">
+                            <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${otherParticipantId}`} />
+                            <AvatarFallback>{otherParticipantName.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-grow">
+                            <p className="font-semibold">{otherParticipantName}</p>
+                            <p className="text-sm text-muted-foreground truncate">{chat.lastMessage || 'Henüz mesaj yok...'}</p>
+                          </div>
+                          {chat.lastMessageTimestamp && (
+                             <p className="text-xs text-muted-foreground self-start">
+                               {formatDistanceToNow(new Date(chat.lastMessageTimestamp.seconds * 1000), { addSuffix: true, locale: tr })}
+                             </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  );
               })}
             </div>
           ) : (
