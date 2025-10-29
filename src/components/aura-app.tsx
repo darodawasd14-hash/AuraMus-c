@@ -2,21 +2,23 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import YouTube from 'react-youtube';
 import type { YouTubePlayer } from 'react-youtube';
-import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, User, Music } from '@/components/icons';
+import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, User, Music, Search, Plus } from '@/components/icons';
+import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
 import { ChatPane } from '@/components/chat-pane';
-import catalog from '@/app/lib/catalog.json';
 import type { Song } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit }from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
-
+import { Input } from '@/components/ui/input';
+import { searchYoutube } from '@/ai/flows/youtube-search-flow';
+import { AddToPlaylistDialog } from '@/components/add-to-playlist';
 
 type ActiveView = 'playlist' | 'discover' | 'friends';
 
@@ -86,7 +88,12 @@ const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) 
 
 const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, playlist: Song[]) => void }) => {
     const firestore = useFirestore();
-    
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<Song[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+
     const songsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         return query(collection(firestore, 'songs'), orderBy('timestamp', 'desc'), limit(50));
@@ -94,41 +101,98 @@ const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, 
 
     const { data: discoverSongs, isLoading } = useCollection<Song>(songsQuery);
     
-    const songsWithArt = useMemo(() => {
-        return discoverSongs?.map(song => ({
+    const songsToDisplay = useMemo(() => {
+        const songs = searchResults.length > 0 ? searchResults : discoverSongs;
+        return songs?.map(song => ({
             ...song,
-            artwork: `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`,
+            artwork: song.artwork || `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`,
         })) || [];
-    }, [discoverSongs]);
+    }, [discoverSongs, searchResults]);
+
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!searchQuery.trim()) {
+            setSearchResults([]);
+            return;
+        };
+        setIsSearching(true);
+        try {
+            const results = await searchYoutube({ query: searchQuery });
+            const songs: Song[] = results.songs.map(s => ({
+                id: s.videoId, // Use videoId as a temporary unique ID
+                videoId: s.videoId,
+                title: s.title,
+                url: `https://www.youtube.com/watch?v=${s.videoId}`,
+                type: 'youtube',
+                artwork: s.thumbnailUrl,
+            }));
+            setSearchResults(songs);
+        } catch (error) {
+            console.error("Arama sırasında hata:", error);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+    
+    const handleAddToPlaylist = (song: Song) => {
+        setSelectedSong(song);
+        setDialogOpen(true);
+    };
 
     return (
         <div className="h-full flex flex-col">
+            <AddToPlaylistDialog 
+                song={selectedSong}
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+            />
+            <div className="mb-4">
+                <form onSubmit={handleSearch} className="flex gap-2">
+                    <Input 
+                        placeholder="YouTube'da şarkı veya sanatçı ara..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    <Button type="submit" disabled={isSearching}>
+                        {isSearching ? <Loader2 className="animate-spin" /> : <Search />}
+                    </Button>
+                </form>
+            </div>
+            
             <div className="flex justify-between items-center mb-4">
                 <div>
-                    <h2 className="text-2xl font-bold">Keşfet</h2>
-                    <p className="text-muted-foreground text-sm">Herkesin dinlediği en yeni şarkılar</p>
+                    <h2 className="text-2xl font-bold">{searchResults.length > 0 ? 'Arama Sonuçları' : 'Keşfet'}</h2>
+                    <p className="text-muted-foreground text-sm">
+                        {searchResults.length > 0 
+                            ? `${searchResults.length} şarkı bulundu` 
+                            : 'Herkesin dinlediği en yeni şarkılar'}
+                    </p>
                 </div>
             </div>
             <div className="flex-grow overflow-y-auto -mr-8 pr-8">
                 <div className="space-y-1">
-                     {isLoading && <p>Yükleniyor...</p>}
-                     {songsWithArt.map((song, index) => (
+                     {(isLoading || isSearching) && songsToDisplay.length === 0 && <p>Yükleniyor...</p>}
+                     {songsToDisplay.map((song, index) => (
                         <div
-                            key={song.id}
-                            onClick={() => onPlaySong(song, index, songsWithArt)}
-                            className="flex items-center gap-4 p-2 rounded-md cursor-pointer transition-colors hover:bg-secondary/50"
+                            key={`${song.id}-${index}`}
+                            className="flex items-center gap-4 p-2 rounded-md group cursor-pointer transition-colors hover:bg-secondary/50"
                         >
-                            <Image 
-                                src={song.artwork || ''}
-                                alt={song.title}
-                                width={40} 
-                                height={40} 
-                                className="rounded-md aspect-square object-cover" 
-                            />
-                            <div className="flex-grow">
-                                <p className="font-semibold truncate">{song.title}</p>
+                            <div className="flex-shrink-0" onClick={() => onPlaySong(song, index, songsToDisplay)}>
+                                <Image 
+                                    src={song.artwork || ''}
+                                    alt={song.title}
+                                    width={40} 
+                                    height={40} 
+                                    className="rounded-md aspect-square object-cover" 
+                                />
+                            </div>
+                            <div className="flex-grow" onClick={() => onPlaySong(song, index, songsToDisplay)}>
+                                <p className="font-semibold truncate group-hover:text-primary">{song.title}</p>
                                 <p className="text-sm text-muted-foreground">{song.type}</p>
                             </div>
+                             <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => handleAddToPlaylist(song)}>
+                                 <Plus className="w-4 h-4"/>
+                             </Button>
                         </div>
                     ))}
                 </div>
@@ -235,10 +299,10 @@ export function AuraApp() {
 
     const handleActivateSound = () => {
         if (player && !soundActivated) {
-            player.pauseVideo();
-            player.playVideo();
             player.unMute();
             player.setVolume(volume);
+            player.pauseVideo();
+            player.playVideo();
             setSoundActivated(true);
             setIsMuted(false);
         }
@@ -380,14 +444,24 @@ export function AuraApp() {
                 <main className="flex-1 flex flex-col p-8 gap-8 overflow-y-auto">
                     <div className="w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative shadow-xl">
                         {currentSong?.videoId && (
-                            <YouTube
-                                key={currentSong.id}
-                                videoId={currentSong.videoId}
-                                opts={videoOptions}
-                                onReady={onPlayerReady}
-                                onStateChange={onPlayerStateChange}
-                                className="w-full h-full"
-                            />
+                            <>
+                                <YouTube
+                                    key={currentSong.id}
+                                    videoId={currentSong.videoId}
+                                    opts={videoOptions}
+                                    onReady={onPlayerReady}
+                                    onStateChange={onPlayerStateChange}
+                                    className="w-full h-full"
+                                />
+                                {player && !soundActivated && (
+                                    <div 
+                                        className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center z-10"
+                                    >
+                                        <PlayIcon className="w-16 h-16 text-white mb-4" />
+                                        <p className="text-white text-lg font-semibold">Sesi açmak için çift tıklayınız</p>
+                                    </div>
+                                )}
+                            </>
                         )}
                         {!currentSong && (
                             <div className="text-center text-muted-foreground">
@@ -463,5 +537,9 @@ export function AuraApp() {
         </div>
     );
 }
+
+    
+
+    
 
     
