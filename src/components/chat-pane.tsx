@@ -1,17 +1,18 @@
 'use client';
-import React, { useState, useEffect, FormEvent, useRef } from 'react';
-import type { Song } from '@/context/player-context';
+import React, { useState, useEffect, FormEvent, useRef, useContext } from 'react';
+import { PlayerContext } from '@/context/player-context';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Send } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { answerSongQuestion } from '@/ai/flows/song-qa-flow';
 import { AuraLogo } from './icons';
 import ReactMarkdown from 'react-markdown';
+import type { Song } from '@/lib/types';
+
 
 // Firestore'dan gelen mesajların arayüzü
 interface Message {
@@ -25,12 +26,29 @@ interface Message {
     isAura?: boolean; // Bu mesajın Aura'dan gelip gelmediğini belirtir
 }
 
-export function ChatPane({ song }: { song: Song | null }) {
+export function ChatPane() {
+    const context = useContext(PlayerContext);
+    if (!context) {
+        // This case should ideally be handled by the component structure
+        // (i.e., ensuring ChatPane is always within a PlayerProvider)
+        return (
+             <aside className="h-full w-full bg-background/50 border-l border-border flex flex-col">
+                <div className="p-4 border-b border-border">
+                     <h3 className="font-semibold truncate">Sohbet</h3>
+                </div>
+                 <div className="flex-grow flex items-center justify-center">
+                    <Loader2 className="animate-spin text-primary" />
+                 </div>
+            </aside>
+        )
+    }
+    const { currentSong } = context;
+    const song = currentSong;
+
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const { user } = useUser();
     const firestore = useFirestore();
-    const { toast } = useToast();
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const [localMessages, setLocalMessages] = useState<Message[]>([]);
@@ -142,7 +160,7 @@ export function ChatPane({ song }: { song: Song | null }) {
     };
 
     return (
-        <aside className="h-full w-full bg-background/50 border-l border-border flex flex-col">
+        <aside className="h-full w-full bg-background/50 flex flex-col">
             <div className="p-4 border-b border-border">
                 {song ? (
                     <>
@@ -206,5 +224,3 @@ export function ChatPane({ song }: { song: Song | null }) {
         </aside>
     );
 }
-
-    

@@ -3,8 +3,8 @@ import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
-import { Player } from '@/components/player'; 
 import { PlayerProvider } from '@/context/player-context';
+import { Player } from '@/components/player';
 
 export const metadata: Metadata = {
   title: 'Aura',
@@ -25,12 +25,8 @@ export default function RootLayout({
       </head>
       <body className={cn("h-full antialiased")} suppressHydrationWarning>
         <FirebaseClientProvider>
-          <PlayerProvider>
-            {/* The Player component is now here, invisible. It provides sound for the whole app. */}
-            <Player /> 
             {children}
             <Toaster />
-          </PlayerProvider>
         </FirebaseClientProvider>
       </body>
     </html>
