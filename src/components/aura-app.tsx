@@ -21,7 +21,6 @@ import { Slider } from '@/components/ui/slider';
 import ReactPlayer from 'react-player';
 
 const getYouTubeThumbnail = (videoId: string) => {
-    // YouTube'un farklı kalitedeki thumbnail URL'lerini dener.
     return `https://i.ytimg.com/vi/${videoId}/sddefault.jpg`;
 };
 
@@ -52,7 +51,6 @@ export function AuraApp() {
   return (
     <div id="app-container" className="relative h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       
-      {/* The single, hidden player that powers the entire app */}
       <Player />
 
       <div className="flex-grow flex flex-row overflow-hidden">
@@ -165,18 +163,14 @@ const PlayerBar = () => {
       }
     };
     
-    // Calculate the progress value for the slider, ensuring it's always a finite number.
-    const sliderProgress = (progress && isFinite(progress)) ? progress : 0;
-
+    const sliderProgress = (progress * duration);
 
     return (
         <div className="h-24 bg-secondary/80 border-t border-border backdrop-blur-xl p-4 flex items-center gap-4 text-foreground">
-            {/* Song Info */}
             <div className="flex items-center gap-3 w-64">
                 {currentSong?.artwork ? (
                      <Image src={currentSong.artwork} alt={currentSong.title} width={56} height={56} className="rounded-md" 
                        onError={(e) => {
-                         // Eğer resim yüklenemezse, fallback resmini ayarla
                          if (currentSong.videoId) {
                            e.currentTarget.src = getFallbackThumbnail(currentSong.videoId);
                          }
@@ -193,7 +187,6 @@ const PlayerBar = () => {
                 </div>
             </div>
 
-            {/* Player Controls */}
             <div className="flex-grow flex flex-col items-center gap-2">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!currentSong || !isReady}>
@@ -213,9 +206,9 @@ const PlayerBar = () => {
                     </Button>
                 </div>
                 <div className="w-full flex items-center gap-2">
-                    <span className="text-xs w-12 text-right">{formatTime(sliderProgress * duration)}</span>
+                    <span className="text-xs w-12 text-right">{formatTime(sliderProgress)}</span>
                     <Slider
-                        value={[sliderProgress]}
+                        value={[progress]}
                         max={1}
                         step={0.01}
                         onValueChange={handleProgressChange}
@@ -226,7 +219,6 @@ const PlayerBar = () => {
                 </div>
             </div>
 
-            {/* Volume Controls */}
             <div className="flex items-center gap-2 w-64 justify-end">
                 <Button variant="ghost" size="icon" onClick={toggleMute} disabled={!isReady}>
                     {isMuted || volume === 0 ? <VolumeX className="w-5 h-5"/> : <Volume2 className="w-5 h-5"/>}
@@ -245,20 +237,11 @@ const PlayerBar = () => {
 };
 
 const PlaylistView = () => {
-    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying, hasInteracted, setHasInteracted, isReady } = usePlayer();
+    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying, hasInteracted, isReady, activateSound } = usePlayer();
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
     const [songUrl, setSongUrl] = useState('');
     const [isAdding, setIsAdding] = useState(false);
-
-    const handleInteraction = () => {
-      if (currentSong && !hasInteracted) {
-        setHasInteracted(true);
-        // Re-trigger playSong to ensure the player starts now that interaction has happened.
-        playSong(currentSong, currentIndex); 
-      }
-    };
-
 
     const handleAddSong = async (e: FormEvent) => {
         e.preventDefault();
@@ -271,8 +254,6 @@ const PlaylistView = () => {
             let videoTitle = `Yeni Şarkı (${videoId.substring(0, 5)}...)`;
             let artwork = getYouTubeThumbnail(videoId);
             try {
-                // NOTE: This is a client-side fetch and can be blocked by CORS.
-                // A more robust solution would use a server-side API route.
                 const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
                 if (oembedResponse.ok) {
                     const oembedData = await oembedResponse.json();
@@ -280,6 +261,15 @@ const PlaylistView = () => {
                     if(oembedData.thumbnail_url) {
                        artwork = oembedData.thumbnail_url.replace('hqdefault.jpg', 'sddefault.jpg');
                     }
+                } else {
+                   const fallbackOembed = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+                   if(fallbackOembed.ok) {
+                        const fallbackData = await fallbackOembed.json();
+                        videoTitle = fallbackData.title;
+                        if(fallbackData.thumbnail_url){
+                            artwork = fallbackData.thumbnail_url.replace('hqdefault.jpg', 'sddefault.jpg');
+                        }
+                   }
                 }
             } catch (error) {
                 console.warn("Could not fetch YouTube oEmbed data, using fallback.", error);
@@ -325,8 +315,7 @@ const PlaylistView = () => {
     return (
         <div className="p-4 md:p-6 flex flex-col h-full">
             
-             <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
-                {/* Visual Player Area */}
+             <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative pointer-events-none">
                 {currentSong && (
                     <ReactPlayer
                         url={currentSong.url}
@@ -334,24 +323,21 @@ const PlaylistView = () => {
                         controls={false}
                         width="100%"
                         height="100%"
-                        volume={0} // This player is for visuals only
-                        muted={true} // Always muted
-                        className="pointer-events-none"
+                        volume={0}
+                        muted={true}
                     />
                 )}
-
-                {/* Activation Overlay - shown only if interaction is needed */}
-                {currentSong && !hasInteracted && isReady && (
+                
+                {currentSong && isReady && !hasInteracted && (
                     <div 
-                        className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center transition-opacity opacity-75 hover:opacity-100 cursor-pointer"
-                        onClick={handleInteraction}
+                        className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center transition-opacity opacity-75 hover:opacity-100 cursor-pointer pointer-events-auto"
+                        onClick={activateSound}
                     >
                         <PlayIcon className="w-16 h-16 text-white" />
                         <p className="text-white font-semibold mt-2">Oynatmak için Tıklayın</p>
                     </div>
                 )}
                 
-                {/* Placeholder when no song is selected */}
                 {!currentSong && (
                     <div className="text-muted-foreground flex flex-col items-center gap-2">
                         <Music className="w-12 h-12"/>

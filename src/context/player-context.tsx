@@ -47,6 +47,7 @@ interface PlayerContextType {
   // Ses Kontrolleri
   setVolume: (volume: number) => void;
   toggleMute: () => void;
+  activateSound: () => void;
 
   // İlerleme Kontrolü
   seek: (progress: number) => void;
@@ -67,7 +68,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isReady, setIsReady] = useState<boolean>(false);
-  const [hasInteracted, setHasInteracted] = useState<boolean>(false); // İzin durumu
+  const [hasInteracted, setHasInteracted] = useState<boolean>(false);
 
   // Çalma Listesi
   const [playlist, setPlaylist] = useState<Song[]>([]);
@@ -79,44 +80,42 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   // Ses
   const [volume, setVolumeState] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(true); // Start muted
   
-  // Player Referansı (Kumandayı televizyona bağlamak için)
   const playerRef = useRef<ReactPlayer>(null);
 
-  const playSong = (song: Song, index: number) => {
-    // If the song is different, we require a new interaction for autoplay to work reliably.
-    if (song.id !== currentSong?.id) {
-        setHasInteracted(false); 
-        setIsPlaying(false); // Stop playback until user interacts
-    } else {
-        // If it's the same song, just ensure we try to play it.
-        setIsPlaying(true);
+  const activateSound = useCallback(() => {
+    if (isReady && !hasInteracted) {
+      console.log("Interaction detected, activating sound.");
+      setIsMuted(false);
+      setHasInteracted(true);
     }
+  }, [isReady, hasInteracted]);
+
+  const playSong = (song: Song, index: number) => {
     setCurrentSong(song);
     setCurrentIndex(index);
     setProgress(0);
     setDuration(0);
-    setIsReady(false); // Player is not ready until the new song loads.
+    setIsPlaying(true); // Attempt to play automatically
+    setIsReady(false); // Player is not ready until the new song loads
+    setIsMuted(true); // Always start new songs muted
+    setHasInteracted(false); // Require new interaction for each song
   };
   
   const togglePlayPause = () => {
-    // Only allow toggle if the player is ready to receive commands.
-    if (!currentSong || !isReady) return;
-    
-    // This is the first interaction for this song
+    if (!isReady || !currentSong) return;
+
     if (!hasInteracted) {
-      setHasInteracted(true);
+        activateSound();
     }
 
-    setIsPlaying(!isPlaying);
+    setIsPlaying(prev => !prev);
   };
 
   const addSong = (song: Song) => {
     const newPlaylist = [...playlist, song];
     setPlaylist(newPlaylist);
-    // If nothing is playing, automatically select the new song.
-    // The user will still need to interact to start playback.
     if (!currentSong) {
       playSong(song, newPlaylist.length - 1);
     }
@@ -137,12 +136,20 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const setVolume = (newVolume: number) => {
     setVolumeState(Math.min(Math.max(newVolume, 0), 1));
     if (newVolume > 0) {
-      setIsMuted(false);
+        if(isReady && hasInteracted){
+             setIsMuted(false);
+        }
     }
   };
 
   const toggleMute = () => {
     if (!isReady) return;
+    
+    if(!hasInteracted){
+        activateSound();
+        return;
+    }
+
     setIsMuted(prev => !prev);
   };
 
@@ -154,12 +161,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const _playerOnReady = () => {
-    // The player is loaded and ready to accept commands.
     setIsReady(true);
   };
   
   const _playerOnProgress = (data: OnProgressProps) => {
-    // Only update progress if the player is supposed to be playing
     if (isPlaying) {
       setProgress(data.played);
     }
@@ -170,15 +175,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const _playerOnPlay = () => {
-    // Sync state when player starts playing for any reason
     setIsPlaying(true);
   };
 
   const _playerOnPause = () => {
-    // Sync state when player pauses for any reason
     setIsPlaying(false);
   };
-
 
   const _playerOnEnded = () => {
     playNext();
@@ -205,6 +207,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setHasInteracted,
     setVolume,
     toggleMute,
+    activateSound,
     seek,
     _playerOnReady,
     _playerOnProgress,
