@@ -1,7 +1,8 @@
 'use client';
-import React, { useState, useEffect, FormEvent, useMemo, useRef } from 'react';
-import { usePlayer } from '@/context/player-context';
-import type { Song } from '@/context/player-context';
+import React, { useState, useEffect, FormEvent, useMemo, useRef, useCallback } from 'react';
+import type { Song } from '@/lib/types';
+import type { OnProgressProps } from 'react-player/base';
+import type ReactPlayer from 'react-player';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,13 +13,13 @@ import { Loader2, Volume2, VolumeX } from 'lucide-react';
 import { ChatPane } from '@/components/chat-pane';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
-import { collection, query, orderBy, limit, serverTimestamp, addDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
 import { useCollection } from '@/firebase';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { getYoutubeVideoId } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
-import ReactPlayer from 'react-player/lazy';
+
 
 const getYouTubeThumbnail = (videoId: string) => {
     return `https://i.ytimg.com/vi/${videoId}/sddefault.jpg`;
@@ -28,13 +29,153 @@ const getFallbackThumbnail = (id: string) => {
     return `https://picsum.photos/seed/${id}/640/360`;
 }
 
+// All player-related props are defined here
+export interface PlayerProps {
+  currentSong: Song | null;
+  isPlaying: boolean;
+  isReady: boolean;
+  hasInteracted: boolean;
+  playlist: Song[];
+  currentIndex: number;
+  progress: number;
+  duration: number;
+  volume: number;
+  isMuted: boolean;
+  playerRef: React.RefObject<ReactPlayer> | null;
+  playSong: (song: Song, index: number) => void;
+  togglePlayPause: () => void;
+  addSong: (song: Song) => void;
+  setPlaylist: (playlist: Song[]) => void;
+  playNext: () => void;
+  playPrevious: () => void;
+  setVolume: (volume: number) => void;
+  toggleMute: () => void;
+  activateSound: () => void;
+  seek: (progress: number) => void;
+  _playerOnReady: () => void;
+  _playerOnProgress: (data: OnProgressProps) => void;
+  _playerOnDuration: (duration: number) => void;
+  _playerOnEnded: () => void;
+  _playerOnPlay: () => void;
+  _playerOnPause: () => void;
+}
+
+
 export function AuraApp() {
-  const { currentSong } = usePlayer();
   const [view, setView] = useState<'playlist' | 'catalog' | 'search'>('playlist');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const { user } = useUser();
-
   
+  // --- PLAYER STATE MANAGEMENT (formerly in PlayerContext) ---
+  const [currentSong, setCurrentSong] = useState<Song | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isReady, setIsReady] = useState<boolean>(false);
+  const [hasInteracted, setHasInteracted] = useState<boolean>(false);
+  const [playlist, setPlaylist] = useState<Song[]>([]);
+  const [currentIndex, setCurrentIndex] = useState<number>(-1);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolumeState] = useState(0.8);
+  const [isMuted, setIsMuted] = useState(true);
+  const playerRef = useRef<ReactPlayer>(null);
+  // --- END PLAYER STATE ---
+  
+  const playSong = (song: Song, index: number) => {
+    setCurrentSong(song);
+    setCurrentIndex(index);
+    setProgress(0);
+    setDuration(0);
+    setIsPlaying(true);
+    setIsReady(false);
+  };
+  
+  const addSong = (song: Song) => {
+    const newPlaylist = [...playlist, song];
+    setPlaylist(newPlaylist);
+    if (!currentSong) {
+      playSong(song, newPlaylist.length - 1);
+    }
+  };
+
+  const playNext = useCallback(() => {
+    if (playlist.length === 0) return;
+    const nextIndex = (currentIndex + 1) % playlist.length;
+    playSong(playlist[nextIndex], nextIndex);
+  }, [currentIndex, playlist]);
+
+  const playPrevious = () => {
+    if (playlist.length === 0) return;
+    const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
+    playSong(playlist[prevIndex], prevIndex);
+  };
+  
+  const activateSound = useCallback(() => {
+    if (playerRef.current && !hasInteracted) {
+      setHasInteracted(true);
+      setIsMuted(false);
+      // "Cezayı Ezmek" (Crush the penalty)
+      const internalPlayer = playerRef.current.getInternalPlayer();
+      if (internalPlayer && typeof internalPlayer.playVideo === 'function') {
+        internalPlayer.playVideo();
+      }
+    }
+  }, [hasInteracted]);
+  
+  const togglePlayPause = () => {
+    if (!playerRef.current || !isReady) return;
+    
+    // If it's the first interaction, activate sound and play.
+    if (!hasInteracted) {
+      activateSound();
+      return;
+    }
+
+    if (isPlaying) {
+      playerRef.current.getInternalPlayer()?.pauseVideo();
+    } else {
+      playerRef.current.getInternalPlayer()?.playVideo();
+    }
+  };
+  
+  const setVolume = (newVolume: number) => {
+    setVolumeState(Math.min(Math.max(newVolume, 0), 1));
+    if (newVolume > 0 && hasInteracted) {
+         setIsMuted(false);
+    }
+  };
+
+  const toggleMute = () => {
+    if (!isReady) return;
+    if(!hasInteracted){
+        activateSound();
+        return;
+    }
+    setIsMuted(prev => !prev);
+  };
+  
+  const seek = (newProgress: number) => {
+     if (playerRef.current && isReady) {
+        playerRef.current.seekTo(newProgress, 'fraction');
+        setProgress(newProgress);
+     }
+  };
+  
+  // --- Internal Player Callbacks ---
+  const _playerOnReady = () => setIsReady(true);
+  const _playerOnProgress = (data: OnProgressProps) => { if (isPlaying) setProgress(data.played); };
+  const _playerOnDuration = (newDuration: number) => setDuration(newDuration);
+  const _playerOnEnded = () => playNext();
+  const _playerOnPlay = () => { if (!isPlaying) setIsPlaying(true); };
+  const _playerOnPause = () => { if (isPlaying) setIsPlaying(false); };
+  
+  // Consolidate all player-related props
+  const playerProps: PlayerProps = {
+    currentSong, isPlaying, isReady, hasInteracted, playlist, currentIndex, progress, duration, volume, isMuted, playerRef,
+    playSong, togglePlayPause, addSong, setPlaylist, playNext, playPrevious, setVolume, toggleMute, activateSound, seek,
+    _playerOnReady, _playerOnProgress, _playerOnDuration, _playerOnEnded, _playerOnPlay, _playerOnPause,
+  };
+
+
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
@@ -51,7 +192,7 @@ export function AuraApp() {
   return (
     <div id="app-container" className="relative h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       
-      <Player />
+      <Player {...playerProps} />
 
       <div className="flex-grow flex flex-row overflow-hidden">
         <aside className="hidden md:flex flex-col w-64 bg-secondary/30 border-r border-border p-4 space-y-4">
@@ -69,9 +210,9 @@ export function AuraApp() {
         <main className="flex-grow flex flex-col overflow-y-auto pb-24 md:pb-0">
           <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
           <div className="flex-grow">
-            {view === 'playlist' && <PlaylistView />}
-            {view === 'catalog' && <CatalogView setView={setView} />}
-            {view === 'search' && <SearchView setView={setView} />}
+            {view === 'playlist' && <PlaylistView {...playerProps} />}
+            {view === 'catalog' && <CatalogView setView={setView} {...playerProps}/>}
+            {view === 'search' && <SearchView setView={setView} {...playerProps}/>}
           </div>
         </main>
         
@@ -84,7 +225,7 @@ export function AuraApp() {
       </div>
       
       <footer className="fixed bottom-0 left-0 right-0 z-40">
-        <PlayerBar />
+        <PlayerBar {...playerProps} />
       </footer>
       
       <nav className="fixed bottom-0 left-0 right-0 h-20 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 flex justify-around items-center md:hidden pb-4">
@@ -130,8 +271,8 @@ const Header = ({ isChatOpen, setIsChatOpen }: { isChatOpen: boolean, setIsChatO
   );
 };
 
-const PlayerBar = () => {
-    const { currentSong, isPlaying, progress, duration, volume, isMuted, togglePlayPause, playNext, playPrevious, seek, setVolume, toggleMute, isReady } = usePlayer();
+const PlayerBar = (props: PlayerProps) => {
+    const { currentSong, isPlaying, progress, duration, volume, isMuted, togglePlayPause, playNext, playPrevious, seek, setVolume, toggleMute, isReady } = props;
 
     const formatTime = (seconds: number) => {
         if (isNaN(seconds) || seconds === Infinity) return '0:00';
@@ -224,8 +365,8 @@ const PlayerBar = () => {
     );
 };
 
-const PlaylistView = () => {
-    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying, hasInteracted, activateSound } = usePlayer();
+const PlaylistView = (props: PlayerProps) => {
+    const { playlist, currentIndex, playSong, setPlaylist, addSong, currentSong, isPlaying, hasInteracted, activateSound } = props;
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
     const [songUrl, setSongUrl] = useState('');
@@ -305,17 +446,19 @@ const PlaylistView = () => {
             
              <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative">
                 {currentSong && (
+                  // This is the VISIBLE player, but it has no controls, it's just a view
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
                     <ReactPlayer
                         key={`visible-${currentSong.id}`}
                         url={currentSong.url}
                         playing={isPlaying}
-                        volume={0}
+                        volume={0} // Visible player is always muted
                         muted={true}
                         controls={false}
                         width="100%"
                         height="100%"
-                        style={{pointerEvents: 'none'}}
                     />
+                  </div>
                 )}
                 
                 {currentSong && !hasInteracted && (
@@ -417,8 +560,8 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
   );
 };
 
-const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
-  const { addSong } = usePlayer();
+const CatalogView = ({ setView, ...props }: { setView: (view: 'playlist' | 'catalog' | 'search') => void } & PlayerProps) => {
+  const { addSong } = props;
   const { toast } = useToast();
   const firestore = useFirestore();
 
@@ -496,8 +639,8 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
   );
 };
 
-const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
-  const { addSong } = usePlayer();
+const SearchView = ({ setView, ...props }: { setView: (view: 'playlist' | 'catalog' | 'search') => void } & PlayerProps) => {
+  const { addSong } = props;
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ songs: { videoId: string; title: string; thumbnailUrl: string; }[] } | null>(null);

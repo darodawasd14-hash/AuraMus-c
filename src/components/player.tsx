@@ -1,9 +1,10 @@
 'use client';
 import React from 'react';
 import ReactPlayer from 'react-player/lazy';
-import { usePlayer } from '@/context/player-context';
+import type { PlayerProps } from '@/components/aura-app';
 
-export const Player = () => {
+
+export const Player = (props: PlayerProps) => {
   const {
     currentSong,
     isPlaying,
@@ -16,7 +17,7 @@ export const Player = () => {
     _playerOnEnded,
     _playerOnPlay,
     _playerOnPause,
-  } = usePlayer();
+  } = props;
 
   return (
     <div className="player-wrapper" style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>

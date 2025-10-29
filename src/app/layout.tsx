@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
-import { PlayerProvider } from '@/context/player-context';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
@@ -24,10 +23,8 @@ export default function RootLayout({
       </head>
       <body className={cn("h-full antialiased")} suppressHydrationWarning>
         <FirebaseClientProvider>
-          <PlayerProvider>
             {children}
             <Toaster />
-          </PlayerProvider>
         </FirebaseClientProvider>
       </body>
     </html>
