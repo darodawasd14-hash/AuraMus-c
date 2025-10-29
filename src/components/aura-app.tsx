@@ -1,32 +1,23 @@
 'use client';
-import React, { useState, useEffect, FormEvent, useMemo } from 'react';
+import React, { useState, useEffect, FormEvent, useMemo, useRef } from 'react';
 import { usePlayer } from '@/context/player-context';
 import type { Song } from '@/context/player-context';
 import { Player } from '@/components/player';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, MessageSquare, X, Plus, ChevronDown, Volume2, VolumeX, Maximize2 } from '@/components/icons';
+import { AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Trash2, ListMusic, Music, User as UserIcon, Search, MessageSquare, X, Plus } from '@/components/icons';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Volume2, VolumeX } from 'lucide-react';
 import { ChatPane } from '@/components/chat-pane';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import Image from 'next/image';
-import { collection, query, orderBy, limit, addDoc, serverTimestamp, getDocs, where, doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, serverTimestamp, addDoc } from 'firebase/firestore';
 import { useCollection } from '@/firebase';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogTrigger,
-  DialogClose
-} from '@/components/ui/dialog';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { getYoutubeVideoId } from '@/lib/utils';
+import { Slider } from '@/components/ui/slider';
 
 
 export function AuraApp() {
@@ -52,16 +43,29 @@ export function AuraApp() {
   return (
     <div id="app-container" className="relative h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
       
-      <Player />
+      <Player /> {/* Bu oynatıcı artık görünmez, sadece mantığı çalıştırır */}
 
-      <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} currentView={view} setView={setView} />
-      
-      <main className="flex-grow flex flex-row overflow-hidden">
-        <div className="flex-grow flex flex-col overflow-y-auto pb-20 md:pb-0">
-          {view === 'playlist' && <PlaylistView />}
-          {view === 'catalog' && <CatalogView setView={setView} />}
-          {view === 'search' && <SearchView setView={setView} />}
-        </div>
+      <div className="flex-grow flex flex-row overflow-hidden">
+        <aside className="hidden md:flex flex-col w-64 bg-secondary/30 border-r border-border p-4 space-y-4">
+            <div className="flex items-center gap-2 px-2">
+                <AuraLogo className="w-8 h-8" />
+                <span className="text-xl font-bold tracking-tight">Aura</span>
+            </div>
+            <nav className="flex flex-col space-y-1">
+                <Button variant={view === 'playlist' ? 'secondary' : 'ghost'} onClick={() => setView('playlist')} className="justify-start"><ListMusic className="mr-2"/> Çalma Listem</Button>
+                <Button variant={view === 'catalog' ? 'secondary' : 'ghost'} onClick={() => setView('catalog')} className="justify-start"><Music className="mr-2"/> Katalog</Button>
+                <Button variant={view === 'search' ? 'secondary' : 'ghost'} onClick={() => setView('search')} className="justify-start"><Search className="mr-2"/> Ara</Button>
+            </nav>
+        </aside>
+
+        <main className="flex-grow flex flex-col overflow-y-auto pb-24 md:pb-0">
+          <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
+          <div className="flex-grow">
+            {view === 'playlist' && <PlaylistView />}
+            {view === 'catalog' && <CatalogView setView={setView} />}
+            {view === 'search' && <SearchView setView={setView} />}
+          </div>
+        </main>
         
         <div className={cn(
           "hidden md:flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out bg-background/50", 
@@ -69,17 +73,13 @@ export function AuraApp() {
         )}>
            {user && <ChatPane song={currentSong} />}
         </div>
-
-        {isChatOpen && (
-             <div className="md:hidden fixed inset-0 bg-black/60 z-30" onClick={() => setIsChatOpen(false)}>
-                <div className="absolute right-0 top-0 h-full w-4/5 max-w-sm bg-background border-l border-border animate-in slide-in-from-right-full duration-300" onClick={e => e.stopPropagation()}>
-                    {user && <ChatPane song={currentSong} />}
-                </div>
-            </div>
-        )}
-      </main>
+      </div>
       
-      <nav className="fixed bottom-0 left-0 right-0 h-20 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 flex justify-around items-center md:hidden">
+      <footer className="fixed bottom-0 left-0 right-0 z-40">
+        <PlayerBar />
+      </footer>
+      
+      <nav className="fixed bottom-0 left-0 right-0 h-20 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 flex justify-around items-center md:hidden pb-4">
           <button onClick={() => setView('playlist')} className={cn('nav-button', {'active': view === 'playlist'})}>
             <ListMusic/>
             <span>Listem</span>
@@ -93,26 +93,19 @@ export function AuraApp() {
             <span>Ara</span>
           </button>
       </nav>
-      
     </div>
   );
 }
 
-const Header = ({ isChatOpen, setIsChatOpen, currentView, setView }: { isChatOpen: boolean, setIsChatOpen: (isOpen: boolean) => void, currentView: string, setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
+const Header = ({ isChatOpen, setIsChatOpen }: { isChatOpen: boolean, setIsChatOpen: (isOpen: boolean) => void }) => {
   const { user } = useUser();
   return (
-    <header className="flex items-center justify-between p-4 bg-secondary/30 border-b border-border shadow-md backdrop-blur-sm z-20 flex-shrink-0">
+    <header className="flex md:hidden items-center justify-between p-4 bg-secondary/30 border-b border-border shadow-md backdrop-blur-sm z-20 flex-shrink-0">
       <div className="flex items-center gap-2">
         <AuraLogo className="w-8 h-8" />
         <span className="text-xl font-bold tracking-tight">Aura</span>
       </div>
       
-      <div className="hidden md:flex items-center gap-4">
-        <Button variant={currentView === 'playlist' ? 'secondary' : 'ghost'} onClick={() => setView('playlist')} className="rounded-full">Çalma Listem</Button>
-        <Button variant={currentView === 'catalog' ? 'secondary' : 'ghost'} onClick={() => setView('catalog')} className="rounded-full">Katalog</Button>
-        <Button variant={currentView === 'search' ? 'secondary' : 'ghost'} onClick={() => setView('search')} className="rounded-full">Ara</Button>
-      </div>
-
       <div className="flex items-center gap-2">
         {user && (
           <Link href={`/profile/${user.uid}`} passHref>
@@ -129,13 +122,99 @@ const Header = ({ isChatOpen, setIsChatOpen, currentView, setView }: { isChatOpe
   );
 };
 
+const PlayerBar = () => {
+    const { currentSong, isPlaying, progress, duration, volume, isMuted, togglePlayPause, playNext, playPrevious, setVolume, toggleMute } = usePlayer();
+    const playerRef = useRef<ReactPlayer>(null);
+
+    const formatTime = (seconds: number) => {
+        const date = new Date(seconds * 1000);
+        const hh = date.getUTCHours();
+        const mm = date.getUTCMinutes();
+        const ss = date.getUTCSeconds().toString().padStart(2, '0');
+        if (hh) {
+            return `${hh}:${mm.toString().padStart(2, '0')}:${ss}`;
+        }
+        return `${mm}:${ss}`;
+    };
+
+    const handleSeek = (value: number[]) => {
+        const newProgress = value[0];
+        if (playerRef.current) {
+             playerRef.current.seekTo(newProgress, 'fraction');
+        }
+    };
+
+    return (
+        <div className="h-24 bg-secondary/80 border-t border-border backdrop-blur-xl p-4 flex items-center gap-4 text-foreground">
+            {/* Song Info */}
+            <div className="flex items-center gap-3 w-64">
+                {currentSong?.artwork ? (
+                     <Image src={currentSong.artwork} alt={currentSong.title} width={56} height={56} className="rounded-md" />
+                ) : (
+                    <div className="w-14 h-14 bg-muted rounded-md flex items-center justify-center">
+                        <Music className="w-8 h-8 text-muted-foreground"/>
+                    </div>
+                )}
+                <div>
+                    <p className="font-semibold text-sm truncate">{currentSong?.title || 'Şarkı Seçilmedi'}</p>
+                    <p className="text-xs text-muted-foreground">{currentSong?.type || 'Kaynak Yok'}</p>
+                </div>
+            </div>
+
+            {/* Player Controls */}
+            <div className="flex-grow flex flex-col items-center gap-2">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!currentSong}>
+                        <SkipBack className="w-5 h-5"/>
+                    </Button>
+                    <Button
+                        variant="default"
+                        size="icon"
+                        className="w-12 h-12 rounded-full"
+                        onClick={togglePlayPause}
+                        disabled={!currentSong}
+                    >
+                        {isPlaying ? <PauseIcon className="w-5 h-5"/> : <PlayIcon className="w-5 h-5"/>}
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={playNext} disabled={!currentSong}>
+                        <SkipForward className="w-5 h-5"/>
+                    </Button>
+                </div>
+                <div className="w-full flex items-center gap-2">
+                    <span className="text-xs w-12 text-right">{formatTime(progress * duration)}</span>
+                    <Slider
+                        value={[progress]}
+                        max={1}
+                        step={0.01}
+                        onValueChange={handleSeek}
+                        className="flex-grow"
+                        disabled={!currentSong}
+                    />
+                    <span className="text-xs w-12">{formatTime(duration)}</span>
+                </div>
+            </div>
+
+            {/* Volume Controls */}
+            <div className="flex items-center gap-2 w-64 justify-end">
+                <Button variant="ghost" size="icon" onClick={toggleMute}>
+                    {isMuted || volume === 0 ? <VolumeX className="w-5 h-5"/> : <Volume2 className="w-5 h-5"/>}
+                </Button>
+                 <Slider
+                    value={[isMuted ? 0 : volume]}
+                    max={1}
+                    step={0.05}
+                    onValueChange={(value) => setVolume(value[0])}
+                    className="w-24"
+                />
+            </div>
+        </div>
+    );
+};
 
 const PlaylistView = () => {
     const { playlist, currentIndex, playSong, setPlaylist, addSong } = usePlayer();
     const [isLoading, setIsLoading] = useState(false);
-    const { user } = useUser();
     const { toast } = useToast();
-    const firestore = useFirestore();
     const [songUrl, setSongUrl] = useState('');
     const [isAdding, setIsAdding] = useState(false);
 
@@ -149,14 +228,13 @@ const PlaylistView = () => {
     
         if (videoId) {
             let videoTitle = `Yeni Şarkı (${videoId.substring(0, 5)}...)`;
+            let artwork = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
             try {
-                // Using a CORS proxy for client-side oEmbed fetching
                 const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
                 if (oembedResponse.ok) {
                     const oembedData = await oembedResponse.json();
                     videoTitle = oembedData.title;
-                } else {
-                     console.error("Failed to fetch YouTube oEmbed data, status:", oembedResponse.status);
+                    artwork = oembedData.thumbnail_url;
                 }
             } catch (error) {
                 console.error("Could not fetch YouTube video title:", error);
@@ -169,21 +247,24 @@ const PlaylistView = () => {
                 url: `https://www.youtube.com/watch?v=${videoId}`,
                 type: 'youtube',
                 timestamp: serverTimestamp(),
+                artwork: artwork,
             };
     
             addSong(newSong);
             toast({ title: `"${videoTitle}" eklendi ve çalınıyor.` });
-        } else {
-             const safeId = btoa(songUrl).replace(/\//g, '-');
+        } else if (songUrl.includes('soundcloud.com')) {
              const newSong: Song = {
-                id: safeId,
+                id: btoa(songUrl),
                 url: songUrl,
-                title: songUrl,
-                type: songUrl.includes('soundcloud.com') ? 'soundcloud' : 'url',
+                title: 'SoundCloud Şarkısı',
+                type: 'soundcloud',
                 timestamp: serverTimestamp()
             };
             addSong(newSong);
-            toast({ title: `"${newSong.title}" eklendi ve çalınıyor.` });
+            toast({ title: `SoundCloud linki eklendi ve çalınıyor.` });
+
+        } else {
+             toast({ title: `Geçersiz veya desteklenmeyen link.`, variant: 'destructive' });
         }
     
         setSongUrl('');
@@ -198,7 +279,7 @@ const PlaylistView = () => {
 
     return (
         <div className="p-4 md:p-6 flex flex-col h-full">
-            <h2 className="text-xl font-semibold flex-grow mb-4">Çalma Listem</h2>
+            <h2 className="text-xl md:text-3xl font-semibold tracking-tight flex-grow mb-4">Çalma Listem</h2>
 
             <form id="add-song-form" className="flex mb-4 gap-2" onSubmit={handleAddSong}>
                 <Input
@@ -218,7 +299,7 @@ const PlaylistView = () => {
                 {isLoading ? (
                     <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>
                 ) : playlist.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-8">
+                <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-8 rounded-lg border-2 border-dashed border-border">
                     <Music className="w-16 h-16 mb-4"/>
                     <p className="font-semibold">Çalma listeniz boş</p>
                     <p className="text-sm">Yukarıdaki alandan veya katalogdan şarkı ekleyin.</p>
@@ -247,9 +328,9 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
   return (
     <div className={cn(`playlist-item flex items-center justify-between p-3 rounded-lg cursor-pointer`, {'playing': isActive})} onClick={onPlay}>
       <div className="flex items-center flex-grow min-w-0 gap-4">
-        {song.videoId ? (
+        {song.artwork ? (
             <Image 
-                src={`https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`}
+                src={song.artwork}
                 alt={song.title}
                 width={48}
                 height={48}
@@ -277,7 +358,6 @@ const PlaylistItem = ({ song, index, isActive, onPlay, onDelete }: { song: Song;
   );
 };
 
-
 const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
   const { addSong } = usePlayer();
   const { toast } = useToast();
@@ -291,7 +371,11 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
   const { data: catalogSongs, isLoading, error } = useCollection<Song>(songsQuery);
 
   const handleAddFromCatalog = async (song: Song) => {
-    addSong(song);
+    const songToAdd: Song = {
+      ...song,
+      artwork: song.videoId ? `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg` : `https://picsum.photos/seed/${song.id}/168/94`,
+    }
+    addSong(songToAdd);
     toast({ title: `"${song.title}" listenize eklendi ve çalınıyor.` });
     setView('playlist');
   };
@@ -300,13 +384,12 @@ const CatalogView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'se
     if (song.type === 'youtube' && song.videoId) {
       return `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
     }
-    // Fallback for non-youtube songs
     return `https://picsum.photos/seed/${song.id}/168/94`;
   }
 
   return (
     <div id="catalog-view" className="p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-8" id="catalog-content">
+      <div className="max-w-7xl mx-auto space-y-8" id="catalog-content">
         <h2 className="text-3xl font-bold tracking-tight">Müzik Kataloğu</h2>
         
         {isLoading && (
@@ -388,13 +471,14 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
     }
   };
 
-  const handleAddFromSearch = async (videoId: string, title: string) => {
+  const handleAddFromSearch = async (videoId: string, title: string, thumbnailUrl: string) => {
     const songDetails: Song = {
       id: videoId,
       url: `https://www.youtube.com/watch?v=${videoId}`,
       title: title,
       videoId: videoId,
-      type: 'youtube'
+      type: 'youtube',
+      artwork: thumbnailUrl
     };
     
     addSong(songDetails);
@@ -404,7 +488,7 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
 
   return (
     <div id="search-view" className="p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-8" id="search-content">
+      <div className="max-w-7xl mx-auto space-y-8" id="search-content">
         <h2 className="text-3xl font-bold tracking-tight">YouTube'da Ara</h2>
         <form onSubmit={handleSearch} className="flex gap-2">
           <Input
@@ -448,7 +532,7 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
                 <Button
                   className="w-full mt-2"
                   size="sm"
-                  onClick={() => handleAddFromSearch(song.videoId, song.title)}
+                  onClick={() => handleAddFromSearch(song.videoId, song.title, song.thumbnailUrl)}
                 >
                   <Plus className="w-4 h-4 mr-2"/>
                   Listeye Ekle

@@ -1,56 +1,69 @@
 'use client';
-import React from 'react';
-import YouTube from 'react-youtube';
+import React, { useRef, useEffect } from 'react';
+import ReactPlayer from 'react-player/lazy';
 import { usePlayer } from '@/context/player-context';
 
 export const Player = () => {
-  const { currentSong, isPlaying, togglePlayPause, playSong, playlist } = usePlayer();
+  const {
+    currentSong,
+    isPlaying,
+    volume,
+    isMuted,
+    _playerSetIsPlaying,
+    _playerOnProgress,
+    _playerOnDuration,
+    _playerOnEnded,
+    _playerSetReady,
+  } = usePlayer();
+  const playerRef = useRef<ReactPlayer>(null);
 
-  const handleStateChange = (event: any) => {
-    // Oynatıcı durduğunda veya bittiğinde, isPlaying durumunu false yapabiliriz.
-    if (event.data === YouTube.PlayerState.PAUSED || event.data === YouTube.PlayerState.ENDED) {
-      if (isPlaying) {
-        togglePlayPause(); // Context'teki durumu senkronize et
-      }
+  // Oynatıcıyı dışarıdan kontrol etmek için (örneğin sonraki şarkıya geçme)
+  useEffect(() => {
+    if (currentSong && playerRef.current) {
+        // Bu, şarkı değiştiğinde oynatıcının doğru konuma atlamasını sağlar.
+        // Genellikle ReactPlayer bunu otomatik yapar ama bir güvence katmanı.
     }
-    // Oynatıcı çalmaya başladığında
-    if (event.data === YouTube.PlayerState.PLAYING) {
-        if (!isPlaying) {
-            togglePlayPause(); // Context'teki durumu senkronize et
-        }
-    }
-  };
+  }, [currentSong]);
 
-  const handleEnd = () => {
-      const { currentIndex } = usePlayer.getState(); // anlık durumu al
-      if (currentIndex < playlist.length - 1) {
-          playSong(playlist[currentIndex + 1], currentIndex + 1);
-      }
+
+  if (!currentSong) {
+    return null; // Çalacak şarkı yoksa oynatıcıyı render etme
   }
-
-  if (!currentSong || currentSong.type !== 'youtube' || !currentSong.videoId) {
-    return null; // Sadece YouTube videoları için göster
-  }
-
-  const opts = {
-    height: '390',
-    width: '640',
-    playerVars: {
-      // https://developers.google.com/youtube/player_parameters
-      autoplay: 1, // Otomatik oynatmayı etkinleştir
-      controls: 1, // Kontrolleri göster
-    },
-  };
 
   return (
-    <div className="youtube-player-container bg-black p-4 sticky top-0 z-50">
-        <YouTube 
-            videoId={currentSong.videoId} 
-            opts={opts} 
-            onStateChange={handleStateChange}
-            onEnd={handleEnd}
-            className="w-full aspect-video"
-        />
+    <div className="player-wrapper" style={{ display: 'none' }}>
+      <ReactPlayer
+        ref={playerRef}
+        url={currentSong.url}
+        playing={isPlaying}
+        volume={volume}
+        muted={isMuted}
+        controls={false} // Kendi kontrollerimizi kullanacağız
+        width="100%"
+        height="100%"
+        onReady={() => _playerSetReady(true)}
+        onStart={() => _playerSetIsPlaying(true)}
+        onPlay={() => _playerSetIsPlaying(true)}
+        onPause={() => _playerSetIsPlaying(false)}
+        onBuffer={() => { /* Belki bir yükleniyor göstergesi için */ }}
+        onEnded={_playerOnEnded}
+        onProgress={_playerOnProgress}
+        onDuration={_playerOnDuration}
+        config={{
+          youtube: {
+            playerVars: { 
+              showinfo: 0,
+              disablekb: 1,
+              iv_load_policy: 3,
+            }
+          },
+          soundcloud: {
+            options: {
+              visual: false,
+            }
+          }
+        }}
+      />
     </div>
   );
 };
