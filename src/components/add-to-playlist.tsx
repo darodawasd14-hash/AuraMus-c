@@ -32,7 +32,7 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
 
   const { data: playlists, isLoading } = useCollection<Playlist>(playlistsQuery);
 
-  const handleAddToPlaylist = async (playlistId: string) => {
+  const handleAddToPlaylist = (playlistId: string) => {
     if (!user || !firestore || !song || !song.videoId) return;
 
     setIsAdding(playlistId);
@@ -49,44 +49,54 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
       artwork: song.artwork || `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`,
       timestamp: serverTimestamp()
     };
+    
+    const selectedPlaylist = playlists?.find(p => p.id === playlistId);
 
-    try {
-      // 1. Add the song to the playlist's subcollection
-      await setDoc(newSongRef, songData);
-      
-      // 2. Increment the song count on the playlist document
-      await updateDoc(playlistRef, { songCount: increment(1) });
-      
-      // 3. Add to global songs collection (don't overwrite if it exists)
-      await setDoc(globalSongRef, songData, { merge: true });
+    // Non-blocking write for optimistic UI update
+    setDoc(newSongRef, songData).then(() => {
+        // Increment song count non-blockingly
+        updateDoc(playlistRef, { songCount: increment(1) }).catch(serverError => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: playlistRef.path,
+                operation: 'update',
+                requestResourceData: { songCount: 'increment(1)' }
+            }));
+            // Note: We might want to revert the song add if this fails, but for now we just log it.
+        });
 
-      const selectedPlaylist = playlists?.find(p => p.id === playlistId);
-      toast({
-        title: "Şarkı Eklendi!",
-        description: `"${song.title}" çalma listesine eklendi: ${selectedPlaylist?.name}.`,
-      });
-
-    } catch (error: any) {
-        console.error("Listeye şarkı eklenirken hata:", error);
-
-        // Emit a specific permission error for better debugging
-        if (error.code === 'permission-denied') {
+        // Add to global songs collection non-blockingly
+        setDoc(globalSongRef, songData, { merge: true }).catch(serverError => {
              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: newSongRef.path,
-                operation: 'create',
+                path: globalSongRef.path,
+                operation: 'write', // merge can be create or update
                 requestResourceData: songData,
              }));
-        }
+        });
+        
+        toast({
+            title: "Şarkı Eklendi!",
+            description: `"${song.title}" çalma listesine eklendi: ${selectedPlaylist?.name}.`,
+        });
 
+    }).catch(serverError => {
+        // This is the primary error we expect to catch if permissions fail on song creation.
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: newSongRef.path,
+            operation: 'create',
+            requestResourceData: songData,
+        }));
+        
+        // Let the user know something went wrong without being too technical
         toast({
             variant: "destructive",
             title: "Hata!",
             description: "Şarkı çalma listenize eklenemedi. İzinlerinizi kontrol edin veya daha sonra tekrar deneyin.",
         });
-    } finally {
-      setIsAdding(null);
-      onOpenChange(false);
-    }
+
+    }).finally(() => {
+        setIsAdding(null);
+        onOpenChange(false);
+    });
   };
 
   return (
