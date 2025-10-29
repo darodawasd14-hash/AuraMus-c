@@ -85,17 +85,19 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlaying(true);
     setProgress(0);
     setDuration(0);
-    setIsMuted(true); // Always start new songs muted to comply with autoplay
+    // Important: Keep it muted initially to comply with autoplay policies.
+    // The user's first interaction via togglePlayPause will unmute it.
+    setIsMuted(true); 
   };
 
   const togglePlayPause = () => {
     if (!currentSong || !isReady) return;
     
-    // If it's not playing, we want to force it to play and be unmuted.
-    // This handles the user's first interaction to enable audio.
+    // The core of the "Force Sync" solution is here.
+    // When the user intends to play, we explicitly set playing to true AND un-mute.
     if (!isPlaying) {
       setIsPlaying(true);
-      setIsMuted(false); // Force unmute
+      setIsMuted(false); // This is the explicit "unMute()" command.
     } else {
       // If it is playing, just pause it.
       setIsPlaying(false);

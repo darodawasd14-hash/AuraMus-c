@@ -17,22 +17,18 @@ export const Player = () => {
   } = usePlayer();
 
   useEffect(() => {
-    // Bu useEffect, şarkı değiştiğinde oynatıcının doğru konuma atlamasını sağlar.
-    // Özellikle bir şarkı bittiğinde veya kullanıcı listeden farklı bir şarkı seçtiğinde gereklidir.
     if (playerRef.current && currentSong) {
-      // O anki `progress` değeriyle seek yapmaya çalışmak yerine,
-      // şarkı değiştiğinde oynatıcının sıfırdan başlamasına izin vermek daha güvenilirdir.
-      // ReactPlayer `url` prop'u değiştiğinde bunu otomatik olarak yönetir.
+      // This effect is no longer needed for seeking, as ReactPlayer handles URL changes automatically.
+      // It can be kept for any future logic if necessary.
     }
   }, [currentSong, playerRef]);
 
-  // Bu bileşen artık görünür bir şey render etmiyor, sadece mantığı çalıştırıyor.
-  // Bu nedenle, currentSong yoksa bile render edilebilir, çünkü ReactPlayer
-  // url null olduğunda bir şey yapmaz.
+  // The hidden player that acts as the "engine" for the entire app.
+  // It is directly controlled by the state from the PlayerContext.
   return (
     <div className="player-wrapper" style={{ display: 'none' }}>
       <ReactPlayer
-        ref={playerRef}
+        ref={playerRef} // Connect the ref from the context to this player instance.
         url={currentSong?.url}
         playing={isPlaying}
         volume={volume}
@@ -42,7 +38,7 @@ export const Player = () => {
         height="100%"
         onReady={_playerOnReady}
         onProgress={_playerOnProgress}
-        onDuration={_playerOnDuration}
+        onDuration={_playerOnDuration} // Report the duration to the context.
         onEnded={_playerOnEnded}
         config={{
           youtube: {

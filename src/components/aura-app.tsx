@@ -156,6 +156,10 @@ const PlayerBar = () => {
         seek(value[0]);
       }
     };
+    
+    // Calculate the progress value for the slider, ensuring it's always a finite number.
+    const sliderProgress = (progress && isFinite(progress)) ? progress : 0;
+
 
     return (
         <div className="h-24 bg-secondary/80 border-t border-border backdrop-blur-xl p-4 flex items-center gap-4 text-foreground">
@@ -194,9 +198,9 @@ const PlayerBar = () => {
                     </Button>
                 </div>
                 <div className="w-full flex items-center gap-2">
-                    <span className="text-xs w-12 text-right">{formatTime(progress * duration)}</span>
+                    <span className="text-xs w-12 text-right">{formatTime(sliderProgress * duration)}</span>
                     <Slider
-                        value={[progress]}
+                        value={[sliderProgress]}
                         max={1}
                         step={0.01}
                         onValueChange={handleProgressChange}
@@ -296,12 +300,12 @@ const PlaylistView = () => {
         <div className="p-4 md:p-6 flex flex-col h-full">
             
             <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
-              {currentSong?.type === 'youtube' ? (
+              {currentSong ? (
                 <div className="w-full h-full">
                    <ReactPlayer
                       url={currentSong.url}
                       playing={isPlaying}
-                      volume={0}
+                      volume={0} // The visual player is always silent.
                       controls={false}
                       width="100%"
                       height="100%"
