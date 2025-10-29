@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect, FormEvent, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, useDoc } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Send, ArrowLeft } from 'lucide-react';
-import { collection, addDoc, serverTimestamp, query, orderBy, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, doc, setDoc, getDoc } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Link from 'next/link';
@@ -37,6 +37,8 @@ export default function PrivateChatPage() {
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [otherParticipant, setOtherParticipant] = useState<ParticipantProfile | null>(null);
+  const [isLoadingParticipant, setIsLoadingParticipant] = useState(true);
 
   const otherParticipantId = useMemo(() => {
     if (!chatId || !user) return null;
@@ -44,12 +46,21 @@ export default function PrivateChatPage() {
     return participantIds.find(id => id !== user.uid);
   }, [chatId, user]);
 
-  const otherParticipantRef = useMemoFirebase(() => {
-    if (!firestore || !otherParticipantId) return null;
-    return doc(firestore, 'users', otherParticipantId);
+  useEffect(() => {
+    if (firestore && otherParticipantId) {
+      setIsLoadingParticipant(true);
+      const userDocRef = doc(firestore, 'users', otherParticipantId);
+      getDoc(userDocRef).then(docSnap => {
+        if (docSnap.exists()) {
+          setOtherParticipant(docSnap.data() as ParticipantProfile);
+        }
+        setIsLoadingParticipant(false);
+      }).catch(() => {
+        setIsLoadingParticipant(false);
+      });
+    }
   }, [firestore, otherParticipantId]);
-
-  const { data: otherParticipant, isLoading: isLoadingParticipant } = useDoc<ParticipantProfile>(otherParticipantRef);
+  
 
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore || !chatId) return null;
