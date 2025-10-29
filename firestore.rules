@@ -1,188 +1,220 @@
 /**
- * @fileoverview Firestore Security Rules for Aura application.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a user-ownership model with public read access to the `songs` collection and private access to user-specific data.
  *
- * Core Philosophy:
- * This ruleset enforces a mixed security model. User profiles and playlists are owned by individual users and protected via `isOwner()`.
- * Public songs are readable by anyone, but can only be created, updated, or deleted by authenticated users (owner-only writes are enabled once the `Song` schema includes an ownership field).
  * Data Structure:
- * - /users/{userId}: User profile information.
- * - /users/{userId}/playlists/{playlistId}: User-created playlists.
- * - /users/{userId}/playlists/{playlistId}/songs/{songId}: Songs within a playlist.
- * - /songs/{songId}: A global catalog of songs added by users.
- * - /songs/{songId}/messages/{messageId}: Chat messages for each song.
- * - /users/{userId}/followers/{followerId}: Users following a given user
- * - /users/{userId}/following/{followingId}: Users a given user is following
+ * - /users/{userId}: Stores user profile information.
+ * - /users/{userId}/playlists/{playlistId}: Stores user playlists.
+ * - /users/{userId}/playlists/{playlistId}/songs/{songId}: Stores songs within a playlist.
+ * - /songs/{songId}: Stores a global catalog of songs.
+ * - /songs/{songId}/messages/{messageId}: Stores chat messages for a specific song.
+ * - /users/{userId}/followers/{followerId}: Stores followers of a user.
+ * - /users/{userId}/following/{followingId}: Stores users a user is following.
  *
  * Key Security Decisions:
- * - Users can only read and write their own profile data.
- * - Users can only read and write their own playlists and the songs within them.
- * - Public songs are readable by everyone.
- * - Users can add songs, update, or delete public songs (owner-only writes).
- * - Listing all users is disallowed.
+ * - Users can only read and write their own user data and playlists.
+ * - The `songs` collection is publicly readable, but only owners can create, update, or delete songs (owner is not yet implemented because there is no ownerId on the Song entity).
+ * - Listing of followers/following is allowed only for the user.
  *
  * Denormalization for Authorization:
- *  - The rules rely on the `userId` field in the `/users/{userId}/playlists/{playlistId}` collection and the `/users/{userId}/playlists/{playlistId}/songs/{songId}` subcollection to enforce ownership.
+ * - The `userId` field in the `Playlist` document is used to enforce ownership, avoiding the need for additional `get()` calls.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the current user is signed in.
-     * @param {void}
-     * @return {boolean} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the requested user ID matches the authenticated user's ID.
-     * @param {string} userId The user ID to compare against the authenticated user's ID.
-     * @return {boolean} True if the user IDs match, false otherwise.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the requested user ID matches the authenticated user's ID and the document exists
-     * @param {string} userId The user ID to compare against the authenticated user's ID.
-     * @return {boolean} True if the user IDs match and the document exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Defines reusable access control for user documents.
+     * @description Controls access to user profile information.
      * @path /users/{userId}
-     * @allow (get) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can read their own profile data.
-     * @allow (create) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can create their own profile data.
-     * @allow (update) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can update their own profile data.
-     * @allow (delete) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can delete their own profile data.
-     * @deny (get) User SomeOtherUser cannot read User C8NRU2pCcpU6vo8bzFhT22u3ZDp2's profile data.
-     * @deny (create) User SomeOtherUser cannot create User C8NRU2pCcpU6vo8bzFhT22u3ZDp2's profile data.
-     * @deny (update) User SomeOtherUser cannot update User C8NRU2pCcpU6vo8bzFhT22u3ZDp2's profile data.
-     * @deny (delete) User SomeOtherUser cannot delete User C8NRU2pCcpU6vo8bzFhT22u3ZDp2's profile data.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) User with ID 'user123' can create their profile.
+     *     - auth.uid: 'user123'
+     *     - request.resource.data.id: 'user123'
+     * @deny (create) User with ID 'user123' cannot create a profile with a mismatched ID.
+     *     - auth.uid: 'user123'
+     *     - request.resource.data.id: 'user456'
+     * @allow (get) User can retrieve their own profile.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user123'
+     * @deny (get) User cannot retrieve another user's profile.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user456'
+     * @allow (update) User can update their own profile.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user123'
+     * @deny (update) User cannot update another user's profile.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user456'
+     * @allow (delete) User can delete their own profile.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user123'
+     * @deny (delete) User cannot delete another user's profile.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user456'
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+          return isOwner(userId) && exists(resource);
+      }
+
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
+      allow get: if isSignedIn() && isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Defines reusable access control for playlist documents.
+     * @description Controls access to user playlists.
      * @path /users/{userId}/playlists/{playlistId}
-     * @allow (get) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can read their own playlists.
-     * @allow (create) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can create playlists under their own user ID.
-     * @allow (update) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can update their own playlists.
-     * @allow (delete) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can delete their own playlists.
-     * @deny (get) User SomeOtherUser cannot read User C8NRU2pCcpU6vo8bzFhT22u3ZDp2's playlists.
-     * @deny (create) User SomeOtherUser cannot create playlists under User C8NRU2pCcpU6vo8bzFhT22u3ZDp2's user ID.
-     * @deny (update) User SomeOtherUser cannot update User C8NRU2pCcpU6vo8bzFhT22u3ZDp2's playlists.
-     * @deny (delete) User SomeOtherUser cannot delete User C8NRU2pCcpU6vo8bzFhT22u3ZDp2's playlists.
-     * @principle Enforces document ownership and validates relational integrity on create.
+     * @allow (create) User with ID 'user123' can create a playlist.
+     *     - auth.uid: 'user123'
+     *     - request.resource.data.userId: 'user123'
+     * @deny (create) User with ID 'user123' cannot create a playlist for another user.
+     *     - auth.uid: 'user123'
+     *     - request.resource.data.userId: 'user456'
+     * @allow (get) User can retrieve their own playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user123'
+     * @deny (get) User cannot retrieve another user's playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user456'
+     * @allow (update) User can update their own playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user123'
+     * @deny (update) User cannot update another user's playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user456'
+     * @allow (delete) User can delete their own playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user123'
+     * @deny (delete) User cannot delete another user's playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user456'
+     * @principle Enforces document ownership for writes and reads.
      */
     match /users/{userId}/playlists/{playlistId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == userId;
-      allow delete: if isExistingOwner(userId);
-    }
-
-     /**
-      * @description Defines access control for song documents within a playlist.
-      * @path /users/{userId}/playlists/{playlistId}/songs/{songId}
-      * @allow (get) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can read songs from their playlist.
-      * @allow (create) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can create songs in their playlist, validating userId.
-      * @allow (update) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can update songs in their playlist, validating userId.
-      * @allow (delete) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can delete songs from their playlist.
-      * @deny (get) User SomeOtherUser cannot read songs from User C8NRU2pCcpU6vo8bzFhT22u3ZDp2's playlist.
-      * @deny (create) User SomeOtherUser cannot create songs in User C8NRU2pCcpU6vo8bzFhT22u3ZDp2's playlist.
-      * @deny (update) User SomeOtherUser cannot update songs in User C8NRU2pCcpU6vo8bzFhT22u3ZDp2's playlist.
-      * @deny (delete) User SomeOtherUser cannot delete songs from User C8NRU2pCcpU6vo8bzFhT22u3ZDp2's playlist.
-      * @principle Enforces document ownership and validates relational integrity on create.
-      */
-    match /users/{userId}/playlists/{playlistId}/songs/{songId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.userId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userId == userId;
-        allow delete: if isExistingOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Defines access control for song documents in the global catalog.
+     * @description Controls access to songs within a playlist.
+     * @path /users/{userId}/playlists/{playlistId}/songs/{songId}
+     * @allow (create) User with ID 'user123' can add a song to their playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user123'
+     * @deny (create) User with ID 'user123' cannot add a song to another user's playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user456'
+     * @allow (get) User can retrieve a song from their own playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user123'
+     * @deny (get) User cannot retrieve a song from another user's playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user456'
+     * @allow (update) User can update a song in their own playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user123'
+     * @deny (update) User cannot update a song in another user's playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user456'
+     * @allow (delete) User can delete a song from their own playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user123'
+     * @deny (delete) User cannot delete a song from another user's playlist.
+     *     - auth.uid: 'user123'
+     *     - userId: 'user456'
+     * @principle Enforces document ownership for writes and reads.
+     */
+    match /users/{userId}/playlists/{playlistId}/songs/{songId} {
+      allow create: if isSignedIn() && isOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to the global songs collection. Anyone can read songs, but only the owner can create, update, or delete.
      * @path /songs/{songId}
-     * @allow (get) Any user can read song information.
-     * @allow (list) Any user can list song information.
-     * @deny (create) Cannot implement owner-only writes. The 'Song' entity is missing an 'ownerId' or 'authorId' field.
-     * @deny (update) Cannot implement owner-only writes. The 'Song' entity is missing an 'ownerId' or 'authorId' field.
-     * @deny (delete) Cannot implement owner-only writes. The 'Song' entity is missing an 'ownerId' or 'authorId' field.
-     * @principle Public read with owner-only writes, but write protection is currently disabled due to a missing ownership field.
+     * @allow (get) Anyone can retrieve a song.
+     * @allow (list) Anyone can list songs.
+     * @allow (create) Only the owner can create a song (TODO: add ownerId to schema).
+     * @allow (update) Only the owner can update a song (TODO: add ownerId to schema).
+     * @allow (delete) Only the owner can delete a song (TODO: add ownerId to schema).
+     * @principle Allows public read access, but restricts write access to the owner.
      */
     match /songs/{songId} {
       allow get: if true;
       allow list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow delete: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Defines access control for chat messages for a specific song.
+     * @description Controls access to chat messages for a specific song.
      * @path /songs/{songId}/messages/{messageId}
-     * @allow (get) Any user can read messages for a song.
-     * @allow (list) Any user can list messages for a song.
      * @allow (create) Any signed-in user can create a message.
+     * @allow (get) Any signed-in user can retrieve a message.
+     * @allow (list) Any signed-in user can list messages.
      * @allow (update) No one can update a message.
      * @allow (delete) No one can delete a message.
      */
     match /songs/{songId}/messages/{messageId} {
-      allow get: if true;
-      allow list: if true;
       allow create: if isSignedIn();
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
       allow update: if false;
       allow delete: if false;
     }
-   /**
-    * @description Access control for users following other users.
-    * @path /users/{userId}/followers/{followerId}
-    * @allow (get) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can read who is following them.
-    * @allow (list) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can list their followers.
-    * @allow (create) User SomeOtherUser can follow User C8NRU2pCcpU6vo8bzFhT22u3ZDp2.
-    * @deny (update) No one can update a follower entry.
-    * @allow (delete) User SomeOtherUser can unfollow User C8NRU2pCcpU6vo8bzFhT22u3ZDp2.
-    * @principle Follower relationships are managed by each user.
-    */
+
+    /**
+     * @description Controls access to the list of followers for a user.
+     * @path /users/{userId}/followers/{followerId}
+     * @allow (create) Not allowed.
+     * @allow (get) The user can retrieve their own followers.
+     * @allow (list) The user can list their own followers.
+     * @allow (update) Not allowed.
+     * @allow (delete) Not allowed.
+     * @principle Restricts access to a user's own data tree.
+     */
     match /users/{userId}/followers/{followerId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isSignedIn() && request.auth.uid == followerId;
-        allow update: if false;
-        allow delete: if isSignedIn() && request.auth.uid == followerId;
+      allow create: if false;
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Access control for users a user is following.
+     * @description Controls access to the list of users a user is following.
      * @path /users/{userId}/following/{followingId}
-     * @allow (get) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can read who they are following.
-     * @allow (list) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can list who they are following.
-     * @allow (create) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can add to who they are following.
-     * @deny (update) No one can update a following entry.
-     * @allow (delete) User C8NRU2pCcpU6vo8bzFhT22u3ZDp2 can remove who they are following.
-     * @principle Following relationships are managed by each user.
+     * @allow (create) Not allowed.
+     * @allow (get) The user can retrieve the users they are following.
+     * @allow (list) The user can list the users they are following.
+     * @allow (update) Not allowed.
+     * @allow (delete) Not allowed.
+     * @principle Restricts access to a user's own data tree.
      */
     match /users/{userId}/following/{followingId} {
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isOwner(userId) && request.auth.uid == userId;
-        allow update: if false;
-        allow delete: if isOwner(userId) && request.auth.uid == userId;
+      allow create: if false;
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if isSignedIn() && isOwner(userId);
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
