@@ -71,21 +71,21 @@ export default function ProfilePage() {
 
     if (isFollowing) {
         // Unfollow logic
-        deleteDoc(followerRef).catch(serverError => {
+        deleteDoc(followerRef).catch(async (serverError) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: followerRef.path, operation: 'delete' }));
         });
-        deleteDoc(followingRefDoc).catch(serverError => {
+        deleteDoc(followingRefDoc).catch(async (serverError) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: followingRefDoc.path, operation: 'delete' }));
         });
     } else {
         // Follow logic
         const followerData = { uid: currentUser.uid };
-        setDoc(followerRef, followerData).catch(serverError => {
+        setDoc(followerRef, followerData).catch(async (serverError) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: followerRef.path, operation: 'create', requestResourceData: followerData }));
         });
         
         const followingData = { uid: profileUserId };
-        setDoc(followingRefDoc, followingData).catch(serverError => {
+        setDoc(followingRefDoc, followingData).catch(async (serverError) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({ path: followingRefDoc.path, operation: 'create', requestResourceData: followingData }));
         });
     }
