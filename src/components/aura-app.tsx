@@ -65,7 +65,6 @@ export function AuraApp() {
       <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} currentView={view} setView={setView} />
       
       <main className="flex-grow flex flex-row overflow-hidden">
-        {/* This div wraps the main content and provides padding for the bottom player */}
         <div className="flex-grow flex flex-col overflow-y-auto pb-20 md:pb-20">
           {view === 'playlist' && <PlaylistView />}
           {view === 'catalog' && <CatalogView setView={setView} />}
@@ -91,7 +90,20 @@ export function AuraApp() {
        <MiniPlayer />
        <FullPlayerView />
       
-      <BottomNavBar currentView={view} setView={setView} />
+      <nav className="fixed bottom-0 left-0 right-0 h-20 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 flex justify-around items-center md:hidden">
+          <button onClick={() => setView('playlist')} className={cn('nav-button', {'active': view === 'playlist'})}>
+            <ListMusic/>
+            <span>Listem</span>
+          </button>
+          <button onClick={() => setView('catalog')} className={cn('nav-button', {'active': view === 'catalog'})}>
+            <Music/>
+            <span>Katalog</span>
+          </button>
+          <button onClick={() => setView('search')} className={cn('nav-button', {'active': view === 'search'})}>
+            <Search/>
+            <span>Ara</span>
+          </button>
+      </nav>
       
     </div>
   );
@@ -106,7 +118,6 @@ const Header = ({ isChatOpen, setIsChatOpen, currentView, setView }: { isChatOpe
         <span className="text-xl font-bold tracking-tight">Aura</span>
       </div>
       
-      {/* Desktop Navigation */}
       <div className="hidden md:flex items-center gap-4">
         <Button variant={currentView === 'playlist' ? 'secondary' : 'ghost'} onClick={() => setView('playlist')} className="rounded-full">Çalma Listem</Button>
         <Button variant={currentView === 'catalog' ? 'secondary' : 'ghost'} onClick={() => setView('catalog')} className="rounded-full">Katalog</Button>
@@ -130,25 +141,6 @@ const Header = ({ isChatOpen, setIsChatOpen, currentView, setView }: { isChatOpe
 };
 
 
-const BottomNavBar = ({ currentView, setView }: { currentView: string, setView: (view: 'playlist' | 'catalog' | 'search') => void }) => {
-  return (
-    <nav className="fixed bottom-0 left-0 right-0 h-16 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 flex justify-around items-center md:hidden">
-      <button onClick={() => setView('playlist')} className={cn('nav-button', {'active': currentView === 'playlist'})}>
-        <ListMusic/>
-        <span>Listem</span>
-      </button>
-       <button onClick={() => setView('catalog')} className={cn('nav-button', {'active': currentView === 'catalog'})}>
-        <Music/>
-        <span>Katalog</span>
-      </button>
-       <button onClick={() => setView('search')} className={cn('nav-button', {'active': currentView === 'search'})}>
-        <Search/>
-        <span>Ara</span>
-      </button>
-    </nav>
-  )
-}
-
 const PlaylistView = () => {
     const { playlist, currentIndex, playSong, setPlaylist, addSong } = usePlayer();
     const [isLoading, setIsLoading] = useState(false);
@@ -169,8 +161,6 @@ const PlaylistView = () => {
         if (videoId) {
             let videoTitle = `Yeni Şarkı (${videoId.substring(0, 5)}...)`;
             try {
-                // Use a proxy or serverless function in a real app to avoid CORS and exposing API keys.
-                // For this example, we'll fetch directly, which might fail in a browser.
                 const oembedResponse = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
                 if (oembedResponse.ok) {
                     const oembedData = await oembedResponse.json();
@@ -178,7 +168,6 @@ const PlaylistView = () => {
                 }
             } catch (error) {
                 console.error("Could not fetch YouTube video title:", error);
-                // Fallback to a default title if oEmbed fails
             }
     
             const newSong: Song = {
@@ -193,9 +182,6 @@ const PlaylistView = () => {
             addSong(newSong);
             toast({ title: `"${videoTitle}" eklendi ve çalınıyor.` });
         } else {
-            // Handle non-YouTube URLs (e.g., SoundCloud or direct URL)
-            // Use btoa for a simple, dependency-free way to create a 'safe' ID from a URL.
-            // Replace '/' which is not safe for Firestore paths.
              const safeId = typeof window !== "undefined" ? window.btoa(songUrl).replace(/\//g, '-') : Buffer.from(songUrl).toString('base64').replace(/\//g, '-');
              const newSong: Song = {
                 id: safeId,
@@ -500,7 +486,7 @@ function MiniPlayer() {
     return (
         <div 
             className={cn(
-                "fixed bottom-20 right-4 z-40 flex items-center gap-3 rounded-lg bg-secondary/80 p-3 shadow-2xl backdrop-blur-lg border border-border/50 transition-all duration-300 ease-in-out md:hidden",
+                "fixed bottom-24 right-4 z-40 flex items-center gap-3 rounded-lg bg-secondary/80 p-3 shadow-2xl backdrop-blur-lg border border-border/50 transition-all duration-300 ease-in-out md:hidden",
                 currentSong ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
             )}
         >
@@ -582,7 +568,6 @@ function FullPlayerView() {
     return null;
   }
   
-  // Desktop persistent player bar
   if (!isPlayerOpen) {
      return (
         <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-20 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 justify-between items-center px-6">
@@ -647,7 +632,6 @@ function FullPlayerView() {
     )
   }
   
-  // Fullscreen player view
   return (
     <div className={cn(
         "fixed inset-0 bg-background/90 backdrop-blur-2xl z-50 transform-gpu transition-transform duration-500 ease-in-out flex flex-col",

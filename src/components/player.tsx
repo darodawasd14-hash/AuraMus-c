@@ -80,9 +80,9 @@ export const Player = () => {
 
   const handleYoutubeReady = (event: { target: YouTubePlayer }) => {
     youtubePlayerRef.current = event.target;
-    if (isPlaying) {
-      event.target.playVideo();
-    }
+    // Sessiz bir şekilde otomatik oynatmayı başlat.
+    // Tarayıcıların autoplay politikasını aşmak için bu gereklidir.
+    event.target.playVideo();
   };
   
   const handleYoutubeStateChange = (event: { data: number }) => {
@@ -123,7 +123,7 @@ export const Player = () => {
       autoplay: 1, 
       controls: 0,
       playsinline: 1,
-      mute: 1 // Always start muted to guarantee autoplay
+      mute: 1 // Her zaman sessiz başla
     },
   };
   
@@ -132,7 +132,7 @@ export const Player = () => {
         case 'youtube':
             return (
                 <YouTube
-                    key={currentSong.id} // Re-mounts the component on song change
+                    key={currentSong.id} // Şarkı değiştiğinde oynatıcıyı yeniden oluşturur
                     videoId={currentSong.videoId}
                     opts={youtubeOpts}
                     onReady={handleYoutubeReady}
