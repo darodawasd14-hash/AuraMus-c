@@ -54,6 +54,9 @@ const CreatePlaylistDialog = ({ open, onOpenChange, onCreate }: { open: boolean,
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>Yeni Çalma Listesi Oluştur</DialogTitle>
+                    <DialogDescription>
+                        Yeni çalma listenize bir isim verin.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
@@ -81,9 +84,15 @@ const CreatePlaylistDialog = ({ open, onOpenChange, onCreate }: { open: boolean,
 };
 
 const PlaylistCard = ({ playlist, onPlayPlaylist, onDeletePlaylist, onPlaySongFromPlaylist, currentSong }: { playlist: Playlist, onPlayPlaylist: (playlist: Playlist) => void, onDeletePlaylist: (playlistId: string) => void, onPlaySongFromPlaylist: (song: Song, index: number, p: Playlist) => void, currentSong: Song | null }) => {
-    const songsRef = useMemoFirebase(() => collection(useFirestore(), playlist.id), [playlist.id]);
-    const { data: songs, isLoading } = useCollection<Song>(songsRef);
-
+    const { user } = useUser();
+    const firestore = useFirestore();
+    
+    const songsRef = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        return collection(firestore, 'users', user.uid, 'playlists', playlist.id, 'songs');
+    }, [firestore, user, playlist.id]);
+    
+    const { data: songs } = useCollection<Song>(songsRef);
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
     const handleDelete = () => {
@@ -92,9 +101,11 @@ const PlaylistCard = ({ playlist, onPlayPlaylist, onDeletePlaylist, onPlaySongFr
     }
     
     const getArtwork = (song: Song | undefined) => {
-        if (!song) return "https://i.ytimg.com/vi/null/hqdefault.jpg";
+        if (!song || !song.videoId) return "https://i.ytimg.com/vi/null/hqdefault.jpg";
         return song.artwork || `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
     }
+    
+    const populatedPlaylist = useMemoFirebase(() => ({ ...playlist, songs: songs || [] }), [playlist, songs]);
 
     return (
         <>
@@ -125,7 +136,7 @@ const PlaylistCard = ({ playlist, onPlayPlaylist, onDeletePlaylist, onPlaySongFr
                      )}
                 </div>
                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Button variant="ghost" size="icon" className="w-12 h-12 text-white hover:bg-white/20" onClick={() => songs && songs.length > 0 && onPlayPlaylist(playlist)}>
+                    <Button variant="ghost" size="icon" className="w-12 h-12 text-white hover:bg-white/20" onClick={() => songs && songs.length > 0 && onPlayPlaylist(populatedPlaylist)}>
                         <Play className="h-8 w-8 fill-current" />
                     </Button>
                 </div>
@@ -134,7 +145,7 @@ const PlaylistCard = ({ playlist, onPlayPlaylist, onDeletePlaylist, onPlaySongFr
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="font-semibold truncate flex-grow">{playlist.name}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{songs?.length ?? 0} şarkı</p>
+                        <p className="text-xs text-muted-foreground mt-1">{playlist.songCount ?? songs?.length ?? 0} şarkı</p>
                     </div>
                      <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteDialogOpen(true)}>
                         <Trash2 className="w-4 h-4" />
@@ -143,7 +154,7 @@ const PlaylistCard = ({ playlist, onPlayPlaylist, onDeletePlaylist, onPlaySongFr
                  {songs && songs.length > 0 && (
                     <div className="mt-2 space-y-1 overflow-hidden">
                         {songs.slice(0, 3).map((song, index) => (
-                           <div key={song.id} onClick={() => onPlaySongFromPlaylist(song, index, playlist)} className={cn("flex items-center gap-2 text-sm p-1 rounded-md cursor-pointer hover:bg-secondary", currentSong?.id === song.id ? "bg-primary/20" : "")}>
+                           <div key={song.id} onClick={() => onPlaySongFromPlaylist(song, index, populatedPlaylist)} className={cn("flex items-center gap-2 text-sm p-1 rounded-md cursor-pointer hover:bg-secondary", currentSong?.id === song.id ? "bg-primary/20" : "")}>
                                <Image src={getArtwork(song)} alt={song.title} width={24} height={24} className="rounded-sm" />
                                <span className="truncate">{song.title}</span>
                            </div>
@@ -206,9 +217,6 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
     };
     
     const handlePlayPlaylist = (playlist: Playlist) => {
-         const songsRef = collection(firestore, 'users', user.uid, 'playlists', playlist.id, 'songs');
-         // This is a simplified approach. A more robust way would be to fetch the songs.
-         // For now, we assume the subcollection hook in the card has populated the songs.
          const songs = playlist.songs || [];
          if (songs.length > 0) {
             playSong(songs[0], 0, songs);
@@ -216,8 +224,6 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
     };
     
     const handlePlaySongFromPlaylist = (song: Song, index: number, p: Playlist) => {
-        const songsRef = collection(firestore, 'users', user.uid, 'playlists', p.id, 'songs');
-        // This is a simplified approach.
         const songs = p.songs || [];
          if (songs.length > 0) {
             playSong(song, index, songs);
