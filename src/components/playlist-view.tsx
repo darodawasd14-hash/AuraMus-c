@@ -175,25 +175,39 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
     };
     
     const handleDeletePlaylist = async (playlistId: string) => {
-        if (!user || !firestore) return;
-        const playlistDocRef = doc(firestore, 'users', user.uid, 'playlists', playlistId);
-        try {
-            const songsCollectionRef = collection(playlistDocRef, 'songs');
-            const songsSnapshot = await getDocs(songsCollectionRef);
-            const deletePromises = songsSnapshot.docs.map((songDoc) => deleteDoc(songDoc.ref));
-            await Promise.all(deletePromises);
-            
-            await deleteDoc(playlistDocRef);
+      if (!user || !firestore) return;
+      const playlistDocRef = doc(firestore, 'users', user.uid, 'playlists', playlistId);
+      
+      const songsCollectionRef = collection(playlistDocRef, 'songs');
+      const songsSnapshot = await getDocs(songsCollectionRef).catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: songsCollectionRef.path,
+          operation: 'list'
+        }));
+        throw serverError; // Stop execution if we can't list songs
+      });
 
-            if (selectedPlaylist?.id === playlistId) {
-                setSelectedPlaylist(null);
-            }
-        } catch(serverError: any) {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: playlistDocRef.path,
-                operation: 'delete',
-            }));
-        }
+      const deletePromises = songsSnapshot.docs.map((songDoc) => 
+        deleteDoc(songDoc.ref).catch(serverError => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: songDoc.ref.path,
+            operation: 'delete'
+          }));
+        })
+      );
+      
+      await Promise.all(deletePromises);
+      
+      deleteDoc(playlistDocRef).catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: playlistDocRef.path,
+          operation: 'delete',
+        }));
+      });
+
+      if (selectedPlaylist?.id === playlistId) {
+          setSelectedPlaylist(null);
+      }
     };
     
     const handlePlaySongFromPlaylist = (song: Song, index: number) => {
