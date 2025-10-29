@@ -1,21 +1,18 @@
 'use client';
-import React, { useContext } from 'react';
-import { PlayerContext } from '@/context/player-context';
+import React from 'react';
 import Image from 'next/image';
 import { Button } from './ui/button';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Song } from '@/lib/types';
 
+interface PlaylistViewProps {
+    playlist: Song[];
+    currentSong: Song | null;
+    playSong: (song: Song, index: number) => void;
+}
 
-export const PlaylistView = () => {
-    const context = useContext(PlayerContext);
-
-    if (!context) {
-        return <div className="text-muted-foreground">Yükleniyor...</div>;
-    }
-
-    const { playlist, playSong, currentSong } = context;
+export const PlaylistView: React.FC<PlaylistViewProps> = ({ playlist, currentSong, playSong }) => {
 
     const handlePlaySong = (song: Song, index: number) => {
         playSong(song, index);
@@ -60,7 +57,6 @@ export const PlaylistView = () => {
                                 </p>
                                 <p className="text-sm text-muted-foreground">{song.type}</p>
                             </div>
-                            {/* <p className="text-sm text-muted-foreground">3:45</p> */}
                         </div>
                     ))}
                 </div>

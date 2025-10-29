@@ -1,6 +1,5 @@
 'use client';
-import React, { useState, useEffect, FormEvent, useRef, useContext } from 'react';
-import { PlayerContext } from '@/context/player-context';
+import React, { useState, useEffect, FormEvent, useRef } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,25 +25,11 @@ interface Message {
     isAura?: boolean; // Bu mesajın Aura'dan gelip gelmediğini belirtir
 }
 
-export function ChatPane() {
-    const context = useContext(PlayerContext);
-    if (!context) {
-        // This case should ideally be handled by the component structure
-        // (i.e., ensuring ChatPane is always within a PlayerProvider)
-        return (
-             <aside className="h-full w-full bg-background/50 border-l border-border flex flex-col">
-                <div className="p-4 border-b border-border">
-                     <h3 className="font-semibold truncate">Sohbet</h3>
-                </div>
-                 <div className="flex-grow flex items-center justify-center">
-                    <Loader2 className="animate-spin text-primary" />
-                 </div>
-            </aside>
-        )
-    }
-    const { currentSong } = context;
-    const song = currentSong;
+interface ChatPaneProps {
+    song: Song | null;
+}
 
+export function ChatPane({ song }: ChatPaneProps) {
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const { user } = useUser();

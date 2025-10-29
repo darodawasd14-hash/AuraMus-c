@@ -6,4 +6,5 @@ export interface Song {
   type: 'youtube' | 'soundcloud' | 'url';
   timestamp?: any;
   artwork?: string;
+  duration?: number;
 }
