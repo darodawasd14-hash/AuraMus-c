@@ -11,7 +11,7 @@ import type { Song } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { collection, query, orderBy, limit }from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -24,14 +24,15 @@ interface SideNavProps {
     activeView: ActiveView;
     setActiveView: (view: ActiveView) => void;
     toggleChat: () => void;
+    user: { uid: string } | null;
 }
 
-const SideNav = ({ activeView, setActiveView, toggleChat }: SideNavProps) => {
+const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) => {
     
     const navItems = [
-        { id: 'discover', label: 'Keşfet', icon: Home },
-        { id: 'playlist', label: 'Çalma Listelerim', icon: ListMusic },
-        { id: 'friends', label: 'Arkadaşlar', icon: Users },
+        { id: 'discover', label: 'Keşfet', icon: Home, href: '#' },
+        { id: 'playlist', label: 'Çalma Listelerim', icon: ListMusic, href: '#' },
+        { id: 'friends', label: 'Arkadaşlar', icon: Users, href: '#' },
     ];
 
     return (
@@ -44,10 +45,12 @@ const SideNav = ({ activeView, setActiveView, toggleChat }: SideNavProps) => {
                 {navItems.map(item => (
                     <a
                         key={item.id}
-                        href="#"
+                        href={item.href}
                         onClick={(e) => {
-                            e.preventDefault();
-                            setActiveView(item.id as ActiveView);
+                            if (item.href === '#') {
+                                e.preventDefault();
+                                setActiveView(item.id as ActiveView);
+                            }
                         }}
                         className={cn(
                             "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
@@ -60,6 +63,17 @@ const SideNav = ({ activeView, setActiveView, toggleChat }: SideNavProps) => {
                         <span>{item.label}</span>
                     </a>
                 ))}
+
+                {user && (
+                    <Link
+                        href={`/profile/${user.uid}`}
+                        className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
+                    >
+                        <User className="w-5 h-5" />
+                        <span>Profilim</span>
+                    </Link>
+                )}
+                
                 <a href="#" onClick={(e) => {e.preventDefault(); toggleChat();}} className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium">
                     <MessageSquare className="w-5 h-5" />
                     <span>Sohbet</span>
@@ -184,6 +198,7 @@ const formatTime = (seconds: number) => {
 };
 
 export function AuraApp() {
+    const { user } = useUser();
     // ---------- HAFIZA (STATES) ----------
     const [playlist, setPlaylist] = useState<Song[]>([]);
     const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -246,12 +261,6 @@ export function AuraApp() {
     const onPlayerReady = (event: { target: YouTubePlayer }) => {
         const newPlayer = event.target;
         setPlayer(newPlayer);
-        if (isMuted) {
-            newPlayer.mute();
-        } else {
-            newPlayer.unMute();
-            newPlayer.setVolume(volume);
-        }
         handleActivateSound();
     };
 
@@ -260,6 +269,9 @@ export function AuraApp() {
         if (state === 1) { // Oynatılıyor
             setIsPlaying(true);
             setDuration(player?.getDuration() ?? 0);
+            if (!soundActivated) {
+                handleActivateSound();
+            }
         } else if (state === 0) { // Bitti
             setIsPlaying(false);
             playNext();
@@ -379,7 +391,7 @@ export function AuraApp() {
     return (
         <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
             <div className="flex flex-1 min-h-0">
-                <SideNav activeView={activeView} setActiveView={setActiveView} toggleChat={() => setIsChatVisible(!isChatVisible)} />
+                <SideNav activeView={activeView} setActiveView={setActiveView} toggleChat={() => setIsChatVisible(!isChatVisible)} user={user} />
                 <main className="flex-1 flex flex-col p-8 gap-8 overflow-y-auto">
                     <div className="w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative shadow-xl">
                         {currentSong?.videoId && (
@@ -396,6 +408,17 @@ export function AuraApp() {
                             <div className="text-center text-muted-foreground">
                                 <Music className="w-16 h-16 mx-auto mb-4"/>
                                 <p>Başlamak için bir şarkı seçin</p>
+                            </div>
+                        )}
+                        {player && !soundActivated && (
+                             <div 
+                                onClick={handleActivateSound} 
+                                className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center cursor-pointer group"
+                            >
+                                <div className="p-4 rounded-full bg-black/50 group-hover:bg-black/70 transition-colors">
+                                    <PlayIcon className="w-12 h-12 text-white" />
+                                </div>
+                                <p className="text-white font-semibold mt-4 text-lg">Sesi açmak için tıklayınız</p>
                             </div>
                         )}
                    </div>
