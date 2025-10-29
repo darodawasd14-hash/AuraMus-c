@@ -261,7 +261,7 @@ export function AuraApp() {
                                     >
                                         <div className="text-center text-white p-4 rounded-lg">
                                             <PlayIcon className="w-16 h-16 text-white/80 mx-auto mb-4 drop-shadow-lg" />
-                                            <p className="text-lg font-semibold tracking-wide">Sesi açmak için tıklayınız</p>
+                                            <p className="text-lg font-semibold tracking-wide">Sesi açmak için çift tıklayınız</p>
                                         </div>
                                     </div>
                                 )}
