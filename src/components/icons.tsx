@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
-import { Music, ListMusic, User, Volume2, Send, Users, Search, MessageSquare, X, Plus, Home, LogOut, ChevronDown, VolumeX, Maximize2, UserPlus, UserMinus, EyeOff, Loader2 } from 'lucide-react';
+import { Music, ListMusic, User, Volume2, Send, Users, Search, MessageSquare, X, Plus, Home, LogOut, ChevronDown, VolumeX, Maximize2, UserPlus, UserMinus, EyeOff, Loader2, MessageCircle } from 'lucide-react';
 
-export { Music, ListMusic, User, Volume2, Send, Users, Search, MessageSquare, X, Plus, Home, LogOut, ChevronDown, VolumeX, Maximize2, UserPlus, UserMinus, EyeOff, Loader2 };
+export { Music, ListMusic, User, Volume2, Send, Users, Search, MessageSquare, X, Plus, Home, LogOut, ChevronDown, VolumeX, Maximize2, UserPlus, UserMinus, EyeOff, Loader2, MessageCircle };
 
 export function AuraLogo({ className, ...props }: React.SVGProps<SVGSVGElement>) {
   return (
@@ -60,5 +60,3 @@ export function Wand2(props: React.SVGProps<SVGSVGElement>) {
         </svg>
     )
 }
-
-    

@@ -128,6 +128,26 @@
           }
         },
         "required": ["uid"]
+      },
+      "Chat": {
+        "title": "Chat",
+        "description": "Represents a private chat session between users.",
+        "type": "object",
+        "properties": {
+          "participantIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lastMessage": {
+            "type": "string"
+          },
+          "lastMessageTimestamp": {
+            "type": "object"
+          }
+        },
+        "required": ["participantIds"]
       }
   },
   "auth": {
@@ -178,6 +198,18 @@
           "$ref": "#/entities/Follow"
         },
         "description": "A list of users that the user specified by {userId} is following."
+      },
+      "/chats/{chatId}": {
+        "schema": {
+          "$ref": "#/entities/Chat"
+        },
+        "description": "Represents a private chat room between two or more users."
+      },
+      "/chats/{chatId}/messages/{messageId}": {
+        "schema": {
+          "$ref": "#/entities/Message"
+        },
+        "description": "Stores the messages for a specific private chat room."
       }
   }
 }

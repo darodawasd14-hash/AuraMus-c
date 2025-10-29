@@ -1,8 +1,9 @@
 'use client';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import YouTube from 'react-youtube';
 import type { YouTubePlayer } from 'react-youtube';
-import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, User, Music, Search, Plus } from '@/components/icons';
+import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, User, Music, Search, Plus, MessageCircle } from '@/components/icons';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
@@ -11,7 +12,7 @@ import type { Song } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -75,10 +76,18 @@ const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) 
                         <span>Profilim</span>
                     </Link>
                 )}
+
+                 <Link
+                        href={`/chat`}
+                        className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
+                    >
+                        <MessageCircle className="w-5 h-5" />
+                        <span>Özel Sohbet</span>
+                </Link>
                 
                 <a href="#" onClick={(e) => {e.preventDefault(); toggleChat();}} className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium">
                     <MessageSquare className="w-5 h-5" />
-                    <span>Sohbet</span>
+                    <span>Şarkı Sohbeti</span>
                 </a>
             </nav>
         </aside>
@@ -204,6 +213,7 @@ const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, 
 const FriendsView = () => {
     const { user } = useUser();
     const firestore = useFirestore();
+    const router = useRouter();
 
     const followingQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
@@ -212,6 +222,39 @@ const FriendsView = () => {
     
     const { data: following, isLoading } = useCollection<{uid: string}>(followingQuery);
 
+    // This state will hold the display names of the friends
+    const [friendProfiles, setFriendProfiles] = useState<Map<string, { displayName: string }>>(new Map());
+    const [isProfilesLoading, setIsProfilesLoading] = useState(true);
+
+    useEffect(() => {
+        if (following && firestore) {
+            setIsProfilesLoading(true);
+            const profilePromises = following.map(friend => getDoc(doc(firestore, 'users', friend.id)));
+            Promise.all(profilePromises).then(profileDocs => {
+                const newFriendProfiles = new Map();
+                profileDocs.forEach(docSnap => {
+                    if (docSnap.exists()) {
+                        newFriendProfiles.set(docSnap.id, { displayName: docSnap.data().displayName || `Kullanıcı ${docSnap.id.substring(0, 6)}` });
+                    }
+                });
+                setFriendProfiles(newFriendProfiles);
+                setIsProfilesLoading(false);
+            });
+        } else if (!following) {
+             setIsProfilesLoading(false);
+        }
+    }, [following, firestore]);
+
+     const getChatId = (uid1: string, uid2: string) => {
+        return [uid1, uid2].sort().join('_');
+    };
+
+    const handleStartChat = (friendId: string) => {
+        if (!user) return;
+        const chatId = getChatId(user.uid, friendId);
+        router.push(`/chat/${chatId}`);
+    };
+
     return (
          <div className="h-full flex flex-col">
             <div className="mb-4">
@@ -219,23 +262,28 @@ const FriendsView = () => {
                 <p className="text-muted-foreground text-sm">Takip ettiğin kişiler</p>
             </div>
             <div className="flex-grow overflow-y-auto -mr-8 pr-8">
-                {isLoading && <p>Yükleniyor...</p>}
+                {(isLoading || isProfilesLoading) && <p>Yükleniyor...</p>}
                 {following && following.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {following.map(friend => (
-                           <Link href={`/profile/${friend.id}`} key={friend.id}>
-                             <Card  className="p-4 flex items-center gap-4 transition-colors hover:bg-secondary/50 cursor-pointer">
-                                 <Avatar className="h-12 w-12 border-2 border-primary">
-                                     <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${friend.id}`} />
-                                     <AvatarFallback>{friend.id.charAt(0)}</AvatarFallback>
-                                 </Avatar>
-                                 <div>
-                                     {/* We need to fetch the user profile to get the name */}
-                                     <p className="font-semibold truncate">Kullanıcı {friend.id.substring(0, 6)}</p>
-                                     <p className="text-sm text-muted-foreground">Proile Git</p>
-                                 </div>
-                             </Card>
-                           </Link>
+                            <Card key={friend.id} className="p-4 flex flex-col items-center gap-4 transition-colors hover:bg-secondary/50 justify-between">
+                                <Link href={`/profile/${friend.id}`} className="w-full">
+                                    <div className="flex items-center gap-4 cursor-pointer">
+                                        <Avatar className="h-12 w-12 border-2 border-primary">
+                                            <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${friend.id}`} />
+                                            <AvatarFallback>{friend.id.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                            <p className="font-semibold truncate">{friendProfiles.get(friend.id)?.displayName || 'Yükleniyor...'}</p>
+                                            <p className="text-sm text-muted-foreground">Profile Git</p>
+                                        </div>
+                                    </div>
+                                </Link>
+                                <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => handleStartChat(friend.id)}>
+                                    <MessageCircle className="w-4 h-4 mr-2"/>
+                                    Mesaj Gönder
+                                </Button>
+                            </Card>
                         ))}
                     </div>
                 ) : (
