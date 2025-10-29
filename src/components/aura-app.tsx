@@ -73,7 +73,7 @@ export function AuraApp() {
     const [volume, setVolume] = useState(100);
 
     // 7. Ses kapalı mı?
-    const [isMuted, setIsMuted] = useState(true);
+    const [isMuted, setIsMuted] = useState(false);
 
     // 8. Barı ilerleten 'motor' (setInterval)
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -107,21 +107,30 @@ export function AuraApp() {
         },
     };
 
+    const handleActivateSound = () => {
+        if (player) {
+            player.playVideo();
+            player.unMute();
+            player.setVolume(volume);
+            setSoundActivated(true);
+            setIsMuted(false);
+        }
+    };
+
     // ---------- YOUTUBE'DAN GELEN SİNYALLER ----------
     const onPlayerReady = (event: { target: YouTubePlayer }) => {
         const newPlayer = event.target;
         setPlayer(newPlayer);
-        // Her yeni video hazır olduğunda, hafızadaki ses ayarlarımızı uygula
-        if (soundActivated) {
-            if (isMuted) {
+
+        if (!soundActivated) {
+            handleActivateSound();
+        } else {
+             if (isMuted) {
                 newPlayer.mute();
             } else {
                 newPlayer.unMute();
                 newPlayer.setVolume(volume);
             }
-        } else {
-            newPlayer.mute();
-            setIsMuted(true);
         }
     };
 
@@ -161,7 +170,6 @@ export function AuraApp() {
         setCurrentSong(song);
         setCurrentIndex(index);
         setCurrentTime(0);
-        setSoundActivated(false); // Her yeni şarkıda ses iznini sıfırla
     };
 
     const playNext = () => {
@@ -175,22 +183,13 @@ export function AuraApp() {
         const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
         playSong(playlist[prevIndex], prevIndex);
     };
-
-    const handleActivateSound = () => {
-        if (player) {
-            player.playVideo();
-            player.unMute();
-            setSoundActivated(true);
-            setIsMuted(false);
-        }
-    };
     
     const handlePlayPause = () => {
         if (!player) return;
         if (isPlaying) {
             player.pauseVideo();
         } else {
-            if (!soundActivated) {
+             if (!soundActivated) {
                 handleActivateSound();
             } else {
                 player.playVideo();
@@ -262,7 +261,7 @@ export function AuraApp() {
                                     >
                                         <div className="text-center text-white p-4 rounded-lg">
                                             <PlayIcon className="w-16 h-16 text-white/80 mx-auto mb-4 drop-shadow-lg" />
-                                            <p className="text-lg font-semibold tracking-wide">Sesi açmak için çift tıklayınız</p>
+                                            <p className="text-lg font-semibold tracking-wide">Sesi açmak için tıklayınız</p>
                                         </div>
                                     </div>
                                 )}
