@@ -56,7 +56,6 @@ export const PlayerProvider: React.FC<PlayerProviderProps> = ({ children }) => {
   const [playlist, setPlaylist] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [volume, setVolume] = useState(0.8); // Default volume
-  const [isMuted, setIsMuted] = useState(true); // Start muted
 
   const playerRef = useRef<ReactPlayer>(null);
   
@@ -65,7 +64,9 @@ export const PlayerProvider: React.FC<PlayerProviderProps> = ({ children }) => {
   const playSong = (song: Song, index: number) => {
     setCurrentSong(song);
     setCurrentIndex(index);
+    // Automatically start playing, but it will be muted until interaction
     setIsPlaying(true); 
+    // Player is not ready for the new song yet
     setIsReady(false); 
   };
   
@@ -85,47 +86,51 @@ export const PlayerProvider: React.FC<PlayerProviderProps> = ({ children }) => {
     if (playerRef.current && !hasInteracted) {
       const internalPlayer = playerRef.current.getInternalPlayer();
       if (internalPlayer) {
-          // The "unMute" and "playVideo" calls are crucial to get audio playing
+          // These calls are crucial to get audio playing
           // after the first user interaction.
-          playerRef.current.getInternalPlayer()?.unMute();
-          playerRef.current.getInternalPlayer()?.playVideo();
+          internalPlayer.unMute();
+          internalPlayer.playVideo(); // Also ensure it plays to "crush the penalty"
       }
       setHasInteracted(true);
-      setIsMuted(false);
     }
   }, [hasInteracted]);
 
   const togglePlayPause = () => {
     if (!playerRef.current || !isReady) return;
 
+    // If this is the first interaction, activate sound and play
     if (!hasInteracted) {
         activateSound();
         return;
     }
     
+    // If sound is already active, just toggle play/pause
+    const internalPlayer = playerRef.current.getInternalPlayer();
     if (isPlaying) {
-        playerRef.current.getInternalPlayer()?.pauseVideo();
+        internalPlayer?.pauseVideo();
     } else {
-        playerRef.current.getInternalPlayer()?.playVideo();
+        internalPlayer?.playVideo();
     }
   };
   
   // --- INTERNAL PLAYER CALLBACKS ---
 
   const _playerOnReady = () => setIsReady(true);
-  const _playerOnProgress = (data: OnProgressProps) => {};
-  const _playerOnDuration = (duration: number) => {};
+  const _playerOnProgress = (data: OnProgressProps) => { /* Will be used for progress bar */ };
+  const _playerOnDuration = (duration: number) => { /* Will be used for progress bar */ };
   const _playerOnEnded = () => playNext();
   const _playerOnPlay = () => setIsPlaying(true);
   const _playerOnPause = () => setIsPlaying(false);
 
 
+  // Load initial playlist from catalog
   useEffect(() => {
       const songsWithArt = catalog.songs.map(song => ({
         ...song,
         artwork: `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`
       }));
       setPlaylist(songsWithArt);
+      // Set the first song but don't play it until the component is ready
       if (songsWithArt.length > 0) {
         playSong(songsWithArt[0], 0);
       }
@@ -148,11 +153,13 @@ export const PlayerProvider: React.FC<PlayerProviderProps> = ({ children }) => {
             url={currentSong?.url}
             playing={isPlaying}
             volume={volume}
-            muted={isMuted}
+            muted={!hasInteracted} // Control mute based on interaction
             onReady={_playerOnReady}
             onPlay={_playerOnPlay}
             onPause={_playerOnPause}
             onEnded={_playerOnEnded}
+            onProgress={_playerOnProgress}
+            onDuration={_playerOnDuration}
             config={{
               youtube: {
                 playerVars: { 
