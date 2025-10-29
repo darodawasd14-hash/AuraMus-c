@@ -286,11 +286,11 @@ const PlaylistView = () => {
             <h2 className="text-xl md:text-3xl font-semibold tracking-tight mb-4">Çalma Listem</h2>
             
             <div className="mb-4 aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
-              {currentSong?.type === 'youtube' ? (
+              {currentSong?.type === 'youtube' && isPlaying ? (
                 <div className="w-full h-full">
                    <ReactPlayer
                       url={currentSong.url}
-                      playing={isPlaying}
+                      playing={true}
                       controls={false}
                       width="100%"
                       height="100%"
