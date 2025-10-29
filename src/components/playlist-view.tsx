@@ -83,9 +83,9 @@ const CreatePlaylistDialog = ({ open, onOpenChange, onCreate }: { open: boolean,
     );
 };
 
-const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist, onSelectAndPopulate }: { playlist: Playlist, onSelect: (playlist: Playlist) => void, onDeletePlaylist: (playlistId: string) => void, onSelectAndPopulate: (playlist: Playlist) => void }) => {
+const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist }: { playlist: Playlist, onSelect: (playlist: Playlist) => void, onDeletePlaylist: (playlistId: string) => void }) => {
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    
+
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent card click event from firing
         onDeletePlaylist(playlist.id);
@@ -115,7 +115,7 @@ const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist, onSelectAndPopulat
             </AlertDialogContent>
         </AlertDialog>
 
-        <Card onClick={() => onSelectAndPopulate(playlist)} className="overflow-hidden transition-shadow duration-300 hover:shadow-lg hover:shadow-primary/20 flex flex-col cursor-pointer">
+        <Card onClick={() => onSelect(playlist)} className="overflow-hidden transition-shadow duration-300 hover:shadow-lg hover:shadow-primary/20 flex flex-col cursor-pointer">
             <div className="relative group">
                 <div className="flex aspect-video items-center justify-center bg-gradient-to-br from-secondary to-background p-4">
                      <Music className="h-12 w-12 text-muted-foreground/50" />
@@ -201,7 +201,7 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
          }
     }
     
-    const handleSelectAndPopulate = (playlist: Playlist) => {
+    const handleSelectPlaylist = (playlist: Playlist) => {
         setSelectedPlaylist(playlist);
     };
 
@@ -252,6 +252,13 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
                                 </div>
                             </div>
                         ))}
+                         {!areSongsLoading && selectedPlaylistSongs?.length === 0 && (
+                            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-12 text-center">
+                                <Music className="mb-4 h-12 w-12 text-muted-foreground" />
+                                <p className="font-semibold">Bu çalma listesi boş</p>
+                                <p className="text-sm text-muted-foreground">"Keşfet" sekmesinden yeni şarkılar ekle.</p>
+                            </div>
+                         )}
                     </div>
                 </div>
             </div>
@@ -288,9 +295,8 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
                             <PlaylistCard 
                                 key={playlist.id} 
                                 playlist={playlist}
-                                onSelect={setSelectedPlaylist}
+                                onSelect={handleSelectPlaylist}
                                 onDeletePlaylist={handleDeletePlaylist}
-                                onSelectAndPopulate={handleSelectAndPopulate}
                             />
                         ))}
                     </div>
