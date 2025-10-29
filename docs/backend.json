@@ -162,55 +162,55 @@
       "schema": {
         "$ref": "#/entities/User"
       },
-      "description": "Stores user profile information. Each user has a document identified by their unique user ID. Reading should be allowed by any authenticated user, but writing should be restricted to the owner."
+      "description": "Stores user profile information. Any authenticated user can read (get) a profile, but only the owner can write (create, update, delete)."
     },
     "/users/{userId}/playlists/{playlistId}": {
       "schema": {
         "$ref": "#/entities/Playlist"
       },
-      "description": "Stores the metadata for user-created playlists. Reading should be allowed by any authenticated user, but writing should be restricted to the owner."
+      "description": "Stores user-created playlists. Any authenticated user can read (get, list) playlists, but only the owner can write."
     },
     "/users/{userId}/playlists/{playlistId}/songs/{songId}": {
         "schema": {
             "$ref": "#/entities/Song"
         },
-        "description": "Sub-collection storing the songs for a specific playlist. Reading and writing should be restricted to the owner."
+        "description": "Sub-collection for songs in a playlist. Only the owner can read and write."
     },
     "/songs/{songId}": {
       "schema": {
         "$ref": "#/entities/Song"
       },
-      "description": "Stores all songs added by any user, forming a global catalog. All authenticated users should be able to read and write."
+      "description": "Global song catalog. All authenticated users can read and write."
     },
     "/songs/{songId}/messages/{messageId}": {
       "schema": {
         "$ref": "#/entities/Message"
       },
-      "description": "Sub-collection storing the chat messages for a specific song. All authenticated users should be able to read and write."
+      "description": "Chat messages for a specific song. All authenticated users can read and write."
     },
      "/users/{userId}/followers/{followerId}": {
         "schema": {
           "$ref": "#/entities/Follow"
         },
-        "description": "A list of users who are following the user specified by {userId}. Reading should be allowed by any authenticated user. Writing is complex (see rules)."
+        "description": "List of users following {userId}. Any authenticated user can read this list. Writing is managed by social logic (following/unfollowing)."
       },
       "/users/{userId}/following/{followingId}": {
         "schema": {
           "$ref": "#/entities/Follow"
         },
-        "description": "A list of users that the user specified by {userId} is following. Reading should be allowed by any authenticated user, but only the owner can write."
+        "description": "List of users that {userId} is following. Any authenticated user can read this list, but only the owner can write."
       },
       "/chats/{chatId}": {
         "schema": {
           "$ref": "#/entities/Chat"
         },
-        "description": "Represents a private chat room between two or more users. Reading a single document and all writes should be restricted to participants. Listing the collection should only be allowed with a query filtering by the current user's ID in 'participantIds'."
+        "description": "Private chat rooms. Reading a single document and all writes are restricted to participants. Listing is only allowed with a query filtering by the current user's ID in 'participantIds'."
       },
       "/chats/{chatId}/messages/{messageId}": {
         "schema": {
           "$ref": "#/entities/Message"
         },
-        "description": "Stores the messages for a specific private chat room. All operations should be restricted to participants of the parent chat."
+        "description": "Messages for a private chat. All operations are restricted to participants of the parent chat."
       }
   }
 }
