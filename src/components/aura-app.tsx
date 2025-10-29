@@ -87,8 +87,7 @@ export function AuraApp() {
         }));
         setPlaylist(songsWithArt);
         if (songsWithArt.length > 0) {
-            setCurrentSong(songsWithArt[0]);
-            setCurrentIndex(0);
+            playSong(songsWithArt[0], 0);
         }
     }, []);
 
@@ -108,7 +107,7 @@ export function AuraApp() {
     };
 
     const handleActivateSound = () => {
-        if (player) {
+        if (player && !soundActivated) {
             player.playVideo();
             player.unMute();
             player.setVolume(volume);
@@ -121,17 +120,6 @@ export function AuraApp() {
     const onPlayerReady = (event: { target: YouTubePlayer }) => {
         const newPlayer = event.target;
         setPlayer(newPlayer);
-
-        if (!soundActivated) {
-            handleActivateSound();
-        } else {
-             if (isMuted) {
-                newPlayer.mute();
-            } else {
-                newPlayer.unMute();
-                newPlayer.setVolume(volume);
-            }
-        }
     };
 
     const onPlayerStateChange = (event: { data: number }) => {
@@ -139,6 +127,10 @@ export function AuraApp() {
         if (state === 1) { // Oynatılıyor
             setIsPlaying(true);
             setDuration(player?.getDuration() ?? 0);
+            // VİDEO OYNAMAYA BAŞLADIĞI AN SESİ OTOMATİK AÇ
+            if (player && !soundActivated) {
+                handleActivateSound();
+            }
         } else if (state === 0) { // Bitti
             setIsPlaying(false);
             playNext();
@@ -170,6 +162,7 @@ export function AuraApp() {
         setCurrentSong(song);
         setCurrentIndex(index);
         setCurrentTime(0);
+        setSoundActivated(false); // Her yeni şarkıda ses iznini sıfırla
     };
 
     const playNext = () => {
@@ -261,7 +254,7 @@ export function AuraApp() {
                                     >
                                         <div className="text-center text-white p-4 rounded-lg">
                                             <PlayIcon className="w-16 h-16 text-white/80 mx-auto mb-4 drop-shadow-lg" />
-                                            <p className="text-lg font-semibold tracking-wide">Sesi açmak için tıklayınız</p>
+                                            <p className="text-lg font-semibold tracking-wide">Sesi açmak için çift tıklayınız</p>
                                         </div>
                                     </div>
                                 )}
