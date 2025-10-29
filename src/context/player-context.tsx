@@ -76,8 +76,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   // Ses
   const [volume, setVolumeState] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
-  const [isMutedByAutoplay, setIsMutedByAutoplay] = useState(true);
-
+  
   // Player Referansı
   const playerRef = useRef<ReactPlayer>(null);
 
@@ -89,34 +88,17 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlaying(true);
     setProgress(0);
     setDuration(0);
-    setIsMutedByAutoplay(true); // Yeni şarkı yüklendiğinde, autoplay için sessize al
   };
 
   const togglePlayPause = () => {
     if (!currentSong || !isReady) return;
-    
-    // Eğer tarayıcı otomatik oynatmayı engellediği için sessizdeyse,
-    // ilk oynat tuşuna basıldığında sesi aç.
-    if (isMutedByAutoplay) {
-      setIsMuted(false);
-      setIsMutedByAutoplay(false);
-    }
-    
     setIsPlaying(prev => !prev);
   };
 
   const addSong = (song: Song) => {
-    const existingIndex = playlist.findIndex(s => s.id === song.id);
-    if (existingIndex !== -1) {
-      if(currentIndex !== existingIndex) {
-        playSong(song, existingIndex);
-      } else {
-        // Zaten çalan şarkıysa, sadece çalmaya başla/devam et
-        togglePlayPause();
-      }
-    } else {
-      const newPlaylist = [...playlist, song];
-      setPlaylist(newPlaylist);
+    const newPlaylist = [...playlist, song];
+    setPlaylist(newPlaylist);
+    if (!currentSong) {
       playSong(song, newPlaylist.length - 1);
     }
   };
@@ -125,7 +107,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     if (playlist.length === 0) return;
     const nextIndex = (currentIndex + 1) % playlist.length;
     playSong(playlist[nextIndex], nextIndex);
-  }, [currentIndex, playlist]);
+  }, [currentIndex, playlist, playSong]);
 
   const playPrevious = () => {
     if (playlist.length === 0) return;
@@ -137,16 +119,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setVolumeState(Math.min(Math.max(newVolume, 0), 1));
     if (newVolume > 0) {
       setIsMuted(false);
-      setIsMutedByAutoplay(false); // Kullanıcı sesi manuel olarak açtı
     }
   };
 
   const toggleMute = () => {
-    const newMutedState = !isMuted;
-    setIsMuted(newMutedState);
-    if (!newMutedState) {
-        setIsMutedByAutoplay(false); // Kullanıcı sesi manuel olarak açtı
-    }
+    setIsMuted(prev => !prev);
   };
 
   const seek = (newProgress: number) => {
@@ -160,8 +137,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const _playerOnReady = () => {
     setIsReady(true);
-    // Yeni şarkı hazır olduğunda, autoplay için sessiz durumda başlat
-    setIsMuted(true);
   };
 
   const _playerSetIsPlaying = (playing: boolean) => {
