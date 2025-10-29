@@ -305,7 +305,7 @@ const PlaylistView = () => {
                    <ReactPlayer
                       url={currentSong.url}
                       playing={isPlaying}
-                      volume={0} // The visual player is always silent.
+                      volume={0} // Görsel oynatıcı her zaman sessizdir.
                       controls={false}
                       width="100%"
                       height="100%"

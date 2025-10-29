@@ -74,9 +74,9 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   // Ses
   const [volume, setVolumeState] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(true); // Start muted due to autoplay policy
+  const [isMuted, setIsMuted] = useState(false);
   
-  // Player Referansı
+  // Player Referansı (Kumandayı televizyona bağlamak için)
   const playerRef = useRef<ReactPlayer>(null);
 
   const playSong = (song: Song, index: number) => {
@@ -87,11 +87,20 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setDuration(0);
     // Important: Keep it muted initially to comply with autoplay policies.
     // The user's first interaction via togglePlayPause will unmute it.
-    setIsMuted(true); 
+    setIsMuted(false); 
   };
 
   const togglePlayPause = () => {
-    if (!currentSong || !isReady) return;
+    if (!currentSong) return;
+
+    // Eğer hazır değilse, ilk oynatma denemesi gibi davran
+    if (!isReady && playerRef.current) {
+      setIsPlaying(true);
+      setIsMuted(false);
+       // Oynatıcıya doğrudan komut göndererek senkronizasyonu zorla
+      playerRef.current.seekTo(0);
+      return;
+    }
     
     // The core of the "Force Sync" solution is here.
     // When the user intends to play, we explicitly set playing to true AND un-mute.
@@ -144,6 +153,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const _playerOnReady = () => {
     setIsReady(true);
+     // Oynatıcı hazır olduğunda sesi aç.
+    setIsMuted(false);
   };
   
   const _playerOnProgress = (data: OnProgressProps) => {
