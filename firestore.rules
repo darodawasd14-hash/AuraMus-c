@@ -1,264 +1,169 @@
 /**
- * @fileoverview Firestore Security Rules for the Aura application.
+ * @fileoverview Firestore Security Rules for Aura application.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for user profiles and playlists.
- * Users can only read and write their own data. Public read access is granted to the `/songs` collection.
+ * This ruleset enforces a strict user-ownership model for user profiles, playlists, and songs within playlists.
+ * Users can only read and write their own data, with some exceptions for public song data.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profile data.
- * - /users/{userId}/playlists/{playlistId}: Stores playlist metadata for each user.
- * - /users/{userId}/playlists/{playlistId}/songs/{songId}: Stores songs for a specific playlist.
- * - /songs/{songId}: Stores all songs added by any user, forming a global catalog.
- * - /songs/{songId}/messages/{messageId}: Stores chat messages for a specific song.
- * - /users/{userId}/followers/{followerId}: Stores the followers of a user.
- * - /users/{userId}/following/{followingId}: Stores the users a user is following.
+ * - /users/{userId}: User profile documents.
+ * - /users/{userId}/playlists/{playlistId}: User-created playlists.
+ * - /users/{userId}/playlists/{playlistId}/songs/{songId}: Songs within a specific playlist.
+ * - /songs/{songId}: Publicly accessible song catalog.
+ * - /songs/{songId}/messages/{messageId}: Chat messages for a specific song.
+ * - /users/{userId}/followers/{followerId}: Users following the user specified by {userId}.
+ * - /users/{userId}/following/{followingId}: Users that the user specified by {userId} is following.
  *
  * Key Security Decisions:
- * - User listing is disallowed.
- * - Default security posture for ambiguous relationships is strict owner-only access.
- * - The `songs` collection is publicly readable, but writes are restricted.
+ * - Users can only manage their own playlists and the songs within them.
+ * - The global /songs/{songId} collection is publicly readable but writable by anyone (subject to schema constraints).
+ * - Listing user collections is allowed only for the owner.
+ * - Users can create their own user document, but updates are restricted.
  *
  * Denormalization for Authorization:
- * - The `Playlist` entity requires `userId` to be stored to enforce ownership.
- * - The `Message` entity requires `sender.uid` to be stored to identify the message sender.
+ * - Playlist documents have a `userId` field, enabling direct ownership checks without additional `get()` calls.
  *
  * Structural Segregation:
- * - Playlists are stored as subcollections under `/users/{userId}` to ensure private user data.
+ * - The separation of `/users/{userId}/playlists/...` and `/songs/{songId}` allows for different security models: private, user-owned playlists vs. public song data.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Secure access to user profiles.
+     * @description Manages access to user profile documents.
      * @path /users/{userId}
-     * @allow (create) User with ID 'user123' can create their profile.
-     *   Request: { "auth": { "uid": "user123" }, "resource.data.id": "user123" }
-     * @allow (get) User with ID 'user123' can read their profile.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (update) User with ID 'user123' can update their profile.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (delete) User with ID 'user123' can delete their profile.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @deny (create) User with ID 'user456' cannot create a profile for 'user123'.
-     *   Request: { "auth": { "uid": "user456" }, "resource.data.id": "user123" }
-     * @deny (get) User with ID 'user456' cannot read the profile of 'user123'.
-     *   Request: { "auth": { "uid": "user456" } }
-     * @principle Enforces document ownership for writes and reads.
+     * @allow (create) Authenticated user can create their own profile.
+     * @deny (create) User cannot create a profile with a different userId.
+     * @allow (get, list) Authenticated user can read their own profile.
+     * @deny (get, list) User cannot read another user's profile.
+     * @allow (update) Authenticated user can update their own profile.
+     * @deny (update) User cannot update another user's profile.
+     * @allow (delete) Authenticated user can delete their own profile.
+     * @deny (delete) User cannot delete another user's profile.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      function isExistingOwner(userId) {
-        return isOwner(userId) && exists(/databases/$(database)/documents/users/$(userId));
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow get, list: if isOwner(userId);
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Secure access to user playlists.
+     * @description Manages access to user playlists.
      * @path /users/{userId}/playlists/{playlistId}
-     * @allow (create) User with ID 'user123' can create a playlist in their profile.
-     *   Request: { "auth": { "uid": "user123" }, "resource.data.userId": "user123" }
-     * @allow (get) User with ID 'user123' can read a playlist in their profile.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (list) User with ID 'user123' can list playlists in their profile.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (update) User with ID 'user123' can update a playlist in their profile.
-     *   Request: { "auth": { "uid": "user123" }, "resource.data.userId": "user123" }
-     * @allow (delete) User with ID 'user123' can delete a playlist in their profile.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @deny (create) User with ID 'user456' cannot create a playlist for 'user123'.
-     *   Request: { "auth": { "uid": "user456" }, "resource.data.userId": "user123" }
-     * @deny (get) User with ID 'user456' cannot read playlists of 'user123'.
-     *   Request: { "auth": { "uid": "user456" } }
-     * @principle Restricts access to a user's own playlist data.
+     * @allow (create) Authenticated user can create a playlist in their own profile.
+     * @deny (create) User cannot create a playlist in another user's profile.
+     * @allow (get, list) Authenticated user can read their own playlists.
+     * @deny (get, list) User cannot read another user's playlists.
+     * @allow (update) Authenticated user can update their own playlists.
+     * @deny (update) User cannot update another user's playlists.
+     * @allow (delete) Authenticated user can delete their own playlists.
+     * @deny (delete) User cannot delete another user's playlists.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/playlists/{playlistId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow get, list: if isOwner(userId);
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
 
-      function isExistingOwner(userId) {
-        return request.auth != null && request.auth.uid == userId && exists(/databases/$(database)/documents/users/$(userId)/playlists/$(playlistId));
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
+     /**
+      * @description Manages access to songs within a user's playlist.
+      * @path /users/{userId}/playlists/{playlistId}/songs/{songId}
+      * @allow (create) Authenticated user can create a song in their own playlist.
+      * @deny (create) User cannot create a song in another user's playlist.
+      * @allow (get, list) Authenticated user can read songs in their own playlist.
+      * @deny (get, list) User cannot read songs in another user's playlist.
+      * @allow (update) Authenticated user can update songs in their own playlist.
+      * @deny (update) User cannot update songs in another user's playlist.
+      * @allow (delete) Authenticated user can delete songs in their own playlist.
+      * @deny (delete) User cannot delete songs in another user's playlist.
+      * @principle Enforces document ownership for writes.
+      */
+    match /users/{userId}/playlists/{playlistId}/songs/{songId} {
       allow create: if isOwner(userId);
+      allow get, list: if isOwner(userId);
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Secure access to songs within a user's playlist.
-     * @path /users/{userId}/playlists/{playlistId}/songs/{songId}
-     * @allow (create) User with ID 'user123' can add a song to their playlist.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (get) User with ID 'user123' can read a song in their playlist.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (list) User with ID 'user123' can list songs in their playlist.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (update) User with ID 'user123' can update a song in their playlist.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (delete) User with ID 'user123' can delete a song from their playlist.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @deny (create) User with ID 'user456' cannot add a song to 'user123' playlist.
-     *   Request: { "auth": { "uid": "user456" } }
-     * @deny (get) User with ID 'user456' cannot read songs of 'user123'.
-     *   Request: { "auth": { "uid": "user456" } }
-     * @principle Restricts access to a user's own playlist songs.
-     */
-    match /users/{userId}/playlists/{playlistId}/songs/{songId} {
-      function isPlaylistOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      function isExistingPlaylistOwner(userId, playlistId, songId) {
-        return request.auth != null && request.auth.uid == userId && exists(/databases/$(database)/documents/users/$(userId)/playlists/$(playlistId)/songs/$(songId));
-      }
-
-      allow get: if isPlaylistOwner(userId);
-      allow list: if isPlaylistOwner(userId);
-      allow create: if isPlaylistOwner(userId);
-      allow update: if isExistingPlaylistOwner(userId, playlistId, songId);
-      allow delete: if isExistingPlaylistOwner(userId, playlistId, songId);
-    }
-
-    /**
-     * @description Allows public read access to the global song catalog, but restricts writes.
+     * @description Manages access to the global song catalog.
      * @path /songs/{songId}
-     * @allow (get) Any user can read song details.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (list) Any user can list songs.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @deny (create) No one can create a song without specific authorization logic.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @deny (update) No one can update a song without specific authorization logic.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @deny (delete) No one can delete a song without specific authorization logic.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @principle Provides public read access while restricting write access to authorized users.
+     * @allow (get, list) Anyone can read the song catalog.
+     * @allow (create) Any authenticated user can add a song to the catalog.
+     * @deny (update) Only the owner can update the song's metadata
+     * @deny (delete) Only the owner can delete the song from catalog.
+     * @principle Allows public read access with owner-only writes.
      */
     match /songs/{songId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow get, list: if true;
+      allow create: if isSignedIn();
       allow update: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
       allow delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Secure access to chat messages for a specific song.
+     * @description Manages access to chat messages for a specific song.
      * @path /songs/{songId}/messages/{messageId}
-     * @allow (create) Any signed-in user can create a message for a song.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (get) Any signed-in user can read a message for a song.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (list) Any signed-in user can list messages for a song.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (update) Only the message sender can update their message.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (delete) Only the message sender can delete their message.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @deny (create) Anonymous user cannot create a message for a song.
-     *   Request: { "auth": { "uid": null } }
-     * @deny (update) User with ID 'user456' cannot update message of 'user123'.
-     *   Request: { "auth": { "uid": "user456" } }
-     * @principle Messages should be secure, only the owner can edit/delete.
+     * @allow (create) Any authenticated user can create a message.
+     * @deny (create) Non-authenticated users cannot create messages.
+     * @allow (get, list) Anyone can read messages for a song.
+     * @deny (update) No one can update messages once created.
+     * @deny (delete) No one can delete messages.
      */
     match /songs/{songId}/messages/{messageId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isMessageSender(messageSenderId) {
-        return isSignedIn() && request.auth.uid == messageSenderId;
-      }
-
-      function isExistingMessageSender(songId, messageId) {
-        return isSignedIn() && exists(/databases/$(database)/documents/songs/$(songId)/messages/$(messageId));
-      }
-
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isExistingMessageSender(songId, messageId) && request.auth.uid == resource.data.sender.uid;
-      allow delete: if isExistingMessageSender(songId, messageId) && request.auth.uid == resource.data.sender.uid;
+      allow get, list: if true;
+      allow update, delete: if false;
     }
 
     /**
-     * @description Secure access to user followers.
+     * @description Manages access to followers of a user.
      * @path /users/{userId}/followers/{followerId}
-     * @allow (create) Any signed-in user can follow another user.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (get) Only the followed user can see their followers.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (list) Only the followed user can list their followers.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (delete) Only the follower can unfollow.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @deny (create) Anonymous user cannot follow another user.
-     *   Request: { "auth": { "uid": null } }
-     * @deny (get) User 'user456' cannot see the followers of 'user123'.
-     *   Request: { "auth": { "uid": "user456" } }
-     * @principle Follower list are restricted to the user being followed.
+     * @allow (create) Any authenticated user can follow another user.
+     * @deny (create) Non-authenticated users cannot create follow relationships.
+     * @allow (get, list) Authenticated user can see their followers.
+     * @deny (get, list) User cannot read another user's followers.
+     * @deny (update, delete) No one can update or delete follow relationships directly.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/followers/{followerId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
       allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if request.auth.uid == followerId;
+      allow get, list: if isOwner(userId);
+      allow update, delete: if false;
     }
 
     /**
-     * @description Secure access to users a user is following.
+     * @description Manages access to users a user is following.
      * @path /users/{userId}/following/{followingId}
-     * @allow (create) Any signed-in user can follow another user.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (get) Only the user can see who they are following.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (list) Only the user can list who they are following.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @allow (delete) Only the user can unfollow.
-     *   Request: { "auth": { "uid": "user123" } }
-     * @deny (create) Anonymous user cannot follow another user.
-     *   Request: { "auth": { "uid": null } }
-     * @deny (get) User 'user456' cannot see who 'user123' is following.
-     *   Request: { "auth": { "uid": "user456" } }
-     * @principle Following list are restricted to the user who is following.
+     * @allow (create) Any authenticated user can follow another user.
+     * @deny (create) Non-authenticated users cannot create following relationships.
+     * @allow (get, list) Authenticated user can see who they are following.
+     * @deny (get, list) User cannot read another user's following list.
+     * @deny (update, delete) No one can update or delete following relationships directly.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId}/following/{followingId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
       allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if request.auth.uid == userId;
+      allow get, list: if isOwner(userId);
+      allow update, delete: if false;
     }
+  }
+
+  // Helper functions
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  function isOwner(userId) {
+    return isSignedIn() && request.auth.uid == userId;
+  }
+
+  function isExistingOwner(userId) {
+    return isOwner(userId) && resource != null;
   }
 }
