@@ -11,8 +11,8 @@ import { ChatPane } from '@/components/chat-pane';
 import type { Song } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError, useDoc } from '@/firebase';
+import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import { AddToPlaylistDialog } from '@/components/add-to-playlist';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type ActiveView = 'playlist' | 'discover' | 'friends';
 
@@ -210,10 +211,72 @@ const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, 
     );
 };
 
+const FriendCard = ({ friendId }: { friendId: string }) => {
+    const firestore = useFirestore();
+    const { user: currentUser } = useUser();
+    const router = useRouter();
+
+    const friendProfileRef = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return doc(firestore, 'users', friendId);
+    }, [firestore, friendId]);
+
+    const { data: friendProfile, isLoading: isProfileLoading } = useDoc<{ displayName: string }>(friendProfileRef);
+
+    const getChatId = (uid1: string, uid2: string) => {
+        return [uid1, uid2].sort().join('_');
+    };
+
+    const handleStartChat = () => {
+        if (!currentUser) return;
+        const chatId = getChatId(currentUser.uid, friendId);
+        router.push(`/chat/${chatId}`);
+    };
+
+    if (isProfileLoading) {
+        return (
+            <Card className="p-4 flex flex-col items-center gap-4 justify-between">
+                <div className="flex items-center gap-4 w-full">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <div className="space-y-2">
+                        <Skeleton className="h-4 w-[150px]" />
+                        <Skeleton className="h-4 w-[100px]" />
+                    </div>
+                </div>
+                <Skeleton className="h-9 w-full mt-2" />
+            </Card>
+        );
+    }
+    
+    const displayName = friendProfile?.displayName || `Kullanıcı ${friendId.substring(0, 6)}`;
+    const fallback = displayName.charAt(0).toUpperCase();
+
+    return (
+        <Card className="p-4 flex flex-col items-center gap-4 transition-colors hover:bg-secondary/50 justify-between">
+            <Link href={`/profile/${friendId}`} className="w-full">
+                <div className="flex items-center gap-4 cursor-pointer">
+                    <Avatar className="h-12 w-12 border-2 border-primary">
+                        <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${friendId}`} />
+                        <AvatarFallback>{fallback}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                        <p className="font-semibold truncate">{displayName}</p>
+                        <p className="text-sm text-muted-foreground">Profile Git</p>
+                    </div>
+                </div>
+            </Link>
+            <Button variant="outline" size="sm" className="w-full mt-2" onClick={handleStartChat}>
+                <MessageCircle className="w-4 h-4 mr-2"/>
+                Mesaj Gönder
+            </Button>
+        </Card>
+    );
+};
+
+
 const FriendsView = () => {
     const { user } = useUser();
     const firestore = useFirestore();
-    const router = useRouter();
 
     const followingQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
@@ -222,39 +285,6 @@ const FriendsView = () => {
     
     const { data: following, isLoading } = useCollection<{uid: string}>(followingQuery);
 
-    // This state will hold the display names of the friends
-    const [friendProfiles, setFriendProfiles] = useState<Map<string, { displayName: string }>>(new Map());
-    const [isProfilesLoading, setIsProfilesLoading] = useState(true);
-
-    useEffect(() => {
-        if (following && firestore) {
-            setIsProfilesLoading(true);
-            const profilePromises = following.map(friend => getDoc(doc(firestore, 'users', friend.id)));
-            Promise.all(profilePromises).then(profileDocs => {
-                const newFriendProfiles = new Map();
-                profileDocs.forEach(docSnap => {
-                    if (docSnap.exists()) {
-                        newFriendProfiles.set(docSnap.id, { displayName: docSnap.data().displayName || `Kullanıcı ${docSnap.id.substring(0, 6)}` });
-                    }
-                });
-                setFriendProfiles(newFriendProfiles);
-                setIsProfilesLoading(false);
-            });
-        } else if (!following) {
-             setIsProfilesLoading(false);
-        }
-    }, [following, firestore]);
-
-     const getChatId = (uid1: string, uid2: string) => {
-        return [uid1, uid2].sort().join('_');
-    };
-
-    const handleStartChat = (friendId: string) => {
-        if (!user) return;
-        const chatId = getChatId(user.uid, friendId);
-        router.push(`/chat/${chatId}`);
-    };
-
     return (
          <div className="h-full flex flex-col">
             <div className="mb-4">
@@ -262,31 +292,14 @@ const FriendsView = () => {
                 <p className="text-muted-foreground text-sm">Takip ettiğin kişiler</p>
             </div>
             <div className="flex-grow overflow-y-auto -mr-8 pr-8">
-                {(isLoading || isProfilesLoading) && <p>Yükleniyor...</p>}
+                {isLoading && <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>}
                 {following && following.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {following.map(friend => (
-                            <Card key={friend.id} className="p-4 flex flex-col items-center gap-4 transition-colors hover:bg-secondary/50 justify-between">
-                                <Link href={`/profile/${friend.id}`} className="w-full">
-                                    <div className="flex items-center gap-4 cursor-pointer">
-                                        <Avatar className="h-12 w-12 border-2 border-primary">
-                                            <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${friend.id}`} />
-                                            <AvatarFallback>{friend.id.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                        <div>
-                                            <p className="font-semibold truncate">{friendProfiles.get(friend.id)?.displayName || 'Yükleniyor...'}</p>
-                                            <p className="text-sm text-muted-foreground">Profile Git</p>
-                                        </div>
-                                    </div>
-                                </Link>
-                                <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => handleStartChat(friend.id)}>
-                                    <MessageCircle className="w-4 h-4 mr-2"/>
-                                    Mesaj Gönder
-                                </Button>
-                            </Card>
+                            <FriendCard key={friend.id} friendId={friend.id} />
                         ))}
                     </div>
-                ) : (
+                ) : !isLoading && (
                     <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-12 text-center h-full">
                       <Users className="mb-4 h-12 w-12 text-muted-foreground" />
                       <p className="font-semibold">Henüz kimseyi takip etmiyorsun</p>
@@ -586,3 +599,5 @@ export function AuraApp() {
         </div>
     );
 }
+
+    

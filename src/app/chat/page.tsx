@@ -1,7 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDoc, doc } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, query, where, doc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -10,14 +9,73 @@ import { Loader2, ArrowLeft, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Chat {
   id: string;
   participantIds: string[];
-  participantDetails?: { [key: string]: { displayName: string } };
   lastMessage?: string;
   lastMessageTimestamp?: { seconds: number, nanoseconds: number };
 }
+
+const ChatListItem = ({ chat }: { chat: Chat }) => {
+    const { user } = useUser();
+    const firestore = useFirestore();
+
+    const otherParticipantId = chat.participantIds.find(pId => pId !== user?.uid);
+
+    const participantProfileRef = useMemoFirebase(() => {
+        if (!firestore || !otherParticipantId) return null;
+        return doc(firestore, 'users', otherParticipantId);
+    }, [firestore, otherParticipantId]);
+
+    const { data: participantProfile, isLoading: isProfileLoading } = useDoc<{ displayName: string }>(participantProfileRef);
+
+    if (!otherParticipantId) return null;
+
+    const getChatId = (uid1: string, uid2: string) => {
+        return [uid1, uid2].sort().join('_');
+    };
+    
+    const displayName = participantProfile?.displayName || `Kullanıcı ${otherParticipantId.substring(0, 6)}`;
+    const fallback = displayName.charAt(0).toUpperCase();
+
+    return (
+        <Link href={`/chat/${getChatId(user!.uid, otherParticipantId)}`} key={chat.id}>
+            <Card className="hover:bg-secondary/50 transition-colors cursor-pointer">
+                <CardContent className="p-4 flex items-center gap-4">
+                    {isProfileLoading ? (
+                        <Skeleton className="h-12 w-12 rounded-full" />
+                    ) : (
+                        <Avatar className="h-12 w-12 border-2 border-primary">
+                            <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${otherParticipantId}`} />
+                            <AvatarFallback>{fallback}</AvatarFallback>
+                        </Avatar>
+                    )}
+                    <div className="flex-grow">
+                        {isProfileLoading ? (
+                            <div className="space-y-2">
+                                <Skeleton className="h-4 w-32" />
+                                <Skeleton className="h-3 w-48" />
+                            </div>
+                        ) : (
+                           <>
+                            <p className="font-semibold">{displayName}</p>
+                            <p className="text-sm text-muted-foreground truncate">{chat.lastMessage || 'Henüz mesaj yok...'}</p>
+                           </>
+                        )}
+                    </div>
+                    {chat.lastMessageTimestamp && (
+                        <p className="text-xs text-muted-foreground self-start">
+                            {formatDistanceToNow(new Date(chat.lastMessageTimestamp.seconds * 1000), { addSuffix: true, locale: tr })}
+                        </p>
+                    )}
+                </CardContent>
+            </Card>
+        </Link>
+    );
+};
+
 
 export default function ChatsPage() {
   const { user, isUserLoading } = useUser();
@@ -31,43 +89,7 @@ export default function ChatsPage() {
 
   const { data: chats, isLoading: areChatsLoading } = useCollection<Chat>(chatsQuery);
 
-  const [enrichedChats, setEnrichedChats] = useState<Chat[]>([]);
-  const [isEnriching, setIsEnriching] = useState(true);
-
-  useEffect(() => {
-    if (chats && user && firestore) {
-      setIsEnriching(true);
-      const enrichPromises = chats.map(async (chat) => {
-        const otherParticipantId = chat.participantIds.find(pId => pId !== user.uid);
-        if (!otherParticipantId) return { ...chat, participantDetails: {} };
-
-        const userDocRef = doc(firestore, 'users', otherParticipantId);
-        const userDoc = await getDoc(userDocRef);
-
-        const participantDetails = {
-          ...chat.participantDetails,
-          [otherParticipantId]: {
-            displayName: userDoc.exists() ? userDoc.data().displayName || `Kullanıcı ${otherParticipantId.substring(0,6)}` : 'Bilinmeyen Kullanıcı',
-          },
-        };
-        return { ...chat, participantDetails };
-      });
-
-      Promise.all(enrichPromises).then((newEnrichedChats) => {
-        // @ts-ignore
-        setEnrichedChats(newEnrichedChats);
-        setIsEnriching(false);
-      });
-    } else if (!areChatsLoading) {
-      setIsEnriching(false);
-    }
-  }, [chats, user, firestore, areChatsLoading]);
-  
-  const getChatId = (uid1: string, uid2: string) => {
-    return [uid1, uid2].sort().join('_');
-  };
-
-  const isLoading = isUserLoading || areChatsLoading || isEnriching;
+  const isLoading = isUserLoading || areChatsLoading;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -87,38 +109,13 @@ export default function ChatsPage() {
             <div className="flex justify-center items-center h-64">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
-          ) : enrichedChats.length > 0 ? (
+          ) : chats && chats.length > 0 ? (
             <div className="space-y-3">
-              {enrichedChats
+              {chats
                 .sort((a, b) => (b.lastMessageTimestamp?.seconds ?? 0) - (a.lastMessageTimestamp?.seconds ?? 0))
-                .map(chat => {
-                  if (!chat.participantDetails) return null;
-                  const otherParticipantId = chat.participantIds.find(pId => pId !== user?.uid);
-                  if (!otherParticipantId) return null;
-                  const otherParticipantName = chat.participantDetails[otherParticipantId]?.displayName || 'Yükleniyor...';
-
-                  return (
-                    <Link href={`/chat/${getChatId(user!.uid, otherParticipantId)}`} key={chat.id}>
-                      <Card className="hover:bg-secondary/50 transition-colors cursor-pointer">
-                        <CardContent className="p-4 flex items-center gap-4">
-                          <Avatar className="h-12 w-12 border-2 border-primary">
-                            <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${otherParticipantId}`} />
-                            <AvatarFallback>{otherParticipantName.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-grow">
-                            <p className="font-semibold">{otherParticipantName}</p>
-                            <p className="text-sm text-muted-foreground truncate">{chat.lastMessage || 'Henüz mesaj yok...'}</p>
-                          </div>
-                          {chat.lastMessageTimestamp && (
-                             <p className="text-xs text-muted-foreground self-start">
-                               {formatDistanceToNow(new Date(chat.lastMessageTimestamp.seconds * 1000), { addSuffix: true, locale: tr })}
-                             </p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  );
-              })}
+                .map(chat => (
+                    <ChatListItem key={chat.id} chat={chat} />
+                ))}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-12 text-center">
@@ -135,3 +132,5 @@ export default function ChatsPage() {
     </div>
   );
 }
+
+    
