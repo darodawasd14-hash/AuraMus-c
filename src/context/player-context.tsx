@@ -54,6 +54,8 @@ interface PlayerContextType {
   _playerOnProgress: (data: OnProgressProps) => void;
   _playerOnDuration: (duration: number) => void;
   _playerOnEnded: () => void;
+  _playerOnPlay: () => void;
+  _playerOnPause: () => void;
 }
 
 export const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -82,34 +84,23 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const playSong = (song: Song, index: number) => {
     setCurrentSong(song);
     setCurrentIndex(index);
-    setIsPlaying(true);
     setProgress(0);
     setDuration(0);
-    // Important: Keep it muted initially to comply with autoplay policies.
-    // The user's first interaction via togglePlayPause will unmute it.
-    setIsMuted(false); 
+    // Don't set isPlaying to true here. Let the `onPlay` callback handle it.
+    // This prevents race conditions.
   };
 
   const togglePlayPause = () => {
     if (!currentSong) return;
-
-    // Eğer hazır değilse, ilk oynatma denemesi gibi davran
-    if (!isReady && playerRef.current) {
-      setIsPlaying(true);
-      setIsMuted(false);
-       // Oynatıcıya doğrudan komut göndererek senkronizasyonu zorla
-      playerRef.current.seekTo(0);
-      return;
-    }
     
-    // The core of the "Force Sync" solution is here.
-    // When the user intends to play, we explicitly set playing to true AND un-mute.
-    if (!isPlaying) {
-      setIsPlaying(true);
-      setIsMuted(false); // This is the explicit "unMute()" command.
-    } else {
-      // If it is playing, just pause it.
-      setIsPlaying(false);
+    // The user's intent is to toggle the state.
+    // The onPlay/onPause callbacks will sync the state.
+    setIsPlaying(!isPlaying);
+
+    // Force Sync: On the first user-initiated play, unmute.
+    // This is the "user interaction" required by browsers.
+    if (isMuted) {
+      setIsMuted(false);
     }
   };
 
@@ -153,13 +144,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const _playerOnReady = () => {
     setIsReady(true);
-     // Oynatıcı hazır olduğunda sesi aç.
-    setIsMuted(false);
+    // Ready to play, but don't unmute until user interaction.
+    // Browser autoplay policy requires the initial play to be muted.
   };
   
   const _playerOnProgress = (data: OnProgressProps) => {
-    // Only update progress if the player is not seeking
-    if (playerRef.current && !playerRef.current.getInternalPlayer()?.seeking) {
+    // Only update progress if we are in a playing state
+    if (isPlaying) {
       setProgress(data.played);
     }
   };
@@ -167,6 +158,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const _playerOnDuration = (newDuration: number) => {
     setDuration(newDuration);
   };
+  
+  const _playerOnPlay = () => {
+    setIsPlaying(true);
+  };
+
+  const _playerOnPause = () => {
+    setIsPlaying(false);
+  };
+
 
   const _playerOnEnded = () => {
     playNext();
@@ -196,6 +196,8 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     _playerOnProgress,
     _playerOnDuration,
     _playerOnEnded,
+    _playerOnPlay,
+    _playerOnPause,
   };
 
   return (

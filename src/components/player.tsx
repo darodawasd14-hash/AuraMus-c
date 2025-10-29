@@ -13,6 +13,8 @@ export const Player = () => {
     _playerOnProgress,
     _playerOnDuration,
     _playerOnEnded,
+    _playerOnPlay,
+    _playerOnPause,
     playerRef
   } = usePlayer();
 
@@ -40,9 +42,12 @@ export const Player = () => {
         onProgress={_playerOnProgress}
         onDuration={_playerOnDuration} // Report the duration to the context.
         onEnded={_playerOnEnded}
+        onPlay={_playerOnPlay}
+        onPause={_playerOnPause}
         config={{
           youtube: {
             playerVars: { 
+              autoplay: 1,
               showinfo: 0,
               disablekb: 1,
               iv_load_policy: 3,
@@ -51,6 +56,7 @@ export const Player = () => {
           soundcloud: {
             options: {
               visual: false,
+              autoplay: true,
             }
           }
         }}
