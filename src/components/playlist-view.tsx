@@ -83,30 +83,18 @@ const CreatePlaylistDialog = ({ open, onOpenChange, onCreate }: { open: boolean,
     );
 };
 
-const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist }: { playlist: Playlist, onSelect: (playlist: Playlist) => void, onDeletePlaylist: (playlistId: string) => void }) => {
-    const { user } = useUser();
-    const firestore = useFirestore();
-    
-    const songsRef = useMemoFirebase(() => {
-        if (!user || !firestore) return null;
-        return query(collection(firestore, 'users', user.uid, 'playlists', playlist.id, 'songs'), orderBy('timestamp', 'asc'));
-    }, [firestore, user, playlist.id]);
-    
-    const { data: songs } = useCollection<Song>(songsRef);
+const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist, onSelectAndPopulate }: { playlist: Playlist, onSelect: (playlist: Playlist) => void, onDeletePlaylist: (playlistId: string) => void, onSelectAndPopulate: (playlist: Playlist) => void }) => {
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
+    
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent card click event from firing
         onDeletePlaylist(playlist.id);
         setDeleteDialogOpen(false);
     }
     
-    const getArtwork = (song: Song | undefined) => {
-        if (!song || !song.videoId) return "/placeholder.png";
-        return song.artwork || `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
-    }
-    
-    const populatedPlaylist = useMemo(() => ({ ...playlist, songs: songs || [] }), [playlist, songs]);
+    // This is a placeholder. The actual first song artwork should be fetched differently if needed.
+    // For now, we'll just show a generic music icon.
+    const artworkPlaceholder = "/placeholder.png";
 
     return (
         <>
@@ -127,14 +115,10 @@ const PlaylistCard = ({ playlist, onSelect, onDeletePlaylist }: { playlist: Play
             </AlertDialogContent>
         </AlertDialog>
 
-        <Card onClick={() => onSelect(populatedPlaylist)} className="overflow-hidden transition-shadow duration-300 hover:shadow-lg hover:shadow-primary/20 flex flex-col cursor-pointer">
+        <Card onClick={() => onSelectAndPopulate(playlist)} className="overflow-hidden transition-shadow duration-300 hover:shadow-lg hover:shadow-primary/20 flex flex-col cursor-pointer">
             <div className="relative group">
                 <div className="flex aspect-video items-center justify-center bg-gradient-to-br from-secondary to-background p-4">
-                     {songs && songs.length > 0 && songs[0] ? (
-                        <Image src={getArtwork(songs[0])} alt={songs[0].title} layout="fill" objectFit="cover" />
-                     ): (
-                        <Music className="h-12 w-12 text-muted-foreground/50" />
-                     )}
+                     <Music className="h-12 w-12 text-muted-foreground/50" />
                 </div>
             </div>
             <div className="p-4 flex flex-col flex-grow">
@@ -164,8 +148,18 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
         if (!user || !firestore) return null;
         return collection(firestore, 'users', user.uid, 'playlists');
     }, [user, firestore]);
-
+    
+    // This hook fetches the list of playlists.
     const { data: playlists, isLoading } = useCollection<Playlist>(playlistsQuery);
+
+    // This query is for fetching songs of the *selected* playlist.
+    const songsQuery = useMemoFirebase(() => {
+        if (!user || !firestore || !selectedPlaylist) return null;
+        return query(collection(firestore, 'users', user.uid, 'playlists', selectedPlaylist.id, 'songs'), orderBy('timestamp', 'asc'));
+    }, [user, firestore, selectedPlaylist]);
+
+    // This hook fetches the songs for the selected playlist.
+    const { data: selectedPlaylistSongs, isLoading: areSongsLoading } = useCollection<Song>(songsQuery);
 
     const handleCreatePlaylist = async (name: string) => {
         if (!user || !firestore || !playlistsQuery) return;
@@ -192,8 +186,6 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
         if (!user || !firestore) return;
         const playlistDocRef = doc(firestore, 'users', user.uid, 'playlists', playlistId);
         try {
-            // Note: This does not delete subcollections in the client SDK.
-            // A cloud function would be needed for full cleanup.
             await deleteDoc(playlistDocRef);
         } catch(serverError: any) {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -204,12 +196,15 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
     };
     
     const handlePlaySongFromPlaylist = (song: Song, index: number) => {
-        const songs = selectedPlaylist?.songs || [];
-         if (songs.length > 0) {
-            playSong(song, index, songs);
+         if (selectedPlaylistSongs && selectedPlaylistSongs.length > 0) {
+            playSong(song, index, selectedPlaylistSongs);
          }
     }
     
+    const handleSelectAndPopulate = (playlist: Playlist) => {
+        setSelectedPlaylist(playlist);
+    };
+
     const getArtwork = (song: Song | undefined) => {
         if (!song || !song.videoId) return "/placeholder.png";
         return song.artwork || `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
@@ -225,18 +220,23 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
                             Geri
                         </Button>
                         <h2 className="text-2xl font-bold">{selectedPlaylist.name}</h2>
-                        <p className="text-muted-foreground text-sm">{selectedPlaylist.songs?.length ?? 0} şarkı</p>
+                        <p className="text-muted-foreground text-sm">{selectedPlaylistSongs?.length ?? 0} şarkı</p>
                     </div>
                 </div>
                 <div className="flex-grow overflow-y-auto -mr-8 pr-8">
+                     {areSongsLoading && (
+                        <div className="flex justify-center items-center h-full">
+                           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                     )}
                      <div className="space-y-1">
-                        {selectedPlaylist.songs?.map((song, index) => (
+                        {!areSongsLoading && selectedPlaylistSongs?.map((song, index) => (
                              <div
                                 key={song.id}
                                 onClick={() => handlePlaySongFromPlaylist(song, index)}
                                 className={cn(
                                     "flex items-center gap-4 p-2 rounded-md group cursor-pointer transition-colors hover:bg-secondary/50",
-                                    currentSong?.id === song.id && "bg-primary/20 text-primary-foreground"
+                                    currentSong?.videoId === song.videoId && "bg-primary/20 text-primary-foreground"
                                     )}
                             >
                                 <Image 
@@ -290,6 +290,7 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
                                 playlist={playlist}
                                 onSelect={setSelectedPlaylist}
                                 onDeletePlaylist={handleDeletePlaylist}
+                                onSelectAndPopulate={handleSelectAndPopulate}
                             />
                         ))}
                     </div>

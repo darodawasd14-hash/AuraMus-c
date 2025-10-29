@@ -301,7 +301,7 @@ export function AuraApp() {
         if (player && !soundActivated) {
             player.unMute();
             player.setVolume(volume);
-            player.pauseVideo();
+            player.pauseVideo(); // Force a "click"
             player.playVideo();
             setSoundActivated(true);
             setIsMuted(false);
@@ -446,7 +446,7 @@ export function AuraApp() {
                         {currentSong?.videoId && (
                             <>
                                 <YouTube
-                                    key={currentSong.id}
+                                    key={currentSong.videoId}
                                     videoId={currentSong.videoId}
                                     opts={videoOptions}
                                     onReady={onPlayerReady}
@@ -454,8 +454,9 @@ export function AuraApp() {
                                     className="w-full h-full"
                                 />
                                 {player && !soundActivated && (
-                                    <div 
-                                        className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center z-10"
+                                     <div 
+                                        className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center z-10 cursor-pointer"
+                                        onDoubleClick={handleActivateSound}
                                     >
                                         <PlayIcon className="w-16 h-16 text-white mb-4" />
                                         <p className="text-white text-lg font-semibold">Sesi açmak için çift tıklayınız</p>
@@ -537,9 +538,3 @@ export function AuraApp() {
         </div>
     );
 }
-
-    
-
-    
-
-    
