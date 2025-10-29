@@ -43,9 +43,14 @@ export default function PrivateChatPage() {
         getDoc(userDocRef).then(docSnap => {
           if (docSnap.exists()) {
             setOtherParticipant({ id: otherId, displayName: docSnap.data().displayName || `Kullanıcı ${otherId.substring(0,6)}` });
+          } else {
+            setOtherParticipant({ id: otherId, displayName: `Kullanıcı ${otherId.substring(0,6)}` });
           }
           setIsLoadingParticipant(false);
-        }).catch(() => setIsLoadingParticipant(false));
+        }).catch(() => {
+          setOtherParticipant({ id: otherId, displayName: `Kullanıcı ${otherId.substring(0,6)}` });
+          setIsLoadingParticipant(false)
+        });
       } else {
         setIsLoadingParticipant(false);
       }
@@ -82,42 +87,40 @@ export default function PrivateChatPage() {
       timestamp: serverTimestamp(),
     };
     
+    // Add the message to the subcollection
+    await addDoc(messagesColRef, messageData).catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: messagesColRef.path,
+            operation: 'create',
+            requestResourceData: messageData,
+        }));
+        // Re-throw to stop further execution in the `try` block
+        throw serverError;
+    });
+
+    // After successfully sending a message, also update the parent chat document
+    // for metadata like "last message". This is useful for chat list previews.
     const chatDocRef = doc(firestore, 'chats', chatId);
-    const participantIds = chatId.split('_').sort();
     const chatData = {
-      participantIds: participantIds,
+      participantIds: chatId.split('_').sort(),
       lastMessage: trimmedMessage,
       lastMessageTimestamp: serverTimestamp(),
     };
 
-    try {
-        // First, ensure the chat document exists.
-        await setDoc(chatDocRef, chatData, { merge: true }).catch(serverError => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: chatDocRef.path,
-                operation: 'write', // 'merge:true' can be create or update
-                requestResourceData: chatData,
-            }));
-            // Re-throw to stop the message from being sent if chat creation fails
-            throw serverError; 
-        });
+    // This setDoc with merge will create the chat document if it doesn't exist,
+    // or update it if it does.
+    await setDoc(chatDocRef, chatData, { merge: true }).catch(serverError => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: chatDocRef.path,
+            operation: 'write', // 'merge:true' can be create or update
+            requestResourceData: chatData,
+        }));
+        // We don't re-throw here because the message was already sent successfully.
+        // Failing to update metadata is less critical.
+    });
 
-        // If chat document is ensured, add the message.
-        await addDoc(messagesColRef, messageData).catch(serverError => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: messagesColRef.path,
-                operation: 'create',
-                requestResourceData: messageData,
-            }));
-             throw serverError;
-        });
-
-        setMessage('');
-    } catch (error) {
-        console.error("Mesaj gönderilemedi:", error);
-    } finally {
-        setIsSending(false);
-    }
+    setMessage('');
+    setIsSending(false);
   };
   
   const isLoading = isUserLoading || areMessagesLoading || isLoadingParticipant;
