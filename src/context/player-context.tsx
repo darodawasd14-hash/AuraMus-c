@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useCallback, useRef } from 'react';
 import type { OnProgressProps } from 'react-player/base';
 import type ReactPlayer from 'react-player';
 
@@ -51,7 +51,6 @@ interface PlayerContextType {
 
   // Dahili Oynatıcı Raporlama Fonksiyonları (Dışarıdan kullanılmamalı)
   _playerOnReady: () => void;
-  _playerSetIsPlaying: (playing: boolean) => void;
   _playerOnProgress: (data: OnProgressProps) => void;
   _playerOnDuration: (duration: number) => void;
   _playerOnEnded: () => void;
@@ -75,8 +74,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   // Ses
   const [volume, setVolumeState] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isMutedByAutoplay, setIsMutedByAutoplay] = useState(true);
+  const [isMuted, setIsMuted] = useState(true); // Start muted due to autoplay policy
   
   // Player Referansı
   const playerRef = useRef<ReactPlayer>(null);
@@ -87,18 +85,21 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlaying(true);
     setProgress(0);
     setDuration(0);
-    setIsMutedByAutoplay(true); // Always start muted for autoplay
+    setIsMuted(true); // Always start new songs muted to comply with autoplay
   };
 
   const togglePlayPause = () => {
     if (!currentSong || !isReady) return;
     
-    // First user interaction un-mutes
-    if (isMutedByAutoplay) {
-      setIsMutedByAutoplay(false);
+    // If it's not playing, we want to force it to play and be unmuted.
+    // This handles the user's first interaction to enable audio.
+    if (!isPlaying) {
+      setIsPlaying(true);
+      setIsMuted(false); // Force unmute
+    } else {
+      // If it is playing, just pause it.
+      setIsPlaying(false);
     }
-    
-    setIsPlaying(prev => !prev);
   };
 
   const addSong = (song: Song) => {
@@ -125,16 +126,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setVolumeState(Math.min(Math.max(newVolume, 0), 1));
     if (newVolume > 0) {
       setIsMuted(false);
-      setIsMutedByAutoplay(false);
     }
   };
 
   const toggleMute = () => {
-    const nextMutedState = !isMuted;
-    setIsMuted(nextMutedState);
-    if (!nextMutedState) {
-       setIsMutedByAutoplay(false);
-    }
+    setIsMuted(prev => !prev);
   };
 
   const seek = (newProgress: number) => {
@@ -148,12 +144,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsReady(true);
   };
   
-  const _playerSetIsPlaying = (playing: boolean) => {
-    setIsPlaying(playing);
-  };
-
   const _playerOnProgress = (data: OnProgressProps) => {
-    setProgress(data.played);
+    // Only update progress if the player is not seeking
+    if (playerRef.current && !playerRef.current.getInternalPlayer()?.seeking) {
+      setProgress(data.played);
+    }
   };
 
   const _playerOnDuration = (newDuration: number) => {
@@ -164,8 +159,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     playNext();
   };
 
-  const finalMutedState = isMuted || isMutedByAutoplay;
-
   const value: PlayerContextType = {
     currentSong,
     isPlaying,
@@ -175,7 +168,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     progress,
     duration,
     volume,
-    isMuted: finalMutedState,
+    isMuted,
     playerRef,
     playSong,
     togglePlayPause,
@@ -187,7 +180,6 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     toggleMute,
     seek,
     _playerOnReady,
-    _playerSetIsPlaying,
     _playerOnProgress,
     _playerOnDuration,
     _playerOnEnded,

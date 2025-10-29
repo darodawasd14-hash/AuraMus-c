@@ -10,7 +10,6 @@ export const Player = () => {
     volume,
     isMuted,
     _playerOnReady,
-    _playerSetIsPlaying,
     _playerOnProgress,
     _playerOnDuration,
     _playerOnEnded,
@@ -42,13 +41,9 @@ export const Player = () => {
         width="100%"
         height="100%"
         onReady={_playerOnReady}
-        onStart={() => _playerSetIsPlaying(true)}
-        onPlay={() => _playerSetIsPlaying(true)}
-        onPause={() => _playerSetIsPlaying(false)}
-        onBuffer={() => { /* Belki bir yükleniyor göstergesi için */ }}
-        onEnded={_playerOnEnded}
         onProgress={_playerOnProgress}
         onDuration={_playerOnDuration}
+        onEnded={_playerOnEnded}
         config={{
           youtube: {
             playerVars: { 
