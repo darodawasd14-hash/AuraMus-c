@@ -15,13 +15,6 @@ import Image from 'next/image';
 import { collection, query, orderBy, limit, addDoc, serverTimestamp, getDocs, where, doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { useCollection } from '@/firebase';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -33,7 +26,6 @@ import {
 } from '@/components/ui/dialog';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Slider } from '@/components/ui/slider';
 import { getYoutubeVideoId } from '@/lib/utils';
 
 
@@ -65,7 +57,7 @@ export function AuraApp() {
       <Header isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} currentView={view} setView={setView} />
       
       <main className="flex-grow flex flex-row overflow-hidden">
-        <div className="flex-grow flex flex-col overflow-y-auto pb-20 md:pb-20">
+        <div className="flex-grow flex flex-col overflow-y-auto pb-20 md:pb-0">
           {view === 'playlist' && <PlaylistView />}
           {view === 'catalog' && <CatalogView setView={setView} />}
           {view === 'search' && <SearchView setView={setView} />}
@@ -86,9 +78,6 @@ export function AuraApp() {
             </div>
         )}
       </main>
-
-       <MiniPlayer />
-       <FullPlayerView />
       
       <nav className="fixed bottom-0 left-0 right-0 h-20 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 flex justify-around items-center md:hidden">
           <button onClick={() => setView('playlist')} className={cn('nav-button', {'active': view === 'playlist'})}>
@@ -185,7 +174,7 @@ const PlaylistView = () => {
             addSong(newSong);
             toast({ title: `"${videoTitle}" eklendi ve çalınıyor.` });
         } else {
-             const safeId = typeof window !== "undefined" ? window.btoa(songUrl).replace(/\//g, '-') : Buffer.from(songUrl).toString('base64').replace(/\//g, '-');
+             const safeId = btoa(songUrl).replace(/\//g, '-');
              const newSong: Song = {
                 id: safeId,
                 url: songUrl,
@@ -472,251 +461,3 @@ const SearchView = ({ setView }: { setView: (view: 'playlist' | 'catalog' | 'sea
     </div>
   );
 };
-
-
-function MiniPlayer() {
-    const { currentSong, isPlaying, togglePlayPause, playNext, setIsPlayerOpen } = usePlayer();
-
-    if (!currentSong) return null;
-    
-    const getThumbnailUrl = (song: Song) => {
-        if (song.type === 'youtube' && song.videoId) {
-            return `https://i.ytimg.com/vi/${song.videoId}/mqdefault.jpg`;
-        }
-        return `https://picsum.photos/seed/${song.id}/96/96`;
-    };
-
-    return (
-        <div 
-            className={cn(
-                "fixed bottom-24 right-4 z-40 flex items-center gap-3 rounded-lg bg-secondary/80 p-3 shadow-2xl backdrop-blur-lg border border-border/50 transition-all duration-300 ease-in-out md:hidden",
-                currentSong ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
-            )}
-        >
-            <Image
-                src={getThumbnailUrl(currentSong)}
-                alt={currentSong.title}
-                width={48}
-                height={48}
-                className="rounded-md aspect-square object-cover"
-                onClick={() => setIsPlayerOpen(true)}
-            />
-            <div className="flex-grow truncate w-36" onClick={() => setIsPlayerOpen(true)}>
-                <p className="font-bold truncate text-sm">{currentSong.title}</p>
-                <p className="text-xs text-muted-foreground">{currentSong.type}</p>
-            </div>
-            <div className="flex items-center">
-                <Button variant="ghost" size="icon" onClick={togglePlayPause}>
-                    {isPlaying ? <PauseIcon className="w-5 h-5"/> : <PlayIcon className="w-5 h-5"/>}
-                </Button>
-                <Button variant="ghost" size="icon" onClick={playNext}>
-                    <SkipForward className="w-5 h-5"/>
-                </Button>
-                 <Button variant="ghost" size="icon" onClick={() => setIsPlayerOpen(true)}>
-                    <Maximize2 className="w-5 h-5"/>
-                </Button>
-            </div>
-        </div>
-    );
-}
-
-function FullPlayerView() {
-  const { 
-    currentSong, 
-    isPlayerOpen,
-    setIsPlayerOpen,
-    isPlaying, 
-    togglePlayPause, 
-    playNext, 
-    playPrev,
-    progress,
-    duration,
-    seekTo,
-    volume,
-    isMuted,
-    setVolume,
-    toggleMute,
-  } = usePlayer();
-
-  const [isSeeking, setIsSeeking] = useState(false);
-  const [localProgress, setLocalProgress] = useState(0);
-
-  useEffect(() => {
-    if (!isSeeking) {
-      setLocalProgress(progress);
-    }
-  }, [progress, isSeeking]);
-
-
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || seconds < 0) return '0:00';
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
-  const handleProgressChange = (value: number[]) => {
-    setLocalProgress(value[0]);
-  };
-
-  const handleSeekCommit = (value: number[]) => {
-    seekTo(value[0]);
-    setIsSeeking(false);
-  };
-  
-  const getThumbnailUrl = (song: Song | null) => {
-    if (song && song.type === 'youtube' && song.videoId) {
-      // Use maxresdefault for higher quality, fallback to hqdefault
-      return `https://i.ytimg.com/vi/${song.videoId}/maxresdefault.jpg`;
-    }
-    return `https://picsum.photos/seed/${song?.id}/640/640`;
-  }
-
-  const handleVolumeChange = (value: number[]) => {
-    setVolume(value[0]);
-  };
-  
-  if (!currentSong) {
-    return null;
-  }
-  
-  if (!isPlayerOpen) {
-     return (
-        <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-20 bg-secondary/50 border-t border-border backdrop-blur-lg z-20 justify-between items-center px-6">
-            <div className="flex items-center gap-4 flex-1 min-w-0">
-                <Image
-                    src={getThumbnailUrl(currentSong)}
-                    alt={currentSong.title}
-                    width={56}
-                    height={56}
-                    className="rounded-md aspect-square object-cover"
-                />
-                <div className="truncate">
-                    <p className="font-bold truncate text-sm">{currentSong.title}</p>
-                    <p className="text-xs text-muted-foreground">{currentSong.type}</p>
-                </div>
-            </div>
-            
-            <div className="flex flex-col items-center justify-center flex-1 max-w-xl">
-                 <div className="flex items-center justify-center gap-4">
-                    <Button variant="ghost" size="icon" className="w-10 h-10" onClick={playPrev}>
-                        <SkipBack className="w-5 h-5"/>
-                    </Button>
-                    <Button variant="default" size="icon" className="w-12 h-12" onClick={togglePlayPause}>
-                        {isPlaying ? <PauseIcon className="w-6 h-6"/> : <PlayIcon className="w-6 h-6"/>}
-                    </Button>
-                    <Button variant="ghost" size="icon" className="w-10 h-10" onClick={playNext}>
-                        <SkipForward className="w-5 h-5"/>
-                    </Button>
-                </div>
-                 <div className="flex items-center gap-2 w-full mt-1">
-                    <span className="text-xs font-mono w-10 text-center">{formatTime(localProgress)}</span>
-                    <Slider
-                        min={0}
-                        max={duration > 0 ? duration : 100}
-                        value={[localProgress]}
-                        onValueChange={handleProgressChange}
-                        onPointerDown={() => setIsSeeking(true)}
-                        onValueChangeCommit={handleSeekCommit}
-                        className="w-full"
-                    />
-                    <span className="text-xs font-mono w-10 text-center">{formatTime(duration)}</span>
-                </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 flex-1 min-w-0">
-                 <Button variant="ghost" size="icon" onClick={toggleMute}>
-                    {isMuted || volume === 0 ? <VolumeX className="w-5 h-5"/> : <Volume2 className="w-5 h-5"/>}
-                </Button>
-                <Slider
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={[isMuted ? 0 : volume]}
-                    onValueChange={handleVolumeChange}
-                    className="w-24"
-                />
-                 <Button variant="ghost" size="icon" onClick={() => setIsPlayerOpen(true)}>
-                    <Maximize2 className="w-5 h-5"/>
-                </Button>
-            </div>
-
-        </div>
-    )
-  }
-  
-  return (
-    <div className={cn(
-        "fixed inset-0 bg-background/90 backdrop-blur-2xl z-50 transform-gpu transition-transform duration-500 ease-in-out flex flex-col",
-        isPlayerOpen ? "translate-y-0" : "translate-y-full"
-    )}>
-         <div className="flex-shrink-0 p-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Şimdi Oynatılıyor</h2>
-            <Button variant="ghost" size="icon" onClick={() => setIsPlayerOpen(false)}>
-                <ChevronDown className="w-6 h-6"/>
-            </Button>
-        </div>
-
-        <div className="flex-grow flex flex-col items-center justify-center p-8 gap-8">
-            <div className="relative w-full max-w-md aspect-square shadow-2xl rounded-lg overflow-hidden">
-                 <Image
-                    src={getThumbnailUrl(currentSong)}
-                    alt={currentSong.title}
-                    fill
-                    className="object-cover"
-                    onError={(e) => {
-                      // If maxresdefault fails, try hqdefault
-                      const target = e.target as HTMLImageElement;
-                      if (currentSong?.videoId && !target.src.includes('hqdefault')) {
-                        target.src = `https://i.ytimg.com/vi/${currentSong.videoId}/hqdefault.jpg`;
-                      }
-                    }}
-                />
-            </div>
-           
-            <div className="w-full max-w-md text-center">
-                 <h1 className="text-2xl font-bold">{currentSong.title}</h1>
-                 <p className="text-muted-foreground">{currentSong.type}</p>
-                 
-                 <div className="flex items-center gap-2 mt-6">
-                    <span className="text-xs font-mono w-10 text-center">{formatTime(localProgress)}</span>
-                    <Slider
-                        min={0}
-                        max={duration > 0 ? duration : 100}
-                        value={[localProgress]}
-                        onValueChange={handleProgressChange}
-                        onPointerDown={() => setIsSeeking(true)}
-                        onValueChangeCommit={handleSeekCommit}
-                    />
-                    <span className="text-xs font-mono w-10 text-center">{formatTime(duration)}</span>
-                </div>
-
-                <div className="flex items-center justify-center gap-4 mt-4">
-                    <Button variant="ghost" size="icon" className="w-14 h-14" onClick={playPrev}>
-                        <SkipBack className="w-8 h-8"/>
-                    </Button>
-                    <Button variant="default" size="icon" className="w-20 h-20" onClick={togglePlayPause}>
-                        {isPlaying ? <PauseIcon className="w-10 h-10"/> : <PlayIcon className="w-10 h-10"/>}
-                    </Button>
-                    <Button variant="ghost" size="icon" className="w-14 h-14" onClick={playNext}>
-                        <SkipForward className="w-8 h-8"/>
-                    </Button>
-                </div>
-            </div>
-           <div className="w-full max-w-xs flex items-center gap-2">
-                 <Button variant="ghost" size="icon" onClick={toggleMute}>
-                    {isMuted || volume === 0 ? <VolumeX className="w-5 h-5"/> : <Volume2 className="w-5 h-5"/>}
-                </Button>
-                <Slider
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={[isMuted ? 0 : volume]}
-                    onValueChange={handleVolumeChange}
-                />
-           </div>
-        </div>
-
-    </div>
-  )
-}

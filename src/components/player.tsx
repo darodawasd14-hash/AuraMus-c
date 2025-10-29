@@ -1,57 +1,56 @@
 'use client';
 import React from 'react';
-import ReactPlayer from 'react-player/lazy';
+import YouTube from 'react-youtube';
 import { usePlayer } from '@/context/player-context';
 
-
 export const Player = () => {
-  const { 
-    currentSong, 
-    isPlaying,
-    volume,
-    isMuted,
-    _playerSetIsPlaying,
-    _playerSetProgress,
-    _playerSetDuration,
-    _playerOnEnd,
-    _playerRegisterControls, // Bu artık doğrudan kullanılmayacak ama context'te kalabilir
-  } = usePlayer();
-  
+  const { currentSong, isPlaying, togglePlayPause, playSong, playlist } = usePlayer();
 
-  if (!currentSong) {
-    return null;
+  const handleStateChange = (event: any) => {
+    // Oynatıcı durduğunda veya bittiğinde, isPlaying durumunu false yapabiliriz.
+    if (event.data === YouTube.PlayerState.PAUSED || event.data === YouTube.PlayerState.ENDED) {
+      if (isPlaying) {
+        togglePlayPause(); // Context'teki durumu senkronize et
+      }
+    }
+    // Oynatıcı çalmaya başladığında
+    if (event.data === YouTube.PlayerState.PLAYING) {
+        if (!isPlaying) {
+            togglePlayPause(); // Context'teki durumu senkronize et
+        }
+    }
+  };
+
+  const handleEnd = () => {
+      const { currentIndex } = usePlayer.getState(); // anlık durumu al
+      if (currentIndex < playlist.length - 1) {
+          playSong(playlist[currentIndex + 1], currentIndex + 1);
+      }
   }
 
-  // ReactPlayer tüm kaynakları (YouTube, SoundCloud, URL) tek başına yönetebilir.
-  // Bu, farklı oynatıcılar arasındaki karmaşık mantığı ortadan kaldırır.
+  if (!currentSong || currentSong.type !== 'youtube' || !currentSong.videoId) {
+    return null; // Sadece YouTube videoları için göster
+  }
+
+  const opts = {
+    height: '390',
+    width: '640',
+    playerVars: {
+      // https://developers.google.com/youtube/player_parameters
+      autoplay: 1, // Otomatik oynatmayı etkinleştir
+      controls: 1, // Kontrolleri göster
+    },
+  };
+
   return (
-      <ReactPlayer
-          key={currentSong.id}
-          url={currentSong.url}
-          playing={isPlaying}
-          volume={volume}
-          muted={isMuted}
-          onPlay={() => _playerSetIsPlaying(true)}
-          onPause={() => _playerSetIsPlaying(false)}
-          onEnded={_playerOnEnd}
-          onProgress={(state) => _playerSetProgress(state.playedSeconds)}
-          onDuration={(duration) => _playerSetDuration(duration)}
-          width="0"
-          height="0"
-          style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}
-          config={{
-            youtube: {
-              playerVars: {
-                // controls: 0, // Kontrolleri gizlemek için
-                playsinline: 1,
-              }
-            },
-            soundcloud: {
-              options: {
-                // SoundCloud seçenekleri
-              }
-            }
-          }}
+    <div className="youtube-player-container bg-black p-4 sticky top-0 z-50">
+        <YouTube 
+            videoId={currentSong.videoId} 
+            opts={opts} 
+            onStateChange={handleStateChange}
+            onEnd={handleEnd}
+            className="w-full aspect-video"
         />
+    </div>
   );
 };
