@@ -76,7 +76,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   // Ses
   const [volume, setVolumeState] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   
   // Player Referansı (Kumandayı televizyona bağlamak için)
   const playerRef = useRef<ReactPlayer>(null);
@@ -86,20 +86,20 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setCurrentIndex(index);
     setProgress(0);
     setDuration(0);
-    // Don't set isPlaying to true here. Let the `onPlay` callback handle it.
-    // This prevents race conditions.
+    setIsReady(false); // Yeni şarkı yüklenirken oynatıcı hazır değil
+    // isPlaying'i onPlay callback'i yönetecek.
   };
 
   const togglePlayPause = () => {
-    if (!currentSong) return;
+    if (!currentSong || !isReady) return;
     
-    // The user's intent is to toggle the state.
-    // The onPlay/onPause callbacks will sync the state.
-    setIsPlaying(!isPlaying);
+    // Kullanıcının niyeti durumu değiştirmek.
+    const newIsPlaying = !isPlaying;
+    setIsPlaying(newIsPlaying);
 
-    // Force Sync: On the first user-initiated play, unmute.
-    // This is the "user interaction" required by browsers.
-    if (isMuted) {
+    // Eğer şarkıyı başlatıyorsak ve sessizdeyse, sesi aç.
+    // Bu, kullanıcının ilk etkileşimidir.
+    if (newIsPlaying && isMuted) {
       setIsMuted(false);
     }
   };
@@ -107,6 +107,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const addSong = (song: Song) => {
     const newPlaylist = [...playlist, song];
     setPlaylist(newPlaylist);
+    // Eğer o an çalan bir şarkı yoksa, ekleneni hemen çal.
     if (!currentSong) {
       playSong(song, newPlaylist.length - 1);
     }
@@ -132,11 +133,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const toggleMute = () => {
+    if (!isReady) return;
     setIsMuted(prev => !prev);
   };
 
   const seek = (newProgress: number) => {
-     if (playerRef.current) {
+     if (playerRef.current && isReady) {
         playerRef.current.seekTo(newProgress, 'fraction');
         setProgress(newProgress);
      }
@@ -144,12 +146,10 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
 
   const _playerOnReady = () => {
     setIsReady(true);
-    // Ready to play, but don't unmute until user interaction.
-    // Browser autoplay policy requires the initial play to be muted.
   };
   
   const _playerOnProgress = (data: OnProgressProps) => {
-    // Only update progress if we are in a playing state
+    // Sadece isPlaying durumundayken ilerlemeyi güncelle
     if (isPlaying) {
       setProgress(data.played);
     }
@@ -159,6 +159,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setDuration(newDuration);
   };
   
+  // Bu fonksiyonlar, oynatıcının gerçek durumu değiştiğinde "Beyin"i günceller.
   const _playerOnPlay = () => {
     setIsPlaying(true);
   };

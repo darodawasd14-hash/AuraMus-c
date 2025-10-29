@@ -131,7 +131,7 @@ const Header = ({ isChatOpen, setIsChatOpen, setView, view }: { isChatOpen: bool
 };
 
 const PlayerBar = () => {
-    const { currentSong, isPlaying, progress, duration, volume, isMuted, togglePlayPause, playNext, playPrevious, seek, setVolume, toggleMute } = usePlayer();
+    const { currentSong, isPlaying, progress, duration, volume, isMuted, togglePlayPause, playNext, playPrevious, seek, setVolume, toggleMute, isReady } = usePlayer();
 
     const formatTime = (seconds: number) => {
         if (isNaN(seconds) || seconds === Infinity) return '0:00';
@@ -181,7 +181,7 @@ const PlayerBar = () => {
             {/* Player Controls */}
             <div className="flex-grow flex flex-col items-center gap-2">
                 <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!currentSong}>
+                    <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!currentSong || !isReady}>
                         <SkipBack className="w-5 h-5"/>
                     </Button>
                     <Button
@@ -189,11 +189,11 @@ const PlayerBar = () => {
                         size="icon"
                         className="w-12 h-12 rounded-full"
                         onClick={togglePlayPause}
-                        disabled={!currentSong}
+                        disabled={!currentSong || !isReady}
                     >
                         {isPlaying ? <PauseIcon className="w-5 h-5"/> : <PlayIcon className="w-5 h-5"/>}
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={playNext} disabled={!currentSong}>
+                    <Button variant="ghost" size="icon" onClick={playNext} disabled={!currentSong || !isReady}>
                         <SkipForward className="w-5 h-5"/>
                     </Button>
                 </div>
@@ -205,7 +205,7 @@ const PlayerBar = () => {
                         step={0.01}
                         onValueChange={handleProgressChange}
                         className="flex-grow"
-                        disabled={!currentSong}
+                        disabled={!currentSong || !isReady}
                     />
                     <span className="text-xs w-12">{formatTime(duration)}</span>
                 </div>
@@ -213,7 +213,7 @@ const PlayerBar = () => {
 
             {/* Volume Controls */}
             <div className="flex items-center gap-2 w-64 justify-end">
-                <Button variant="ghost" size="icon" onClick={toggleMute}>
+                <Button variant="ghost" size="icon" onClick={toggleMute} disabled={!isReady}>
                     {isMuted || volume === 0 ? <VolumeX className="w-5 h-5"/> : <Volume2 className="w-5 h-5"/>}
                 </Button>
                  <Slider
@@ -222,6 +222,7 @@ const PlayerBar = () => {
                     step={0.05}
                     onValueChange={(value) => setVolume(value[0])}
                     className="w-24"
+                    disabled={!isReady}
                 />
             </div>
         </div>
