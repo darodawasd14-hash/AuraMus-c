@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, addDoc, serverTimestamp, doc, runTransaction, getDoc } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, serverTimestamp, doc, runTransaction } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Loader2, Music } from 'lucide-react';
@@ -38,35 +38,35 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
     setIsAdding(playlistId);
 
     const playlistRef = doc(firestore, 'users', user.uid, 'playlists', playlistId);
-    const playlistSongsRef = collection(playlistRef, 'songs');
     const globalSongRef = doc(firestore, 'songs', song.videoId);
 
-    const songData: Song = {
-      id: song.videoId,
+    const songData: Omit<Song, 'id'> & { timestamp: any } = {
       videoId: song.videoId,
       title: song.title,
       url: song.url,
       type: song.type,
+      artwork: song.artwork || `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`,
       timestamp: serverTimestamp() // Add timestamp when added
     };
 
     try {
         await runTransaction(firestore, async (transaction) => {
-            // 1. Get the current song count on the playlist
             const playlistDoc = await transaction.get(playlistRef);
             if (!playlistDoc.exists()) {
                 throw "Çalma listesi bulunamadı!";
             }
-            const currentSongCount = playlistDoc.data().songCount || 0;
 
-            // 2. Add the new song to the songs subcollection
-            const newSongRef = doc(playlistSongsRef); // Create a new doc ref in the subcollection
+            // Create a reference to the new song document within the playlist's "songs" subcollection
+            const newSongRef = doc(collection(playlistRef, "songs"), song.videoId);
+            
+            // 1. Add the song to the playlist's subcollection
             transaction.set(newSongRef, songData);
 
-            // 3. Update the song count on the main playlist document
+            // 2. Update the song count on the main playlist document
+            const currentSongCount = playlistDoc.data().songCount || 0;
             transaction.update(playlistRef, { songCount: currentSongCount + 1 });
             
-            // 4. Add to global songs collection if it doesn't exist
+            // 3. Add to global songs collection if it doesn't exist
             const globalSongDoc = await transaction.get(globalSongRef);
             if (!globalSongDoc.exists()) {
                 transaction.set(globalSongRef, songData);
@@ -81,12 +81,10 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
 
     } catch (error) {
       console.error("Listeye şarkı eklenirken hata:", error);
-      // We don't need to throw permission errors here as transactions handle it,
-      // but a general error toast is good for the user.
       toast({
         variant: "destructive",
         title: "Hata!",
-        description: "Şarkı listeye eklenemedi. İzinlerinizi kontrol edin.",
+        description: "Şarkı listeye eklenemedi. İzinlerinizi kontrol edin veya daha sonra tekrar deneyin.",
       });
     } finally {
       setIsAdding(null);

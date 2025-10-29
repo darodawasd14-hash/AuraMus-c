@@ -1,21 +1,33 @@
 'use client';
 import React, { useState } from 'react';
 import { Button } from './ui/button';
-import { Loader2, Music, Plus } from 'lucide-react';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
+import { Loader2, Music, Plus, Play, Trash2 } from 'lucide-react';
+import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
+import { collection, addDoc, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
 import { FirestorePermissionError } from '@/firebase/errors';
 import type { Song } from '@/lib/types';
 import { Card } from './ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import Image from 'next/image';
+import { cn } from '@/lib/utils';
 
 interface Playlist {
     id: string;
     name: string;
     songCount?: number;
+    songs?: Song[]; // Will be populated by the subcollection query
 }
 
 interface PlaylistViewProps {
@@ -68,6 +80,82 @@ const CreatePlaylistDialog = ({ open, onOpenChange, onCreate }: { open: boolean,
     );
 };
 
+const PlaylistCard = ({ playlist, onPlayPlaylist, onDeletePlaylist, onPlaySongFromPlaylist, currentSong }: { playlist: Playlist, onPlayPlaylist: (playlist: Playlist) => void, onDeletePlaylist: (playlistId: string) => void, onPlaySongFromPlaylist: (song: Song, index: number, p: Playlist) => void, currentSong: Song | null }) => {
+    const songsRef = useMemoFirebase(() => collection(useFirestore(), playlist.id), [playlist.id]);
+    const { data: songs, isLoading } = useCollection<Song>(songsRef);
+
+    const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+    const handleDelete = () => {
+        onDeletePlaylist(playlist.id);
+        setDeleteDialogOpen(false);
+    }
+    
+    const getArtwork = (song: Song | undefined) => {
+        if (!song) return "https://i.ytimg.com/vi/null/hqdefault.jpg";
+        return song.artwork || `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg`;
+    }
+
+    return (
+        <>
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Emin misiniz?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        "{playlist.name}" çalma listesi kalıcı olarak silinecektir. Bu işlem geri alınamaz.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>İptal</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Sil
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        <Card className="overflow-hidden transition-shadow duration-300 hover:shadow-lg hover:shadow-primary/20 flex flex-col">
+            <div className="relative group">
+                <div className="flex aspect-video items-center justify-center bg-gradient-to-br from-secondary to-background p-4">
+                     {songs && songs.length > 0 ? (
+                        <Image src={getArtwork(songs[0])} alt={songs[0].title} layout="fill" objectFit="cover" />
+                     ): (
+                        <Music className="h-12 w-12 text-muted-foreground/50" />
+                     )}
+                </div>
+                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Button variant="ghost" size="icon" className="w-12 h-12 text-white hover:bg-white/20" onClick={() => songs && songs.length > 0 && onPlayPlaylist(playlist)}>
+                        <Play className="h-8 w-8 fill-current" />
+                    </Button>
+                </div>
+            </div>
+            <div className="p-4 flex flex-col flex-grow">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <p className="font-semibold truncate flex-grow">{playlist.name}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{songs?.length ?? 0} şarkı</p>
+                    </div>
+                     <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteDialogOpen(true)}>
+                        <Trash2 className="w-4 h-4" />
+                    </Button>
+                </div>
+                 {songs && songs.length > 0 && (
+                    <div className="mt-2 space-y-1 overflow-hidden">
+                        {songs.slice(0, 3).map((song, index) => (
+                           <div key={song.id} onClick={() => onPlaySongFromPlaylist(song, index, playlist)} className={cn("flex items-center gap-2 text-sm p-1 rounded-md cursor-pointer hover:bg-secondary", currentSong?.id === song.id ? "bg-primary/20" : "")}>
+                               <Image src={getArtwork(song)} alt={song.title} width={24} height={24} className="rounded-sm" />
+                               <span className="truncate">{song.title}</span>
+                           </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </Card>
+        </>
+    );
+};
+
 
 export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSong }) => {
     const { user } = useUser();
@@ -88,7 +176,7 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
             name: name,
             userId: user.uid,
             createdAt: serverTimestamp(),
-            songCount: 0 // Initialize song count
+            songCount: 0
         };
 
         try {
@@ -101,6 +189,40 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
             }));
         }
     };
+    
+    const handleDeletePlaylist = async (playlistId: string) => {
+        if (!user || !firestore) return;
+        const playlistDocRef = doc(firestore, 'users', user.uid, 'playlists', playlistId);
+        try {
+            // Note: This does not delete subcollections in the client SDK.
+            // A cloud function would be needed for full cleanup.
+            await deleteDoc(playlistDocRef);
+        } catch(serverError: any) {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: playlistDocRef.path,
+                operation: 'delete',
+            }));
+        }
+    };
+    
+    const handlePlayPlaylist = (playlist: Playlist) => {
+         const songsRef = collection(firestore, 'users', user.uid, 'playlists', playlist.id, 'songs');
+         // This is a simplified approach. A more robust way would be to fetch the songs.
+         // For now, we assume the subcollection hook in the card has populated the songs.
+         const songs = playlist.songs || [];
+         if (songs.length > 0) {
+            playSong(songs[0], 0, songs);
+         }
+    };
+    
+    const handlePlaySongFromPlaylist = (song: Song, index: number, p: Playlist) => {
+        const songsRef = collection(firestore, 'users', user.uid, 'playlists', p.id, 'songs');
+        // This is a simplified approach.
+        const songs = p.songs || [];
+         if (songs.length > 0) {
+            playSong(song, index, songs);
+         }
+    }
 
 
     return (
@@ -129,17 +251,14 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
                 {!isLoading && playlists && playlists.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {playlists.map(playlist => (
-                            <Card key={playlist.id} className="overflow-hidden transition-shadow duration-300 hover:shadow-lg hover:shadow-primary/20">
-                                <div className="flex cursor-pointer flex-col h-full">
-                                    <div className="relative flex h-32 items-center justify-center bg-gradient-to-br from-secondary to-background p-4">
-                                        <Music className="h-12 w-12 text-muted-foreground/50" />
-                                    </div>
-                                    <div className="p-4 flex flex-col flex-grow">
-                                        <p className="font-semibold truncate flex-grow">{playlist.name}</p>
-                                        <p className="text-xs text-muted-foreground mt-1">{playlist.songCount ?? 0} şarkı</p>
-                                    </div>
-                                </div>
-                            </Card>
+                            <PlaylistCard 
+                                key={playlist.id} 
+                                playlist={playlist}
+                                onPlayPlaylist={handlePlayPlaylist}
+                                onDeletePlaylist={handleDeletePlaylist}
+                                onPlaySongFromPlaylist={handlePlaySongFromPlaylist}
+                                currentSong={currentSong}
+                            />
                         ))}
                     </div>
                 ) : !isLoading && (

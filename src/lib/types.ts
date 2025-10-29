@@ -1,6 +1,6 @@
 export interface Song { 
   id: string;
-  videoId?: string;
+  videoId: string; // Made non-optional
   title: string;
   url: string;
   type: 'youtube' | 'soundcloud' | 'url';
