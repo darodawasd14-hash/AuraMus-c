@@ -14,7 +14,7 @@ import { tr } from 'date-fns/locale';
 interface Chat {
   id: string;
   participantIds: string[];
-  participantDetails: { [key: string]: { displayName: string } };
+  participantDetails?: { [key: string]: { displayName: string } };
   lastMessage?: string;
   lastMessageTimestamp?: { seconds: number, nanoseconds: number };
 }
@@ -39,7 +39,7 @@ export default function ChatsPage() {
       setIsEnriching(true);
       const enrichPromises = chats.map(async (chat) => {
         const otherParticipantId = chat.participantIds.find(pId => pId !== user.uid);
-        if (!otherParticipantId) return chat;
+        if (!otherParticipantId) return { ...chat, participantDetails: {} };
 
         const userDocRef = doc(firestore, 'users', otherParticipantId);
         const userDoc = await getDoc(userDocRef);
@@ -47,13 +47,14 @@ export default function ChatsPage() {
         const participantDetails = {
           ...chat.participantDetails,
           [otherParticipantId]: {
-            displayName: userDoc.exists() ? userDoc.data().displayName : 'Bilinmeyen Kullanıcı',
+            displayName: userDoc.exists() ? userDoc.data().displayName || `Kullanıcı ${otherParticipantId.substring(0,6)}` : 'Bilinmeyen Kullanıcı',
           },
         };
         return { ...chat, participantDetails };
       });
 
       Promise.all(enrichPromises).then((newEnrichedChats) => {
+        // @ts-ignore
         setEnrichedChats(newEnrichedChats);
         setIsEnriching(false);
       });
@@ -89,6 +90,7 @@ export default function ChatsPage() {
           ) : enrichedChats.length > 0 ? (
             <div className="space-y-3">
               {enrichedChats.sort((a, b) => (b.lastMessageTimestamp?.seconds ?? 0) - (a.lastMessageTimestamp?.seconds ?? 0)).map(chat => {
+                if (!chat.participantDetails) return null;
                 const otherParticipantId = chat.participantIds.find(pId => pId !== user?.uid);
                 if (!otherParticipantId) return null;
                 const otherParticipantName = chat.participantDetails[otherParticipantId]?.displayName || 'Yükleniyor...';

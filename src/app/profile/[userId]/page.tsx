@@ -1,11 +1,11 @@
 'use client';
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError, useAuth } from '@/firebase';
 import { doc, collection, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut, Lock } from 'lucide-react';
+import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut, Lock, MessageCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import Link from 'next/link';
@@ -32,6 +32,8 @@ export default function ProfilePage() {
   const { user: currentUser, isUserLoading: isAuthLoading } = useUser();
   const firestore = useFirestore();
   const auth = useAuth();
+  
+  const [isFollowingProcessing, setIsFollowingProcessing] = useState(false);
 
   const profileUserRef = useMemoFirebase(() => (firestore && currentUser) ? doc(firestore, 'users', profileUserId) : null, [firestore, profileUserId, currentUser]);
   
@@ -59,46 +61,37 @@ export default function ProfilePage() {
     }
   }, [isAuthLoading, currentUser, router]);
 
-  const handleFollow = () => {
+  const handleFollowToggle = () => {
     if (!currentUser || !firestore) return;
-    const followerData = { uid: currentUser.uid };
-    const followerRef = doc(firestore, 'users', profileUserId, 'followers', currentUser.uid);
-    setDoc(followerRef, followerData).catch(serverError => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: followerRef.path,
-            operation: 'create',
-            requestResourceData: followerData,
-        }));
-    });
     
-    const followingData = { uid: profileUserId };
-    const followingRefDoc = doc(firestore, 'users', currentUser.uid, 'following', profileUserId);
-    setDoc(followingRefDoc, followingData).catch(serverError => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: followingRefDoc.path,
-            operation: 'create',
-            requestResourceData: followingData,
-        }));
-    });
-  };
+    setIsFollowingProcessing(true);
 
-  const handleUnfollow = () => {
-    if (!currentUser || !firestore) return;
     const followerRef = doc(firestore, 'users', profileUserId, 'followers', currentUser.uid);
-    deleteDoc(followerRef).catch(serverError => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: followerRef.path,
-            operation: 'delete',
-        }));
-    });
-    
     const followingRefDoc = doc(firestore, 'users', currentUser.uid, 'following', profileUserId);
-    deleteDoc(followingRefDoc).catch(serverError => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: followingRefDoc.path,
-            operation: 'delete',
-        }));
-    });
+
+    if (isFollowing) {
+        // Unfollow logic
+        deleteDoc(followerRef).catch(serverError => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: followerRef.path, operation: 'delete' }));
+        });
+        deleteDoc(followingRefDoc).catch(serverError => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: followingRefDoc.path, operation: 'delete' }));
+        });
+    } else {
+        // Follow logic
+        const followerData = { uid: currentUser.uid };
+        setDoc(followerRef, followerData).catch(serverError => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: followerRef.path, operation: 'create', requestResourceData: followerData }));
+        });
+        
+        const followingData = { uid: profileUserId };
+        setDoc(followingRefDoc, followingData).catch(serverError => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: followingRefDoc.path, operation: 'create', requestResourceData: followingData }));
+        });
+    }
+    // This is an optimistic update, so we can set processing to false.
+    // The UI will update based on the re-fetched `isFollowing` state.
+     setTimeout(() => setIsFollowingProcessing(false), 500);
   };
   
   const handlePlaylistPrivacyToggle = (isPublic: boolean) => {
@@ -119,8 +112,14 @@ export default function ProfilePage() {
     }
   };
 
+  const handleStartChat = () => {
+    if (!currentUser) return;
+    const chatId = [currentUser.uid, profileUserId].sort().join('_');
+    router.push(`/chat/${chatId}`);
+  };
 
-  if (isLoading || isAuthLoading) {
+
+  if (isLoading || isAuthLoading || isFollowingProcessing) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -190,19 +189,21 @@ export default function ProfilePage() {
               </div>
             )}
             {currentUser && (
-              <div className="mt-4 md:mt-0">
+              <div className="flex gap-2">
                 {isOwnProfile ? (
                   <Button onClick={handleSignOut} variant="outline">
                     <LogOut className="mr-2 h-4 w-4" /> Çıkış Yap
                   </Button>
-                ) : isFollowing ? (
-                  <Button onClick={handleUnfollow} variant="outline">
-                    <UserMinus className="mr-2 h-4 w-4" /> Takipten Çık
-                  </Button>
                 ) : (
-                  <Button onClick={handleFollow}>
-                    <UserPlus className="mr-2 h-4 w-4" /> Takip Et
-                  </Button>
+                  <>
+                    <Button onClick={handleFollowToggle} variant={isFollowing ? "outline" : "default"} disabled={isFollowingProcessing}>
+                      {isFollowing ? <UserMinus className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                      {isFollowing ? 'Takipten Çık' : 'Takip Et'}
+                    </Button>
+                    <Button onClick={handleStartChat} variant="secondary">
+                        <MessageCircle className="mr-2 h-4 w-4"/> Mesaj
+                    </Button>
+                  </>
                 )}
               </div>
             )}
@@ -247,5 +248,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    

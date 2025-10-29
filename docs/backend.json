@@ -10,7 +10,7 @@
           "type": "string",
           "description": "Unique identifier for the user."
         },
-        "name": {
+        "displayName": {
           "type": "string",
           "description": "User's name."
         },
