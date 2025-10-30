@@ -37,9 +37,8 @@ const UnreadChatBadge = () => {
 
     const { data: chats, isLoading } = useCollection<{id: string}>(secureChatsQuery);
     
-    // Bu örnekte, okunmamış olarak işaretlenmiş sohbetleri saymak yerine
-    // basitçe sohbet sayısını gösteriyoruz. Gerçek bir uygulamada
-    // 'hasUnread' gibi bir alan daha ekleyebilirsiniz.
+    // This example simply shows the number of chats.
+    // A real app might have a more complex logic to count only unread ones.
     const unreadCount = chats?.length ?? 0;
 
     if (isLoading || unreadCount === 0) {
