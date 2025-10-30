@@ -30,11 +30,11 @@ const UnreadChatBadge = () => {
 
     const secureChatsQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
-        // Güvenli sorgu: Yalnızca kullanıcının dahil olduğu ve okunmamış mesaj içeren sohbetleri getirir
-        // Not: `hasUnread` gibi bir alanın belgelerinizde olması gerekir. Şimdilik sayıyı göstermek için tüm sohbetleri (güvenli bir şekilde) sayacağız.
+        // GÜVENLİ SORGUNUN KENDİSİ:
+        // Yalnızca kullanıcının dahil olduğu sohbetleri getirir. Bu, firestore.rules ile uyumludur.
         return query(
-            collection(firestore, 'chats'),
-            where('participantIds', 'array-contains', user.uid)
+            collection(firestore, "chats"), 
+            where("participantIds", "array-contains", user.uid)
         );
     }, [user, firestore]);
 
