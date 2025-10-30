@@ -28,6 +28,7 @@ const UnreadChatBadge = () => {
 
     const secureChatsQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
+        // GÜVENLİ SORGULAMA: Yalnızca kullanıcının dahil olduğu sohbetleri getir.
         return query(
             collection(firestore, "chats"), 
             where("participantIds", "array-contains", user.uid)
