@@ -28,7 +28,7 @@ const UnreadChatBadge = () => {
 
     const secureChatsQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
-        // GÜVENLİ SORGULAMA: Yalnızca kullanıcının dahil olduğu sohbetleri getir.
+        // SECURE QUERY: Fetch only chats the user is a participant in.
         return query(
             collection(firestore, "chats"), 
             where("participantIds", "array-contains", user.uid)
@@ -37,8 +37,8 @@ const UnreadChatBadge = () => {
 
     const { data: chats, isLoading } = useCollection(secureChatsQuery);
     
-    // Gerçek bir "okunmamış" sayacı için sohbet belgelerinizde `unreadCount` veya benzeri bir alan olmalıdır.
-    // Şimdilik sadece sohbet sayısını gösteriyoruz.
+    // For now, this just shows the number of chats.
+    // A true "unread" count would require a field like `unreadCount` in the chat document.
     const unreadCount = chats?.length ?? 0;
 
     if (isLoading || unreadCount === 0) {
