@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import YouTube from 'react-youtube';
 import type { YouTubePlayer } from 'react-youtube';
-import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, User, Music, Search, Plus, Smartphone } from '@/components/icons';
+import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, User, Music, Search, Plus, Smartphone, Menu } from '@/components/icons';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
@@ -34,7 +34,7 @@ const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) 
     ];
 
     return (
-        <aside className="w-64 flex flex-col bg-secondary/30 border-r border-border p-4">
+        <aside className="w-64 flex-shrink-0 flex-col bg-secondary/30 border-r border-border p-4 hidden md:flex">
             <div className="flex items-center gap-2 mb-8 px-2">
                 <AuraLogo className="w-8 h-8" />
                 <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
@@ -69,11 +69,6 @@ const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) 
                         <span>Profilim</span>
                     </Link>
                 )}
-                
-                <a href="#" onClick={(e) => {e.preventDefault(); toggleChat();}} className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium">
-                    <MessageSquare className="w-5 h-5" />
-                    <span>Şarkı Sohbeti</span>
-                </a>
             </nav>
         </aside>
     );
@@ -163,7 +158,7 @@ const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, 
                     </p>
                 </div>
             </div>
-            <div className="flex-grow overflow-y-auto -mr-8 pr-8">
+            <div className="flex-grow overflow-y-auto -mr-4 pr-4 md:-mr-8 md:pr-8">
                 <div className="space-y-1">
                      {(isLoading || isSearching) && songsToDisplay.length === 0 && <p>Yükleniyor...</p>}
                      {songsToDisplay.map((song, index) => (
@@ -207,6 +202,7 @@ const formatTime = (seconds: number) => {
 
 export function AuraApp() {
     const { user } = useUser();
+    const router = useRouter();
     // ---------- HAFIZA (STATES) ----------
     const [playlist, setPlaylist] = useState<Song[]>([]);
     const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -226,6 +222,7 @@ export function AuraApp() {
     const [activeView, setActiveView] = useState<ActiveView>('discover');
     const [isChatVisible, setIsChatVisible] = useState(true);
     const [isMobileView, setIsMobileView] = useState(false);
+    const [isSideNavVisible, setIsSideNavVisible] = useState(false);
 
 
     // ---------- VİDEO AYARLARI ----------
@@ -379,25 +376,75 @@ export function AuraApp() {
                 return <DiscoverView onPlaySong={playSong} />;
         }
     }
+    
+    const MobileNavMenu = () => (
+        <div className="absolute z-20 top-0 left-0 h-full w-64 bg-background/80 backdrop-blur-lg border-r border-border p-4 flex flex-col">
+             <div className="flex items-center gap-2 mb-8 px-2">
+                <AuraLogo className="w-8 h-8" />
+                <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
+            </div>
+            <nav className="flex flex-col gap-2">
+                 <a
+                    href="#"
+                    onClick={(e) => { e.preventDefault(); setActiveView('discover'); setIsSideNavVisible(false); }}
+                    className={cn( "flex items-center gap-3 px-3 py-2 rounded-md", activeView === 'discover' ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground" )}
+                >
+                    <Home className="w-5 h-5" />
+                    <span>Keşfet</span>
+                </a>
+                 <a
+                    href="#"
+                    onClick={(e) => { e.preventDefault(); setActiveView('playlist'); setIsSideNavVisible(false); }}
+                    className={cn( "flex items-center gap-3 px-3 py-2 rounded-md", activeView === 'playlist' ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground" )}
+                >
+                    <ListMusic className="w-5 h-5" />
+                    <span>Çalma Listelerim</span>
+                </a>
+                {user && (
+                    <Link
+                        href={`/profile/${user.uid}`}
+                        className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
+                    >
+                        <User className="w-5 h-5" />
+                        <span>Profilim</span>
+                    </Link>
+                )}
+            </nav>
+        </div>
+    );
 
 
     return (
         <div
             className={cn(
                 'w-screen h-screen bg-background flex items-center justify-center transition-all duration-300',
-                isMobileView && 'p-4'
+                isMobileView && 'p-2 sm:p-4'
             )}
         >
             <div
                 id="app-container"
                 className={cn(
-                    'h-full w-full flex flex-col text-foreground bg-background overflow-hidden transition-all duration-300',
-                    isMobileView && 'max-w-[420px] max-h-[840px] rounded-2xl shadow-2xl border-4 border-black'
+                    'h-full w-full flex flex-col text-foreground bg-background overflow-hidden transition-all duration-300 relative',
+                    isMobileView && 'max-w-[420px] max-h-[840px] rounded-lg sm:rounded-2xl shadow-2xl border-2 sm:border-4 border-black'
                 )}
             >
                 <div className="flex flex-1 min-h-0">
                     <SideNav activeView={activeView} setActiveView={setActiveView} toggleChat={() => setIsChatVisible(!isChatVisible)} user={user} />
-                    <main className="flex-1 flex flex-col p-8 gap-8 overflow-y-auto">
+                    
+                    <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 md:gap-8 overflow-y-auto">
+                        <div className="md:hidden flex items-center justify-between">
+                            <Button variant="ghost" size="icon" onClick={() => setIsSideNavVisible(true)}>
+                                <Menu className="w-6 h-6" />
+                            </Button>
+                             <div className="flex items-center gap-2">
+                                <AuraLogo className="w-7 h-7" />
+                                <h1 className="text-lg font-bold tracking-tighter">Aura</h1>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setIsChatVisible(!isChatVisible)}>
+                                <MessageSquare className="w-5 h-5" />
+                            </Button>
+                        </div>
+                        
                         <div className="w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative shadow-xl">
                             {currentSong?.videoId && (
                                 <>
@@ -432,14 +479,21 @@ export function AuraApp() {
                     </div>
                     </main>
                     {isChatVisible && (
-                        <aside className="w-96 border-l border-border transition-all duration-300">
-                            <ChatPane song={currentSong} />
+                        <aside className={cn(
+                            "border-l border-border transition-all duration-300 w-96 flex-shrink-0",
+                            isMobileView ? "absolute top-0 right-0 h-full bg-background/80 backdrop-blur-lg z-20" : "hidden md:block"
+                        )}>
+                            <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} />
                         </aside>
                     )}
+                    {isMobileView && isSideNavVisible && <MobileNavMenu />}
+                    {isMobileView && (isSideNavVisible || isChatVisible) && 
+                        <div className="absolute inset-0 bg-black/50 z-10" onClick={() => {setIsSideNavVisible(false); setIsChatVisible(false)}}></div>
+                    }
                 </div>
                 
-                <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-6 py-3 flex items-center gap-6">
-                    <div className="flex items-center gap-4 w-64">
+                <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-4 md:px-6 py-3 flex items-center gap-4 md:gap-6">
+                    <div className="hidden md:flex items-center gap-4 w-64">
                         {currentSong && (
                             <Image 
                                 src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
@@ -478,20 +532,22 @@ export function AuraApp() {
                         </div>
                     </div>
 
-                    <div className="w-64 flex items-center justify-end gap-3">
+                    <div className="w-auto md:w-64 flex items-center justify-end gap-2 md:gap-3">
                         <Button variant="ghost" size="icon" onClick={() => setIsMobileView(!isMobileView)}>
                             <Smartphone className={cn("w-5 h-5", isMobileView && "text-primary")} />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={toggleMute} disabled={!player}>
-                            {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                        </Button>
-                        <Slider 
-                            className="w-[100px]"
-                            value={[isMuted ? 0 : volume]}
-                            max={100}
-                            onValueChange={handleVolumeChange}
-                            disabled={!player}
-                        />
+                         <div className="hidden md:flex items-center gap-3">
+                            <Button variant="ghost" size="icon" onClick={toggleMute} disabled={!player}>
+                                {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                            </Button>
+                            <Slider 
+                                className="w-[100px]"
+                                value={[isMuted ? 0 : volume]}
+                                max={100}
+                                onValueChange={handleVolumeChange}
+                                disabled={!player}
+                            />
+                        </div>
                     </div>
                 </footer>
             </div>

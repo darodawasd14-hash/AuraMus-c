@@ -3,7 +3,7 @@ import React, { useState, useEffect, FormEvent, useRef } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Send, UserPlus, UserMinus, EyeOff, User as UserIcon } from 'lucide-react';
+import { Loader2, Send, UserPlus, UserMinus, EyeOff, User as UserIcon, X } from 'lucide-react';
 import Link from 'next/link';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -34,9 +34,10 @@ interface Message {
 
 interface ChatPaneProps {
     song: Song | null;
+    onClose?: () => void;
 }
 
-export function ChatPane({ song }: ChatPaneProps) {
+export function ChatPane({ song, onClose }: ChatPaneProps) {
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const { user } = useUser();
@@ -260,14 +261,21 @@ export function ChatPane({ song }: ChatPaneProps) {
 
     return (
         <aside className="h-full w-full bg-background/50 flex flex-col">
-            <div className="p-4 border-b border-border">
-                {song ? (
-                    <>
-                        <h3 className="font-semibold truncate">{song.title}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">Canlı Sohbet</p>
-                    </>
-                ) : (
-                     <h3 className="font-semibold truncate">Sohbet</h3>
+            <div className="p-4 border-b border-border flex items-center justify-between">
+                <div>
+                    {song ? (
+                        <>
+                            <h3 className="font-semibold truncate">{song.title}</h3>
+                            <p className="text-sm text-muted-foreground mt-1">Canlı Sohbet</p>
+                        </>
+                    ) : (
+                         <h3 className="font-semibold truncate">Sohbet</h3>
+                    )}
+                </div>
+                {onClose && (
+                    <Button variant="ghost" size="icon" onClick={onClose} className="md:hidden">
+                        <X className="w-5 h-5"/>
+                    </Button>
                 )}
             </div>
 
