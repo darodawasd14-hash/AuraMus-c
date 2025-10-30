@@ -28,7 +28,7 @@ const songQuestionFlow = ai.defineFlow(
   },
   async (input) => {
     // Gemini'nin en yetenekli modelini, araçları (internet araması gibi) kullanması için etkinleştirerek çağırıyoruz.
-    const llmResponse = await ai.generate({
+    const response = await ai.generate({
       prompt: `Sen Aura, bir müzik uzmanı ve sohbet asistanısın. Kullanıcı, "${input.songTitle}" adlı şarkıyı dinliyor ve bu şarkıyla ilgili bir soru sordu.
 
 Kullanıcının sorusu: "${input.question}"
@@ -42,7 +42,7 @@ Lütfen bu soruya internetten veya kendi bilginden yararlanarak bilgilendirici v
     });
 
     return {
-      answer: llmResponse.text,
+      answer: response.text,
     };
   }
 );
