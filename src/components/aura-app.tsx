@@ -39,6 +39,8 @@ const UnreadChatBadge = () => {
 
     const { data: chats, isLoading } = useCollection(secureChatsQuery);
     
+    // Güvenli sorgu artık doğru olduğundan, 'chats' null veya boş dizi olabilir.
+    // Bu, okunmamış sohbet olmadığı anlamına gelir.
     const unreadCount = chats?.length ?? 0;
 
     if (isLoading || unreadCount === 0) {
