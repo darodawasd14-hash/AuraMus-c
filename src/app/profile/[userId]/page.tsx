@@ -5,7 +5,7 @@ import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmi
 import { doc, collection, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut, Lock, MessageCircle } from 'lucide-react';
+import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut, Lock } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import Link from 'next/link';
@@ -112,13 +112,6 @@ export default function ProfilePage() {
     }
   };
 
-  const handleStartChat = () => {
-    if (!currentUser) return;
-    const chatId = [currentUser.uid, profileUserId].sort().join('_');
-    router.push(`/chat/${chatId}`);
-  };
-
-
   if (isLoading || isAuthLoading || isFollowingProcessing) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -199,9 +192,6 @@ export default function ProfilePage() {
                     <Button onClick={handleFollowToggle} variant={isFollowing ? "outline" : "default"} disabled={isFollowingProcessing}>
                       {isFollowing ? <UserMinus className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />}
                       {isFollowing ? 'Takipten Çık' : 'Takip Et'}
-                    </Button>
-                    <Button onClick={handleStartChat} variant="secondary">
-                        <MessageCircle className="mr-2 h-4 w-4"/> Mesaj
                     </Button>
                   </>
                 )}

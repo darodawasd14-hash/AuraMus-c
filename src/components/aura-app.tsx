@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import YouTube from 'react-youtube';
 import type { YouTubePlayer } from 'react-youtube';
-import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, User, Music, Search, Plus, MessageCircle } from '@/components/icons';
+import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, User, Music, Search, Plus } from '@/components/icons';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
@@ -23,36 +23,6 @@ import { AddToPlaylistDialog } from '@/components/add-to-playlist';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ActiveView } from '@/lib/types';
 
-const UnreadChatBadge = () => {
-    const { user } = useUser();
-    const firestore = useFirestore();
-
-    const secureChatsQuery = useMemoFirebase(() => {
-        if (!user || !firestore) return null;
-        // GÜVENLİ SORGULAMA: Yalnızca mevcut kullanıcının katılımcı olduğu sohbetleri getirir.
-        return query(
-            collection(firestore, "chats"), 
-            where("participantIds", "array-contains", user.uid)
-        );
-    }, [user, firestore]);
-
-    const { data: chats, isLoading } = useCollection<{id: string}>(secureChatsQuery);
-    
-    // This example simply shows the number of chats.
-    // A real app might have a more complex logic to count only unread ones.
-    const unreadCount = chats?.length ?? 0;
-
-    if (isLoading || unreadCount === 0) {
-        return null;
-    }
-
-    return (
-        <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-            {unreadCount > 9 ? '9+' : unreadCount}
-        </span>
-    );
-};
-
 
 interface SideNavProps {
     activeView: ActiveView;
@@ -66,7 +36,7 @@ const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) 
     const navItems = [
         { id: 'discover', label: 'Keşfet', icon: Home, href: '#' },
         { id: 'playlist', label: 'Çalma Listelerim', icon: ListMusic, href: '#' },
-        { id: 'friends', label: 'Arkadaşlar', icon: Users, href: '#' },
+        // { id: 'friends', label: 'Arkadaşlar', icon: Users, href: '#' }, // REMOVED
     ];
 
     return (
@@ -107,15 +77,6 @@ const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) 
                         <span>Profilim</span>
                     </Link>
                 )}
-
-                 <Link
-                        href={`/chat`}
-                        className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
-                    >
-                        <MessageCircle className="w-5 h-5" />
-                        <span className="flex-grow">Özel Sohbet</span>
-                        <UnreadChatBadge />
-                </Link>
                 
                 <a href="#" onClick={(e) => {e.preventDefault(); toggleChat();}} className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium">
                     <MessageSquare className="w-5 h-5" />
@@ -241,107 +202,6 @@ const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, 
         </div>
     );
 };
-
-const FriendCard = ({ friendId }: { friendId: string }) => {
-    const firestore = useFirestore();
-    const { user: currentUser } = useUser();
-    const router = useRouter();
-
-    const friendProfileRef = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return doc(firestore, 'users', friendId);
-    }, [firestore, friendId]);
-
-    const { data: friendProfile, isLoading: isProfileLoading } = useDoc<{ displayName: string }>(friendProfileRef);
-
-    const getChatId = (uid1: string, uid2: string) => {
-        return [uid1, uid2].sort().join('_');
-    };
-
-    const handleStartChat = () => {
-        if (!currentUser) return;
-        const chatId = getChatId(currentUser.uid, friendId);
-        router.push(`/chat/${chatId}`);
-    };
-
-    if (isProfileLoading) {
-        return (
-            <Card className="p-4 flex flex-col items-center gap-4 justify-between">
-                <div className="flex items-center gap-4 w-full">
-                    <Skeleton className="h-12 w-12 rounded-full" />
-                    <div className="space-y-2">
-                        <Skeleton className="h-4 w-[150px]" />
-                        <Skeleton className="h-4 w-[100px]" />
-                    </div>
-                </div>
-                <Skeleton className="h-9 w-full mt-2" />
-            </Card>
-        );
-    }
-    
-    const displayName = friendProfile?.displayName || `Kullanıcı ${friendId.substring(0, 6)}`;
-    const fallback = displayName.charAt(0).toUpperCase();
-
-    return (
-        <Card className="p-4 flex flex-col items-center gap-4 transition-colors hover:bg-secondary/50 justify-between">
-            <Link href={`/profile/${friendId}`} className="w-full">
-                <div className="flex items-center gap-4 cursor-pointer">
-                    <Avatar className="h-12 w-12 border-2 border-primary">
-                        <AvatarImage src={`https://api.dicebear.com/8.x/bottts/svg?seed=${friendId}`} />
-                        <AvatarFallback>{fallback}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                        <p className="font-semibold truncate">{displayName}</p>
-                        <p className="text-sm text-muted-foreground">Profile Git</p>
-                    </div>
-                </div>
-            </Link>
-            <Button variant="outline" size="sm" className="w-full mt-2" onClick={handleStartChat}>
-                <MessageCircle className="w-4 h-4 mr-2"/>
-                Mesaj Gönder
-            </Button>
-        </Card>
-    );
-};
-
-
-const FriendsView = () => {
-    const { user } = useUser();
-    const firestore = useFirestore();
-
-    const followingQuery = useMemoFirebase(() => {
-        if (!user || !firestore) return null;
-        return collection(firestore, 'users', user.uid, 'following');
-    }, [user, firestore]);
-    
-    const { data: following, isLoading } = useCollection<{uid: string}>(followingQuery);
-
-    return (
-         <div className="h-full flex flex-col">
-            <div className="mb-4">
-                <h2 className="text-2xl font-bold">Arkadaşlar</h2>
-                <p className="text-muted-foreground text-sm">Takip ettiğin kişiler</p>
-            </div>
-            <div className="flex-grow overflow-y-auto -mr-8 pr-8">
-                {isLoading && <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary"/></div>}
-                {following && following.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        {following.map(friend => (
-                            <FriendCard key={friend.id} friendId={friend.id} />
-                        ))}
-                    </div>
-                ) : !isLoading && (
-                    <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-12 text-center h-full">
-                      <Users className="mb-4 h-12 w-12 text-muted-foreground" />
-                      <p className="font-semibold">Henüz kimseyi takip etmiyorsun</p>
-                      <p className="text-sm text-muted-foreground">Keşfetmeye başla!</p>
-                    </div>
-                )}
-            </div>
-        </div>
-    )
-};
-
 
 const formatTime = (seconds: number) => {
   if (isNaN(seconds) || seconds < 0) {
@@ -521,8 +381,6 @@ export function AuraApp() {
                 return <DiscoverView onPlaySong={playSong} />;
             case 'playlist':
                 return <PlaylistView playSong={playSong} currentSong={currentSong} />;
-            case 'friends':
-                return <FriendsView />;
             default:
                 return <DiscoverView onPlaySong={playSong} />;
         }
@@ -630,5 +488,3 @@ export function AuraApp() {
         </div>
     );
 }
-
-    
