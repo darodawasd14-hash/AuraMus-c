@@ -36,11 +36,11 @@ export default function ProfilePage() {
   
   const [isFollowingProcessing, setIsFollowingProcessing] = useState(false);
 
-  const profileUserRef = useMemoFirebase(() => (firestore && currentUser) ? doc(firestore, 'users', profileUserId) : null, [firestore, profileUserId, currentUser]);
+  const profileUserRef = useMemoFirebase(() => (firestore && profileUserId) ? doc(firestore, 'users', profileUserId) : null, [firestore, profileUserId]);
   
-  const followersRef = useMemoFirebase(() => (firestore && currentUser) ? collection(firestore, 'users', profileUserId, 'followers') : null, [firestore, profileUserId, currentUser]);
-  const followingRef = useMemoFirebase(() => (firestore && currentUser) ? collection(firestore, 'users', profileUserId, 'following') : null, [firestore, profileUserId, currentUser]);
-  const playlistsRef = useMemoFirebase(() => (firestore && currentUser) ? collection(firestore, 'users', profileUserId, 'playlists') : null, [firestore, profileUserId, currentUser]);
+  const followersRef = useMemoFirebase(() => (firestore && profileUserId) ? collection(firestore, 'users', profileUserId, 'followers') : null, [firestore, profileUserId]);
+  const followingRef = useMemoFirebase(() => (firestore && profileUserId) ? collection(firestore, 'users', profileUserId, 'following') : null, [firestore, profileUserId]);
+  const playlistsRef = useMemoFirebase(() => (firestore && profileUserId) ? collection(firestore, 'users', profileUserId, 'playlists') : null, [firestore, profileUserId]);
 
   const { data: profileUser, isLoading: isProfileLoading } = useDoc<UserProfile>(profileUserRef);
   const { data: followers, isLoading: isFollowersLoading } = useCollection(followersRef);
@@ -58,12 +58,19 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!isAuthLoading && !currentUser) {
-      router.push('/');
+      // Don't redirect, just let them view public parts
     }
   }, [isAuthLoading, currentUser, router]);
 
   const handleFollowToggle = async () => {
-    if (!currentUser || !firestore) return;
+    if (!currentUser || !firestore) {
+        toast({
+            variant: "destructive",
+            title: "Giriş Yapmalısınız",
+            description: "Bir kullanıcıyı takip etmek için önce giriş yapmanız gerekir."
+        });
+        return;
+    };
     
     setIsFollowingProcessing(true);
 
@@ -86,8 +93,6 @@ export default function ProfilePage() {
             description: "Takip işlemi sırasında bir sorun oluştu."
         });
     } finally {
-        // Arayüzün güncellenmesi için küçük bir gecikme ekliyoruz.
-        // onSnapshot hemen tetiklenmeyebilir.
         setTimeout(() => setIsFollowingProcessing(false), 500);
     }
   };
