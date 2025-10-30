@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import { AddToPlaylistDialog } from '@/components/add-to-playlist';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ActiveView } from '@/lib/types';
 
 const UnreadChatBadge = () => {
     const { user } = useUser();
