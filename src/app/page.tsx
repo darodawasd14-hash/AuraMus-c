@@ -1,8 +1,8 @@
 'use client';
 
 import { useUser } from '@/firebase';
-import AuthPage from '@/app/auth/page';
 import { AuraApp } from '@/components/aura-app';
+import AuthPage from './auth/page';
 import { Loader2 } from 'lucide-react';
 
 export default function HomePage() {
