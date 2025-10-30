@@ -225,17 +225,21 @@ function ChatPageContent() {
                     const otherUserId = chat.participantIds.find(id => id !== user.uid);
                     if (!otherUserId) return chat;
 
-                    const userDocRef = doc(firestore, 'users', otherUserId);
-                    const userDocSnap = await getDoc(userDocRef);
+                    try {
+                        const userDocRef = doc(firestore, 'users', otherUserId);
+                        const userDocSnap = await getDoc(userDocRef);
 
-                    if (userDocSnap.exists()) {
-                        return {
-                            ...chat,
-                            otherParticipant: {
-                                id: otherUserId,
-                                displayName: userDocSnap.data().displayName || 'Kullanıcı',
-                            },
-                        };
+                        if (userDocSnap.exists()) {
+                            return {
+                                ...chat,
+                                otherParticipant: {
+                                    id: otherUserId,
+                                    displayName: userDocSnap.data().displayName || 'Kullanıcı',
+                                },
+                            };
+                        }
+                    } catch (error) {
+                        console.error(`Error fetching user details for ${otherUserId}:`, error);
                     }
                     return chat;
                 })
@@ -254,8 +258,12 @@ function ChatPageContent() {
             if (chatFromUrl) {
                 setActiveChat(chatFromUrl);
             }
+        } else if (hydratedChats && hydratedChats.length > 0 && !activeChat) {
+             // Automatically select the first chat if none is selected
+             // setActiveChat(hydratedChats[0]);
+             // router.push(`/chat?chatId=${hydratedChats[0].id}`, { scroll: false });
         }
-    }, [searchParams, hydratedChats]);
+    }, [searchParams, hydratedChats, activeChat, router]);
 
     const handleSelectChat = (chat: Chat) => {
         setActiveChat(chat);
@@ -306,5 +314,3 @@ export default function ChatPage() {
         </Suspense>
     )
 }
-
-    

@@ -34,8 +34,8 @@ const UnreadChatBadge = () => {
 
     const { data: chats, isLoading } = useCollection(chatsQuery);
 
-    // This logic needs to be expanded to actually count unread messages.
-    // For now, we just show a badge if there are any chats.
+    // This logic can be expanded later to count *actual* unread messages.
+    // For now, a simple count of active chats acts as a notification.
     const unreadCount = chats?.length || 0; 
 
     if (isLoading || !user || unreadCount === 0) {
@@ -522,5 +522,3 @@ export function AuraApp() {
         </div>
     );
 }
-
-    
