@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
 import { ChatPane } from '@/components/chat-pane';
-import type { Song } from '@/lib/types';
+import type { Song, ActiveView } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError, useDoc } from '@/firebase';
@@ -21,7 +21,6 @@ import { Input } from '@/components/ui/input';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import { AddToPlaylistDialog } from '@/components/add-to-playlist';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ActiveView } from '@/lib/types';
 
 const UnreadChatBadge = () => {
     const { user } = useUser();
@@ -29,9 +28,6 @@ const UnreadChatBadge = () => {
 
     const secureChatsQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
-        // GÜVENLİ SORGUNUN KENDİSİ:
-        // 'chats' koleksiyonu içinde, 'participantIds' dizisi mevcut kullanıcının
-        // kimliğini ('user.uid') içeren belgeleri getir.
         return query(
             collection(firestore, "chats"), 
             where("participantIds", "array-contains", user.uid)
@@ -40,8 +36,6 @@ const UnreadChatBadge = () => {
 
     const { data: chats, isLoading } = useCollection(secureChatsQuery);
     
-    // Güvenli sorgu artık doğru olduğundan, 'chats' null veya boş dizi olabilir.
-    // Bu, okunmamış sohbet olmadığı anlamına gelir.
     const unreadCount = chats?.length ?? 0;
 
     if (isLoading || unreadCount === 0) {

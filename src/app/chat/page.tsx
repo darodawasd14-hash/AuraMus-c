@@ -83,16 +83,8 @@ export default function ChatsPage() {
   const firestore = useFirestore();
   const router = useRouter();
 
-  // MİMARİDEKİ ANAHTAR DEĞİŞİKLİK: GÜVENLİ SORGULAMA
-  // Bu sorgu, güvenlik kurallarındaki 'allow list' kuralıyla birebir eşleşir
-  // ve yalnızca kullanıcının dahil olduğu sohbetleri getirir.
   const chatsQuery = useMemoFirebase(() => {
-    // Kullanıcı oturum açana kadar veya firestore hazır olana kadar bekle.
     if (!user || !firestore) return null;
-
-    // GÜVENLİ SORGUNUN KENDİSİ:
-    // 'chats' koleksiyonu içinde, 'participantIds' dizisi mevcut kullanıcının
-    // kimliğini ('user.uid') içeren belgeleri getir.
     return query(
         collection(firestore, "chats"), 
         where("participantIds", "array-contains", user.uid),
@@ -102,12 +94,8 @@ export default function ChatsPage() {
 
   const { data: chats, isLoading: areChatsLoading, error } = useCollection<Chat>(chatsQuery);
 
-  // DİKKAT: Bu hata artık bir izin hatası olmamalı.
-  // Eğer 'FAILED_PRECONDITION' hatası alırsan, bu bir BİLEŞİK DİZİN 
-  // (Composite Index) eksikliğidir. Hata mesajındaki linke tıklayıp 
-  // Firebase konsolunda dizini oluşturman gerekir.
   if (error) {
-      console.error("Güvenli sohbet sorgusu başarısız:", error);
+      console.error("Secure chat query failed:", error);
   }
 
   const isLoading = isUserLoading || areChatsLoading;
