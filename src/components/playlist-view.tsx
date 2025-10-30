@@ -2,9 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Loader2, Music, Plus, Trash2, ArrowLeft } from 'lucide-react';
-import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, doc, deleteDoc, query, orderBy, getDocs } from 'firebase/firestore';
-import { FirestorePermissionError } from '@/firebase/errors';
 import type { Song } from '@/lib/types';
 import { Card } from './ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 interface Playlist {
     id: string;
@@ -32,6 +32,7 @@ interface Playlist {
 interface PlaylistViewProps {
     playSong: (song: Song, index: number, playlist: Song[]) => void;
     currentSong: Song | null;
+    onClose?: () => void;
 }
 
 
@@ -133,9 +134,10 @@ const PlaylistCard = ({ playlist, songCount, onSelect, onDeletePlaylist }: { pla
 };
 
 
-export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSong }) => {
+export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSong, onClose }) => {
     const { user } = useUser();
     const firestore = useFirestore();
+    const { toast } = useToast();
     const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
     const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
 
@@ -163,46 +165,44 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
             songCount: 0
         };
 
-        addDoc(playlistsQuery, playlistData).catch(async (serverError) => {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: playlistsQuery.path,
-                operation: 'create',
-                requestResourceData: playlistData,
-            }));
-        });
+        try {
+           await addDoc(playlistsQuery, playlistData)
+        } catch (error) {
+            console.error("Playlist oluşturulamadı:", error);
+            toast({
+                variant: 'destructive',
+                title: "Hata",
+                description: "Çalma listesi oluşturulamadı."
+            })
+        }
     };
     
     const handleDeletePlaylist = async (playlistId: string) => {
       if (!user || !firestore) return;
       const playlistDocRef = doc(firestore, 'users', user.uid, 'playlists', playlistId);
-      
       const songsCollectionRef = collection(playlistDocRef, 'songs');
       
       try {
+        // First delete all songs in the subcollection
         const songsSnapshot = await getDocs(songsCollectionRef);
-        const deletePromises = songsSnapshot.docs.map((songDoc) => 
-          deleteDoc(songDoc.ref).catch(async (serverError) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: songDoc.ref.path,
-              operation: 'delete'
-            }));
-          })
-        );
+        const deletePromises = songsSnapshot.docs.map((songDoc) => deleteDoc(songDoc.ref));
         await Promise.all(deletePromises);
-      } catch (serverError) {
-         errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: songsCollectionRef.path,
-          operation: 'list'
-        }));
-        return; 
+        
+        // Then delete the playlist document itself
+        await deleteDoc(playlistDocRef);
+
+        toast({
+            title: "Çalma Listesi Silindi",
+        });
+
+      } catch(error) {
+        console.error("Çalma listesi silinirken hata:", error);
+        toast({
+            variant: 'destructive',
+            title: "Hata",
+            description: "Çalma listesi silinemedi."
+        })
       }
-      
-      deleteDoc(playlistDocRef).catch(async (serverError) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: playlistDocRef.path,
-          operation: 'delete',
-        }));
-      });
 
       if (selectedPlaylist?.id === playlistId) {
           setSelectedPlaylist(null);
@@ -213,6 +213,7 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
          if (selectedPlaylistSongs && selectedPlaylistSongs.length > 0) {
             playSong(song, index, selectedPlaylistSongs);
          }
+         if (onClose) onClose();
     }
     
     const handleSelectPlaylist = (playlist: Playlist) => {

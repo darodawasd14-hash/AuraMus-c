@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, serverTimestamp, doc, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -32,7 +32,7 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
 
   const { data: playlists, isLoading } = useCollection<Playlist>(playlistsQuery);
 
-  const handleAddToPlaylist = (playlistId: string) => {
+  const handleAddToPlaylist = async (playlistId: string) => {
     if (!user || !firestore || !song || !song.videoId) return;
 
     setIsAdding(playlistId);
@@ -52,46 +52,32 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
     
     const selectedPlaylist = playlists?.find(p => p.id === playlistId);
 
-    setDoc(newSongRef, songData).then(() => {
-        const incrementData = { songCount: increment(1) };
-        updateDoc(playlistRef, incrementData).catch(async (serverError) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: playlistRef.path,
-                operation: 'update',
-                requestResourceData: incrementData
-            }));
-        });
+    try {
+      // 1. Add song to user's private playlist
+      await setDoc(newSongRef, songData);
 
-        setDoc(globalSongRef, songData, { merge: true }).catch(async (serverError) => {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: globalSongRef.path,
-                operation: 'write', 
-                requestResourceData: songData,
-             }));
-        });
-        
-        toast({
-            title: "Şarkı Eklendi!",
-            description: `"${song.title}" çalma listesine eklendi: ${selectedPlaylist?.name}.`,
-        });
+      // 2. Increment song count on the playlist
+      await updateDoc(playlistRef, { songCount: increment(1) });
+      
+      // 3. Add song to global catalog for discovery
+      await setDoc(globalSongRef, songData, { merge: true });
 
-    }).catch(async (serverError) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: newSongRef.path,
-            operation: 'create',
-            requestResourceData: songData,
-        }));
-        
-        toast({
-            variant: "destructive",
-            title: "Hata!",
-            description: "Şarkı çalma listenize eklenemedi.",
-        });
+      toast({
+        title: "Şarkı Eklendi!",
+        description: `"${song.title}" çalma listesine eklendi: ${selectedPlaylist?.name}.`,
+      });
 
-    }).finally(() => {
-        setIsAdding(null);
-        onOpenChange(false);
-    });
+    } catch(error) {
+       console.error("Şarkı eklenirken hata:", error);
+       toast({
+        variant: "destructive",
+        title: "Hata!",
+        description: "Şarkı çalma listenize eklenemedi.",
+      });
+    } finally {
+       setIsAdding(null);
+       onOpenChange(false);
+    }
   };
 
   return (

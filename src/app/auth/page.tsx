@@ -10,7 +10,6 @@ import { Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { errorEmitter } from '@/firebase/error-emitter';
 
 export default function AuthPage() {
   const [email, setEmail] = useState('');

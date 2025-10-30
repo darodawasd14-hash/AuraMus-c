@@ -3,11 +3,9 @@ import React, { useState, useEffect, FormEvent, useRef } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Send, UserPlus, UserMinus, EyeOff, User as UserIcon, X } from 'lucide-react';
+import { Loader2, Send, UserPlus, UserMinus, EyeOff, User as UserIcon, X, Menu } from 'lucide-react';
 import Link from 'next/link';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 import { answerSongQuestion } from '@/ai/flows/song-qa-flow';
 import { AuraLogo } from './icons';
 import ReactMarkdown from 'react-markdown';
@@ -19,6 +17,7 @@ import {
 } from "@/components/ui/popover"
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 interface Message {
     id: string;
@@ -35,15 +34,17 @@ interface ChatPaneProps {
     song: Song | null;
     onClose?: () => void;
     isVisible: boolean;
+    isMobile: boolean;
 }
 
-export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
+export function ChatPane({ song, onClose, isVisible, isMobile }: ChatPaneProps) {
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const { user } = useUser();
     const firestore = useFirestore();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [ignoredUsers, setIgnoredUsers] = useState<string[]>([]);
+    const { toast } = useToast();
 
     const [localMessages, setLocalMessages] = useState<Message[]>([]);
 
@@ -77,46 +78,40 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [localMessages]);
     
-    const handleFollow = (targetUserId: string) => {
+    const handleFollow = async (targetUserId: string) => {
         if (!user || !firestore) return;
-        const followerData = { uid: user.uid };
         const followerRef = doc(firestore, 'users', targetUserId, 'followers', user.uid);
-        setDoc(followerRef, followerData).catch(async (serverError) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: followerRef.path,
-                operation: 'create',
-                requestResourceData: followerData,
-            }));
-        });
-
-        const followingData = { uid: targetUserId };
         const followingRefDoc = doc(firestore, 'users', user.uid, 'following', targetUserId);
-        setDoc(followingRefDoc, followingData).catch(async (serverError) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: followingRefDoc.path,
-                operation: 'create',
-                requestResourceData: followingData,
-            }));
-        });
+        
+        try {
+            await setDoc(followerRef, { uid: user.uid });
+            await setDoc(followingRefDoc, { uid: targetUserId });
+        } catch (error) {
+            console.error("Takip etme hatası:", error);
+            toast({
+                variant: 'destructive',
+                title: "Hata",
+                description: "Kullanıcı takip edilemedi."
+            });
+        }
     };
 
-    const handleUnfollow = (targetUserId: string) => {
+    const handleUnfollow = async (targetUserId: string) => {
         if (!user || !firestore) return;
         const followerRef = doc(firestore, 'users', targetUserId, 'followers', user.uid);
-        deleteDoc(followerRef).catch(async (serverError) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: followerRef.path,
-                operation: 'delete',
-            }));
-        });
-
         const followingRefDoc = doc(firestore, 'users', user.uid, 'following', targetUserId);
-        deleteDoc(followingRefDoc).catch(async (serverError) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: followingRefDoc.path,
-                operation: 'delete',
-            }));
-        });
+        
+        try {
+            await deleteDoc(followerRef);
+            await deleteDoc(followingRefDoc);
+        } catch (error) {
+             console.error("Takipten çıkarma hatası:", error);
+            toast({
+                variant: 'destructive',
+                title: "Hata",
+                description: "Kullanıcı takipten çıkarılamadı."
+            });
+        }
     };
 
     const handleIgnoreUser = (targetUserId: string) => {
@@ -136,6 +131,7 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
         const senderDisplayName = user.displayName || (user.isAnonymous ? "Misafir Kullanıcı" : user.email) || "Kullanıcı";
 
         setIsSending(true);
+        setMessage(''); 
         
         if (trimmedMessage.toLowerCase().startsWith('@aura')) {
             const question = trimmedMessage.substring(5).trim();
@@ -149,7 +145,6 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
                 isAura: true,
             };
             setLocalMessages(prev => [...prev, auraTypingMessage]);
-            setMessage('');
             
             try {
                 const response = await answerSongQuestion({
@@ -189,15 +184,16 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
                 timestamp: serverTimestamp(),
             };
 
-            setMessage(''); 
-            addDoc(messagesColRef, messageData)
-                .catch(async (serverError) => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: messagesColRef.path,
-                        operation: 'create',
-                        requestResourceData: messageData,
-                    }));
+            try {
+                await addDoc(messagesColRef, messageData);
+            } catch (error) {
+                console.error("Mesaj gönderilemedi:", error);
+                 toast({
+                    variant: 'destructive',
+                    title: "Hata",
+                    description: "Mesajınız gönderilemedi. Lütfen tekrar deneyin."
                 });
+            }
         }
         
         setIsSending(false);
@@ -250,12 +246,15 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
         );
     };
     
+    if (!isVisible && !isMobile) {
+        return null;
+    }
+
     return (
         <div className={cn(
-          "h-full w-full bg-background flex flex-col transition-transform duration-300 ease-in-out",
-           "md:relative md:w-96 md:border-l md:border-border",
-           "fixed top-0 right-0 z-50",
-           isVisible ? "translate-x-0" : "translate-x-full"
+          "h-full w-full bg-background flex flex-col transition-transform duration-300 ease-in-out z-30",
+          isMobile ? "fixed inset-0" : "relative border-l border-border w-96",
+          isVisible ? "translate-x-0" : "translate-x-full"
         )}>
             <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
                 <div>

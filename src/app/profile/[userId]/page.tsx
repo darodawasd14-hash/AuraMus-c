@@ -1,8 +1,8 @@
 'use client';
 import { useMemo, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError, useAuth } from '@/firebase';
-import { doc, collection, setDoc, deleteDoc, updateDoc, where, getDocs, query, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, useAuth } from '@/firebase';
+import { doc, collection, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut, Lock } from 'lucide-react';
@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { useToast } from '@/hooks/use-toast';
 
 type UserProfile = {
   displayName: string | null;
@@ -31,6 +32,7 @@ export default function ProfilePage() {
   const { user: currentUser, isUserLoading: isAuthLoading } = useUser();
   const firestore = useFirestore();
   const auth = useAuth();
+  const { toast } = useToast();
   
   const [isFollowingProcessing, setIsFollowingProcessing] = useState(false);
 
@@ -60,7 +62,7 @@ export default function ProfilePage() {
     }
   }, [isAuthLoading, currentUser, router]);
 
-  const handleFollowToggle = () => {
+  const handleFollowToggle = async () => {
     if (!currentUser || !firestore) return;
     
     setIsFollowingProcessing(true);
@@ -68,37 +70,39 @@ export default function ProfilePage() {
     const followerRef = doc(firestore, 'users', profileUserId, 'followers', currentUser.uid);
     const followingRefDoc = doc(firestore, 'users', currentUser.uid, 'following', profileUserId);
 
-    if (isFollowing) {
-        deleteDoc(followerRef).catch(async (serverError) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: followerRef.path, operation: 'delete' }));
+    try {
+        if (isFollowing) {
+            await deleteDoc(followerRef);
+            await deleteDoc(followingRefDoc);
+        } else {
+            await setDoc(followerRef, { uid: currentUser.uid });
+            await setDoc(followingRefDoc, { uid: profileUserId });
+        }
+    } catch (error) {
+        console.error("Takip işlemi sırasında hata:", error);
+        toast({
+            variant: "destructive",
+            title: "Hata!",
+            description: "Takip işlemi sırasında bir sorun oluştu."
         });
-        deleteDoc(followingRefDoc).catch(async (serverError) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: followingRefDoc.path, operation: 'delete' }));
-        });
-    } else {
-        const followerData = { uid: currentUser.uid };
-        setDoc(followerRef, followerData).catch(async (serverError) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: followerRef.path, operation: 'create', requestResourceData: followerData }));
-        });
-        
-        const followingData = { uid: profileUserId };
-        setDoc(followingRefDoc, followingData).catch(async (serverError) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({ path: followingRefDoc.path, operation: 'create', requestResourceData: followingData }));
-        });
+    } finally {
+        // Arayüzün güncellenmesi için küçük bir gecikme ekliyoruz.
+        // onSnapshot hemen tetiklenmeyebilir.
+        setTimeout(() => setIsFollowingProcessing(false), 500);
     }
-     setTimeout(() => setIsFollowingProcessing(false), 500);
   };
   
-  const handlePlaylistPrivacyToggle = (isPublic: boolean) => {
+  const handlePlaylistPrivacyToggle = async (isPublic: boolean) => {
     if (!profileUserRef) return;
-    const data = { arePlaylistsPublic: isPublic };
-    updateDoc(profileUserRef, data).catch(async (serverError) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: profileUserRef.path,
-        operation: 'update',
-        requestResourceData: data
-      }));
-    });
+    try {
+        await updateDoc(profileUserRef, { arePlaylistsPublic: isPublic });
+    } catch(error) {
+         toast({
+            variant: "destructive",
+            title: "Hata!",
+            description: "Gizlilik ayarı güncellenemedi."
+        });
+    }
   };
 
   const handleSignOut = async () => {

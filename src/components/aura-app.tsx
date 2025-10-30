@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import YouTube from 'react-youtube';
 import type { YouTubePlayer } from 'react-youtube';
-import { Home, ListMusic, MessageSquare, User, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, Music, Search, Plus, Smartphone, Menu } from '@/components/icons';
+import { Home, ListMusic, User, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, Music, Search, Plus, Menu, MessageSquare } from '@/components/icons';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
@@ -18,15 +18,32 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import { AddToPlaylistDialog } from '@/components/add-to-playlist';
+import { useToast } from '@/hooks/use-toast';
+
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkIsMobile();
+    window.addEventListener('resize', checkIsMobile);
+    return () => window.removeEventListener('resize', checkIsMobile);
+  }, []);
+
+  return isMobile;
+};
+
 
 interface NavProps {
     activeView: ActiveView;
     setActiveView: (view: ActiveView) => void;
-    user: { uid: string } | null;
     onNavItemClick?: () => void;
 }
 
-const SideNav = ({ activeView, setActiveView, user }: NavProps) => {
+const SideNav = ({ activeView, setActiveView }: NavProps) => {
     const navItems = [
         { id: 'discover', label: 'Keşfet', icon: Home },
         { id: 'playlist', label: 'Çalma Listelerim', icon: ListMusic },
@@ -35,15 +52,11 @@ const SideNav = ({ activeView, setActiveView, user }: NavProps) => {
     return (
         <nav className="flex flex-col gap-2">
             {navItems.map(item => (
-                <a
+                <button
                     key={item.id}
-                    href="#"
-                    onClick={(e) => {
-                        e.preventDefault();
-                        setActiveView(item.id as ActiveView);
-                    }}
+                    onClick={() => setActiveView(item.id as ActiveView)}
                     className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
+                        "flex items-center gap-3 px-3 py-2 rounded-md transition-colors w-full text-left",
                         activeView === item.id
                             ? "text-primary bg-primary/10 font-semibold"
                             : "text-muted-foreground hover:text-foreground font-medium"
@@ -51,13 +64,16 @@ const SideNav = ({ activeView, setActiveView, user }: NavProps) => {
                 >
                     <item.icon className="w-5 h-5" />
                     <span>{item.label}</span>
-                </a>
+                </button>
             ))}
         </nav>
     );
 };
 
-const BottomNavBar = ({ activeView, setActiveView, user, onNavItemClick }: NavProps) => {
+const BottomNavBar = ({ activeView, setActiveView }: NavProps) => {
+    const { user } = useUser();
+    const router = useRouter();
+
     const navItems = [
         { id: 'discover', label: 'Keşfet', icon: Home },
         { id: 'playlist', label: 'Listelerim', icon: ListMusic },
@@ -65,11 +81,12 @@ const BottomNavBar = ({ activeView, setActiveView, user, onNavItemClick }: NavPr
     ];
 
     const handleNav = (e: React.MouseEvent, item: typeof navItems[0]) => {
-        if (item.id !== 'profile') {
+        if (item.id === 'profile') {
+             if (item.href !== '#') router.push(item.href);
+        } else {
             e.preventDefault();
             setActiveView(item.id as ActiveView);
         }
-        if (onNavItemClick) onNavItemClick();
     };
 
     return (
@@ -87,13 +104,12 @@ const BottomNavBar = ({ activeView, setActiveView, user, onNavItemClick }: NavPr
     );
 }
 
-const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, playlist: Song[]) => void }) => {
+const DiscoverView = ({ onPlaySong, onAddToPlaylist, isMobile, onClose }: { onPlaySong: (song: Song, index: number, playlist: Song[]) => void, onAddToPlaylist: (song: Song) => void, isMobile: boolean, onClose?: () => void }) => {
     const firestore = useFirestore();
+    const { toast } = useToast();
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<Song[]>([]);
     const [isSearching, setIsSearching] = useState(false);
-    const [dialogOpen, setDialogOpen] = useState(false);
-    const [selectedSong, setSelectedSong] = useState<Song | null>(null);
 
     const songsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -130,23 +146,23 @@ const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, 
             setSearchResults(songs);
         } catch (error) {
             console.error("Arama sırasında hata:", error);
+            toast({
+                variant: 'destructive',
+                title: "Arama Hatası",
+                description: "YouTube'da arama yapılırken bir sorun oluştu."
+            })
         } finally {
             setIsSearching(false);
         }
     };
     
-    const handleAddToPlaylist = (song: Song) => {
-        setSelectedSong(song);
-        setDialogOpen(true);
-    };
+    const handlePlaySong = (song: Song, index: number, playlist: Song[]) => {
+        onPlaySong(song, index, playlist);
+        if (onClose) onClose();
+    }
 
     return (
         <div className="h-full flex flex-col">
-            <AddToPlaylistDialog 
-                song={selectedSong}
-                open={dialogOpen}
-                onOpenChange={setDialogOpen}
-            />
             <div className="px-4 pt-4 md:px-0 md:pt-0">
                 <form onSubmit={handleSearch} className="flex gap-2">
                     <Input 
@@ -178,7 +194,7 @@ const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, 
                             key={`${song.id}-${index}`}
                             className="flex items-center gap-4 p-2 rounded-md group cursor-pointer transition-colors hover:bg-secondary/50"
                         >
-                            <div className="flex-shrink-0" onClick={() => onPlaySong(song, index, songsToDisplay)}>
+                            <div className="flex-shrink-0" onClick={() => handlePlaySong(song, index, songsToDisplay)}>
                                 <Image 
                                     src={song.artwork || ''}
                                     alt={song.title}
@@ -187,11 +203,11 @@ const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, 
                                     className="rounded-md aspect-square object-cover" 
                                 />
                             </div>
-                            <div className="flex-grow" onClick={() => onPlaySong(song, index, songsToDisplay)}>
+                            <div className="flex-grow min-w-0" onClick={() => handlePlaySong(song, index, songsToDisplay)}>
                                 <p className="font-semibold truncate group-hover:text-primary">{song.title}</p>
                                 <p className="text-sm text-muted-foreground">{song.type}</p>
                             </div>
-                             <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => handleAddToPlaylist(song)}>
+                             <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => onAddToPlaylist(song)}>
                                  <Plus className="w-4 h-4"/>
                              </Button>
                         </div>
@@ -214,7 +230,6 @@ const formatTime = (seconds: number) => {
 
 export function AuraApp() {
     const { user } = useUser();
-    const router = useRouter();
     const [playlist, setPlaylist] = useState<Song[]>([]);
     const [currentSong, setCurrentSong] = useState<Song | null>(null);
     const [currentIndex, setCurrentIndex] = useState(-1);
@@ -230,14 +245,10 @@ export function AuraApp() {
 
     const [activeView, setActiveView] = useState<ActiveView>('discover');
     const [isChatVisible, setIsChatVisible] = useState(false);
+    const [isAddToPlaylistOpen, setAddToPlaylistOpen] = useState(false);
+    const [songToAdd, setSongToAdd] = useState<Song | null>(null);
     
-    useEffect(() => {
-        if(activeView === 'profile') {
-            router.push(`/profile/${user?.uid}`);
-            // Reset view to discover after navigation to avoid being stuck on profile tab
-            setActiveView('discover');
-        }
-    }, [activeView, user, router]);
+    const isMobile = useIsMobile();
 
     const videoOptions = {
         height: '100%',
@@ -257,7 +268,7 @@ export function AuraApp() {
         if (player && !soundActivated) {
             player.unMute();
             player.setVolume(volume);
-            player.pauseVideo();
+            player.pauseVideo(); // pause and play to force activation on all browsers
             player.playVideo();
             setSoundActivated(true);
             setIsMuted(false);
@@ -370,56 +381,68 @@ export function AuraApp() {
             }
         }
     };
+
+    const handleAddToPlaylist = (song: Song) => {
+        setSongToAdd(song);
+        setAddToPlaylistOpen(true);
+    };
     
     const renderActiveView = () => {
         switch (activeView) {
             case 'discover':
-                return <DiscoverView onPlaySong={playSong} />;
+                return <DiscoverView onPlaySong={playSong} onAddToPlaylist={handleAddToPlaylist} isMobile={isMobile} onClose={() => {if(isMobile) setActiveView('discover')}} />;
             case 'playlist':
-                return <PlaylistView playSong={playSong} currentSong={currentSong} />;
+                return <PlaylistView playSong={playSong} currentSong={currentSong} onClose={() => {if(isMobile) setActiveView('discover')}} />;
             default:
-                return <DiscoverView onPlaySong={playSong} />;
+                return <DiscoverView onPlaySong={playSong} onAddToPlaylist={handleAddToPlaylist} isMobile={isMobile} onClose={() => {if(isMobile) setActiveView('discover')}}/>;
         }
     }
     
     return (
-        <div className="h-screen w-screen bg-background flex flex-col text-foreground overflow-hidden">
+        <div className="h-dvh w-screen bg-background flex flex-col text-foreground overflow-hidden">
+            <AddToPlaylistDialog
+                song={songToAdd}
+                open={isAddToPlaylistOpen}
+                onOpenChange={setAddToPlaylistOpen}
+            />
+
             <div className="flex flex-1 min-h-0">
                 {/* -- Desktop Sidebar -- */}
-                <aside className="w-64 flex-shrink-0 flex-col bg-secondary/30 border-r border-border p-4 hidden md:flex">
-                    <div className="flex items-center gap-2 mb-8 px-2">
-                        <AuraLogo className="w-8 h-8" />
-                        <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
-                    </div>
-                    <SideNav activeView={activeView} setActiveView={setActiveView} user={user} />
-                    <div className="mt-auto">
-                      <Link
-                          href={user ? `/profile/${user.uid}` : '#'}
-                          className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
-                      >
-                          <User className="w-5 h-5" />
-                          <span>Profilim</span>
-                      </Link>
-                    </div>
-                </aside>
+                {!isMobile && (
+                    <aside className="w-64 flex-shrink-0 flex-col bg-secondary/30 border-r border-border p-4 flex">
+                        <div className="flex items-center gap-2 mb-8 px-2">
+                            <AuraLogo className="w-8 h-8" />
+                            <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
+                        </div>
+                        <SideNav activeView={activeView} setActiveView={setActiveView} />
+                        <div className="mt-auto">
+                        <Link
+                            href={user ? `/profile/${user.uid}` : '#'}
+                            className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium rounded-md"
+                        >
+                            <User className="w-5 h-5" />
+                            <span>Profilim</span>
+                        </Link>
+                        </div>
+                    </aside>
+                )}
                 
                 <main className="flex-1 flex flex-col min-h-0 relative">
                      {/* -- Header -- */}
-                    <header className="flex-shrink-0 h-16 flex items-center justify-between px-4 border-b border-border md:border-none">
-                        <div className="flex items-center gap-2 md:hidden">
+                    <header className="flex-shrink-0 h-16 flex items-center justify-between px-4 border-b border-border">
+                        <div className="flex items-center gap-2">
                             <AuraLogo className="w-8 h-8" />
                             <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
                         </div>
                         <div className="flex items-center gap-2">
-                             <Button variant="outline" size="sm" onClick={() => setIsChatVisible(!isChatVisible)}>
-                                 <MessageSquare className="w-4 h-4 mr-2" />
-                                 Sohbet
+                             <Button variant="ghost" size="icon" onClick={() => setIsChatVisible(true)}>
+                                 <MessageSquare className="w-5 h-5" />
                              </Button>
                         </div>
                     </header>
                     
-                    <div className="flex-1 flex flex-col min-h-0 md:p-8 md:pt-0">
-                      <div className="w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative shadow-xl">
+                    <div className={cn("flex-1 flex flex-col min-h-0", !isMobile && "md:p-8 md:pt-0")}>
+                      <div className={cn("w-full aspect-video bg-black flex items-center justify-center relative shadow-xl", !isMobile && "rounded-lg overflow-hidden")}>
                           {currentSong?.videoId && (
                               <>
                                   <YouTube
@@ -455,95 +478,97 @@ export function AuraApp() {
                 </main>
 
                  {/* -- Chat Pane -- */}
-                 <aside className={cn(
-                    "border-l border-border flex-shrink-0 flex-col bg-background z-20",
-                    "transition-transform duration-300 ease-in-out",
-                    "fixed top-0 right-0 h-full w-full max-w-md md:relative md:w-96",
-                    isChatVisible ? "translate-x-0" : "translate-x-full"
-                 )}>
-                    <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} isVisible={isChatVisible} />
-                </aside>
+                <ChatPane 
+                    song={currentSong} 
+                    onClose={() => setIsChatVisible(false)} 
+                    isVisible={isChatVisible}
+                    isMobile={isMobile}
+                />
             </div>
             
-            {/* -- Player Footer -- */}
-            <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-4 py-3 flex items-center gap-4 md:hidden">
-                <div className="flex-grow flex items-center gap-3" onClick={handlePlayPause}>
-                     {currentSong && (
-                        <Image 
-                            src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
-                            alt={currentSong.title}
-                            width={40}
-                            height={40}
-                            className="rounded-md"
-                        />
-                    )}
-                    <div className="flex-grow min-w-0">
-                      <p className="font-semibold truncate">{currentSong?.title || "Şarkı seçilmedi"}</p>
+             {/* -- Player -- */}
+            {isMobile ? (
+                <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-4 py-3 flex items-center gap-4">
+                    <div className="flex-grow flex items-center gap-3 min-w-0" onClick={handlePlayPause}>
+                        {currentSong && (
+                            <Image 
+                                src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
+                                alt={currentSong.title}
+                                width={40}
+                                height={40}
+                                className="rounded-md flex-shrink-0"
+                            />
+                        )}
+                        <div className="flex-grow min-w-0">
+                        <p className="font-semibold truncate">{currentSong?.title || "Şarkı seçilmedi"}</p>
+                        </div>
                     </div>
-                </div>
-                <Button variant="ghost" size="icon" onClick={handlePlayPause} disabled={!player}>
-                    {isPlaying ? <PauseIcon className="w-6 h-6 fill-current" /> : <PlayIcon className="w-6 h-6 fill-current" />}
-                </Button>
-            </footer>
+                    <Button variant="ghost" size="icon" onClick={handlePlayPause} disabled={!player}>
+                        {isPlaying ? <PauseIcon className="w-6 h-6 fill-current" /> : <PlayIcon className="w-6 h-6 fill-current" />}
+                    </Button>
+                </footer>
+            ) : (
+                <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-6 py-3 flex items-center gap-6">
+                    <div className="flex items-center gap-4 w-64 min-w-0">
+                        {currentSong && (
+                            <Image 
+                                src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
+                                alt={currentSong.title}
+                                width={48}
+                                height={48}
+                                className="rounded-md"
+                            />
+                        )}
+                        <div className="min-w-0">
+                            <p className="font-semibold truncate">{currentSong?.title}</p>
+                        </div>
+                    </div>
 
-            {/* -- Desktop Player -- */}
-            <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-6 py-3 hidden md:flex items-center gap-6">
-                <div className="flex items-center gap-4 w-64">
-                    {currentSong && (
-                        <Image 
-                            src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
-                            alt={currentSong.title}
-                            width={48}
-                            height={48}
-                            className="rounded-md"
-                        />
-                    )}
-                    <div>
-                        <p className="font-semibold truncate">{currentSong?.title}</p>
+                    <div className="flex-grow flex flex-col items-center gap-2">
+                        <div className="flex items-center gap-3">
+                            <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!player}>
+                                <SkipBack className="w-5 h-5 fill-current" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="w-10 h-10 bg-primary/20 rounded-full" onClick={handlePlayPause} disabled={!player}>
+                                {isPlaying ? <PauseIcon className="w-5 h-5 fill-current" /> : <PlayIcon className="w-5 h-5 fill-current" />}
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={playNext} disabled={!player}>
+                                <SkipForward className="w-5 h-5 fill-current" />
+                            </Button>
+                        </div>
+                        <div className="flex-grow flex items-center gap-2 w-full max-w-xl">
+                            <span className="text-xs text-muted-foreground w-12 text-right">{formatTime(currentTime)}</span>
+                            <Slider
+                                value={[currentTime]}
+                                max={duration}
+                                onValueChange={handleSeek}
+                                disabled={!player}
+                            />
+                            <span className="text-xs text-muted-foreground w-12">{formatTime(duration)}</span>
+                        </div>
                     </div>
-                </div>
 
-                <div className="flex-grow flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-3">
-                        <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!player}>
-                            <SkipBack className="w-5 h-5 fill-current" />
+                    <div className="w-64 flex items-center justify-end gap-3">
+                        <Button variant="ghost" size="icon" onClick={toggleMute} disabled={!player}>
+                            {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
                         </Button>
-                        <Button variant="ghost" size="icon" className="w-10 h-10 bg-primary/20 rounded-full" onClick={handlePlayPause} disabled={!player}>
-                            {isPlaying ? <PauseIcon className="w-5 h-5 fill-current" /> : <PlayIcon className="w-5 h-5 fill-current" />}
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={playNext} disabled={!player}>
-                            <SkipForward className="w-5 h-5 fill-current" />
-                        </Button>
-                    </div>
-                    <div className="flex-grow flex items-center gap-2 w-full max-w-xl">
-                        <span className="text-xs text-muted-foreground w-12 text-right">{formatTime(currentTime)}</span>
-                        <Slider
-                            value={[currentTime]}
-                            max={duration}
-                            onValueChange={handleSeek}
+                        <Slider 
+                            className="w-[100px]"
+                            value={[isMuted ? 0 : volume]}
+                            max={100}
+                            onValueChange={handleVolumeChange}
                             disabled={!player}
                         />
-                        <span className="text-xs text-muted-foreground w-12">{formatTime(duration)}</span>
                     </div>
-                </div>
+                </footer>
+            )}
 
-                <div className="w-64 flex items-center justify-end gap-3">
-                    <Button variant="ghost" size="icon" onClick={toggleMute} disabled={!player}>
-                        {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                    </Button>
-                    <Slider 
-                        className="w-[100px]"
-                        value={[isMuted ? 0 : volume]}
-                        max={100}
-                        onValueChange={handleVolumeChange}
-                        disabled={!player}
-                    />
+            {/* -- Mobile Bottom Nav -- */}
+            {isMobile && (
+                <div className="flex-shrink-0 bg-secondary/50 border-t border-border">
+                    <BottomNavBar activeView={activeView} setActiveView={setActiveView} />
                 </div>
-            </footer>
-             {/* -- Mobile Bottom Nav -- */}
-            <div className="md:hidden flex-shrink-0 bg-secondary/50 border-t border-border">
-                <BottomNavBar activeView={activeView} setActiveView={setActiveView} user={user} />
-            </div>
+            )}
         </div>
     );
 }
