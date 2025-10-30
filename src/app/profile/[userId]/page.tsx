@@ -5,7 +5,7 @@ import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, errorEmi
 import { doc, collection, setDoc, deleteDoc, updateDoc, where, getDocs, query, addDoc, serverTimestamp } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut, Lock, MessageCircle } from 'lucide-react';
+import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut, Lock } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { Switch } from "@/components/ui/switch"
@@ -33,7 +33,6 @@ export default function ProfilePage() {
   const auth = useAuth();
   
   const [isFollowingProcessing, setIsFollowingProcessing] = useState(false);
-  const [isChatProcessing, setIsChatProcessing] = useState(false);
 
   const profileUserRef = useMemoFirebase(() => (firestore && currentUser) ? doc(firestore, 'users', profileUserId) : null, [firestore, profileUserId, currentUser]);
   
@@ -107,44 +106,6 @@ export default function ProfilePage() {
       router.push('/'); 
     }
   };
-  
-  const handleSendMessage = async () => {
-    if (!currentUser || !firestore || !profileUser) return;
-    setIsChatProcessing(true);
-    
-    try {
-        const chatsRef = collection(firestore, 'chats');
-        const participantIds = [currentUser.uid, profileUserId].sort(); // Sort IDs for consistency
-        const q = query(chatsRef, where('participantIds', '==', participantIds));
-
-        const querySnapshot = await getDocs(q);
-
-        let chatId;
-        if (querySnapshot.empty) {
-            // No existing chat, create a new one
-            const newChatData = {
-                participantIds,
-                lastMessage: '',
-                lastMessageTimestamp: serverTimestamp(),
-            };
-            const newChatDoc = await addDoc(chatsRef, newChatData);
-            chatId = newChatDoc.id;
-        } else {
-            // Chat already exists
-            chatId = querySnapshot.docs[0].id;
-        }
-        
-        // Navigate to the chat page using the main /chat route
-        // The chat page will handle displaying the correct conversation
-        router.push(`/chat?chatId=${chatId}`);
-
-    } catch (error) {
-        console.error("Error finding or creating chat:", error);
-        // You might want to show a toast message here
-    } finally {
-        setIsChatProcessing(false);
-    }
-};
 
   if (isLoading || isAuthLoading || isFollowingProcessing) {
     return (
@@ -226,10 +187,6 @@ export default function ProfilePage() {
                     <Button onClick={handleFollowToggle} variant={isFollowing ? "outline" : "default"} disabled={isFollowingProcessing}>
                       {isFollowing ? <UserMinus className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />}
                       {isFollowing ? 'Takipten Çık' : 'Takip Et'}
-                    </Button>
-                     <Button onClick={handleSendMessage} variant="secondary" disabled={isChatProcessing}>
-                        {isChatProcessing ? <Loader2 className="animate-spin" /> : <MessageCircle className="mr-2 h-4 w-4" />}
-                        Mesaj Gönder
                     </Button>
                   </>
                 )}

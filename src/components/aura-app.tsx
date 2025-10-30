@@ -19,40 +19,6 @@ import { Input } from '@/components/ui/input';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import { AddToPlaylistDialog } from '@/components/add-to-playlist';
 
-const UnreadChatBadge = () => {
-    const { user } = useUser();
-    const firestore = useFirestore();
-
-    // SECURE: Only query for chats where the current user is a participant.
-    const chatsQuery = useMemoFirebase(() => {
-        if (!user || !firestore) return null;
-        return query(
-            collection(firestore, 'chats'), 
-            where('participantIds', 'array-contains', user.uid)
-        );
-    }, [user, firestore]);
-
-    const { data: chats, isLoading } = useCollection(chatsQuery);
-
-    // This logic can be expanded later to count *actual* unread messages.
-    // For now, a simple count of active chats acts as a notification.
-    const unreadCount = chats?.length || 0; 
-
-    if (isLoading || !user || unreadCount === 0) {
-        return <MessageSquare className="w-5 h-5" />;
-    }
-
-    return (
-        <div className="relative">
-            <MessageSquare className="w-5 h-5" />
-            <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
-                {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-        </div>
-    );
-};
-
-
 interface SideNavProps {
     activeView: ActiveView;
     setActiveView: (view: ActiveView) => void;
@@ -93,14 +59,6 @@ const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) 
                         <span>{item.label}</span>
                     </a>
                 ))}
-
-                <Link 
-                    href="/chat"
-                    className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
-                >
-                    <UnreadChatBadge />
-                    <span>Sohbetler</span>
-                </Link>
 
                 {user && (
                     <Link
