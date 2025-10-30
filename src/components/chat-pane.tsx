@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Send, UserPlus, UserMinus, EyeOff, User as UserIcon, X } from 'lucide-react';
 import Link from 'next/link';
-import { collection, addDoc, serverTimestamp, query, orderBy, limit, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { answerSongQuestion } from '@/ai/flows/song-qa-flow';
@@ -18,6 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 
 
 // Firestore'dan gelen mesajların arayüzü
@@ -35,9 +36,10 @@ interface Message {
 interface ChatPaneProps {
     song: Song | null;
     onClose?: () => void;
+    isVisible: boolean;
 }
 
-export function ChatPane({ song, onClose }: ChatPaneProps) {
+export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const { user } = useUser();
@@ -258,10 +260,15 @@ export function ChatPane({ song, onClose }: ChatPaneProps) {
             </Popover>
         );
     };
+    
+    // Sadece görünür olduğunda render et
+    if (!isVisible) {
+      return null;
+    }
 
     return (
-        <aside className="h-full w-full bg-background/50 flex flex-col">
-            <div className="p-4 border-b border-border flex items-center justify-between">
+        <div className="h-full w-full bg-background flex flex-col">
+            <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
                 <div>
                     {song ? (
                         <>
@@ -273,7 +280,7 @@ export function ChatPane({ song, onClose }: ChatPaneProps) {
                     )}
                 </div>
                 {onClose && (
-                    <Button variant="ghost" size="icon" onClick={onClose} className="md:hidden">
+                    <Button variant="ghost" size="icon" onClick={onClose}>
                         <X className="w-5 h-5"/>
                     </Button>
                 )}
@@ -318,7 +325,7 @@ export function ChatPane({ song, onClose }: ChatPaneProps) {
                  <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-4 border-t border-border">
+            <div className="p-4 border-t border-border flex-shrink-0">
                 <form onSubmit={handleSendMessage} className="flex gap-2">
                     <Input
                         type="text"
@@ -333,6 +340,6 @@ export function ChatPane({ song, onClose }: ChatPaneProps) {
                     </Button>
                 </form>
             </div>
-        </aside>
+        </div>
     );
 }

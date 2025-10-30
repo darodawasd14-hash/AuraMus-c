@@ -1,9 +1,9 @@
 'use client';
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import YouTube from 'react-youtube';
 import type { YouTubePlayer } from 'react-youtube';
-import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, User, Music, Search, Plus, Smartphone, Menu } from '@/components/icons';
+import { Home, ListMusic, MessageSquare, User, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, Music, Search, Plus, Smartphone, Menu } from '@/components/icons';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
@@ -12,7 +12,7 @@ import type { Song, ActiveView } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit, where } from 'firebase/firestore';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
@@ -23,53 +23,54 @@ interface SideNavProps {
     activeView: ActiveView;
     setActiveView: (view: ActiveView) => void;
     user: { uid: string } | null;
+    onNavItemClick: () => void;
 }
 
-const SideNav = ({ activeView, setActiveView, user }: SideNavProps) => {
+const SideNav = ({ activeView, setActiveView, user, onNavItemClick }: SideNavProps) => {
     const router = useRouter();
     const navItems = [
-        { id: 'discover', label: 'Keşfet', icon: Home, href: '#' },
-        { id: 'playlist', label: 'Çalma Listelerim', icon: ListMusic, href: '#' },
+        { id: 'discover', label: 'Keşfet', icon: Home },
+        { id: 'playlist', label: 'Çalma Listelerim', icon: ListMusic },
     ];
 
-    return (
-        <aside className="w-64 flex-shrink-0 flex-col bg-secondary/30 border-r border-border p-4 hidden md:flex">
-            <div className="flex items-center gap-2 mb-8 px-2">
-                <AuraLogo className="w-8 h-8" />
-                <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
-            </div>
-            <nav className="flex flex-col gap-2">
-                {navItems.map(item => (
-                    <a
-                        key={item.id}
-                        href={item.href}
-                        onClick={(e) => {
-                            e.preventDefault();
-                            setActiveView(item.id as ActiveView);
-                        }}
-                        className={cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
-                            activeView === item.id 
-                                ? "text-primary bg-primary/10 font-semibold"
-                                : "text-muted-foreground hover:text-foreground font-medium"
-                        )}
-                    >
-                        <item.icon className="w-5 h-5" />
-                        <span>{item.label}</span>
-                    </a>
-                ))}
+    const handleNav = (view: ActiveView) => {
+        setActiveView(view);
+        onNavItemClick();
+    }
 
-                {user && (
-                    <Link
-                        href={`/profile/${user.uid}`}
-                        className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
-                    >
-                        <User className="w-5 h-5" />
-                        <span>Profilim</span>
-                    </Link>
-                )}
-            </nav>
-        </aside>
+    return (
+        <nav className="flex flex-col gap-2">
+            {navItems.map(item => (
+                <a
+                    key={item.id}
+                    href="#"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        handleNav(item.id as ActiveView);
+                    }}
+                    className={cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
+                        activeView === item.id
+                            ? "text-primary bg-primary/10 font-semibold"
+                            : "text-muted-foreground hover:text-foreground font-medium"
+                    )}
+                >
+                    <item.icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                </a>
+            ))}
+
+            {user && (
+                <Link
+                    href={`/profile/${user.uid}`}
+                    onClick={onNavItemClick}
+                    className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
+                >
+                    <User className="w-5 h-5" />
+                    <span>Profilim</span>
+                </Link>
+            )}
+        </nav>
     );
 };
 
@@ -201,7 +202,6 @@ const formatTime = (seconds: number) => {
 
 export function AuraApp() {
     const { user } = useUser();
-    const router = useRouter();
     // ---------- HAFIZA (STATES) ----------
     const [playlist, setPlaylist] = useState<Song[]>([]);
     const [currentSong, setCurrentSong] = useState<Song | null>(null);
@@ -376,43 +376,6 @@ export function AuraApp() {
         }
     }
     
-    const MobileNavMenu = () => (
-        <div className="absolute z-20 top-0 left-0 h-full w-64 bg-background/80 backdrop-blur-lg border-r border-border p-4 flex flex-col">
-             <div className="flex items-center gap-2 mb-8 px-2">
-                <AuraLogo className="w-8 h-8" />
-                <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
-            </div>
-            <nav className="flex flex-col gap-2">
-                 <a
-                    href="#"
-                    onClick={(e) => { e.preventDefault(); setActiveView('discover'); setIsSideNavVisible(false); }}
-                    className={cn( "flex items-center gap-3 px-3 py-2 rounded-md", activeView === 'discover' ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground" )}
-                >
-                    <Home className="w-5 h-5" />
-                    <span>Keşfet</span>
-                </a>
-                 <a
-                    href="#"
-                    onClick={(e) => { e.preventDefault(); setActiveView('playlist'); setIsSideNavVisible(false); }}
-                    className={cn( "flex items-center gap-3 px-3 py-2 rounded-md", activeView === 'playlist' ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground" )}
-                >
-                    <ListMusic className="w-5 h-5" />
-                    <span>Çalma Listelerim</span>
-                </a>
-                {user && (
-                    <Link
-                        href={`/profile/${user.uid}`}
-                        className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
-                    >
-                        <User className="w-5 h-5" />
-                        <span>Profilim</span>
-                    </Link>
-                )}
-            </nav>
-        </div>
-    );
-
-
     return (
         <div
             className={cn(
@@ -428,9 +391,17 @@ export function AuraApp() {
                 )}
             >
                 <div className="flex flex-1 min-h-0">
-                    <SideNav activeView={activeView} setActiveView={setActiveView} user={user} />
+                    {/* -- Masaüstü Kenar Çubuğu -- */}
+                    <aside className="w-64 flex-shrink-0 flex-col bg-secondary/30 border-r border-border p-4 hidden md:flex">
+                        <div className="flex items-center gap-2 mb-8 px-2">
+                            <AuraLogo className="w-8 h-8" />
+                            <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
+                        </div>
+                        <SideNav activeView={activeView} setActiveView={setActiveView} user={user} onNavItemClick={() => {}} />
+                    </aside>
                     
                     <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 md:gap-8 overflow-y-auto relative">
+                        {/* -- Mobil Üst Bar -- */}
                         <div className="md:hidden flex items-center justify-between">
                             <Button variant="ghost" size="icon" onClick={() => setIsSideNavVisible(true)}>
                                 <Menu className="w-6 h-6" />
@@ -444,10 +415,11 @@ export function AuraApp() {
                             </Button>
                         </div>
                         
+                        {/* -- Masaüstü Sohbet Butonu -- */}
                         <div className="hidden md:block absolute top-4 right-4 z-10">
                             <Button variant="outline" size="sm" onClick={() => setIsChatVisible(!isChatVisible)}>
                                 <MessageSquare className="w-4 h-4 mr-2" />
-                                Sohbet
+                                {isChatVisible ? "Sohbeti Kapat" : "Sohbeti Aç"}
                             </Button>
                         </div>
                         
@@ -484,22 +456,16 @@ export function AuraApp() {
                         {renderActiveView()}
                     </div>
                     </main>
-                    {isChatVisible && (
-                         <aside className={cn(
-                            "border-l border-border transition-all duration-300 flex-shrink-0",
-                            isMobileView 
-                                ? "absolute top-0 right-0 h-full w-full bg-background/80 backdrop-blur-lg z-20" 
-                                : "hidden md:flex w-96 flex-col"
-                        )}>
-                            <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} />
-                        </aside>
-                    )}
-                    {isSideNavVisible && (
-                        <>
-                            <div className="absolute inset-0 bg-black/50 z-10 md:hidden" onClick={() => setIsSideNavVisible(false)}></div>
-                            <MobileNavMenu />
-                        </>
-                    )}
+
+                    {/* -- Masaüstü Sohbet Paneli -- */}
+                     <aside className={cn(
+                        "border-l border-border flex-shrink-0 flex-col",
+                        "transition-all duration-300 ease-in-out",
+                        isChatVisible ? "w-96" : "w-0",
+                        "hidden md:flex"
+                     )}>
+                        <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} isVisible={isChatVisible} />
+                    </aside>
                 </div>
                 
                 <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-4 md:px-6 py-3 flex items-center gap-4 md:gap-6">
@@ -560,9 +526,28 @@ export function AuraApp() {
                         </div>
                     </div>
                 </footer>
+
+                {/* -- Mobil Katmanlar (Overlays) -- */}
+                {isSideNavVisible && (
+                    <div className="md:hidden">
+                        <div className="absolute inset-0 bg-black/60 z-40" onClick={() => setIsSideNavVisible(false)}></div>
+                        <div className="absolute top-0 left-0 h-full w-64 bg-background/90 backdrop-blur-lg border-r border-border p-4 z-50 flex flex-col">
+                            <div className="flex items-center gap-2 mb-8 px-2">
+                                <AuraLogo className="w-8 h-8" />
+                                <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
+                            </div>
+                            <SideNav activeView={activeView} setActiveView={setActiveView} user={user} onNavItemClick={() => setIsSideNavVisible(false)} />
+                        </div>
+                    </div>
+                )}
+                {isChatVisible && (
+                    <div className="md:hidden">
+                        <div className="absolute inset-0 bg-background/90 backdrop-blur-lg z-30 flex flex-col">
+                           <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} isVisible={true} />
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
 }
-
-    
