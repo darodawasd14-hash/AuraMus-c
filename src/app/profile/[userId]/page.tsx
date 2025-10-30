@@ -3,13 +3,14 @@ import { useMemo, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase, useAuth } from '@/firebase';
 import { doc, collection, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
+import { signOut, updateProfile } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut, Lock } from 'lucide-react';
+import { Loader2, UserPlus, UserMinus, ArrowLeft, Music, Home, LogOut, Lock, Edit, Check, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 
 type UserProfile = {
@@ -35,6 +36,9 @@ export default function ProfilePage() {
   const { toast } = useToast();
   
   const [isFollowingProcessing, setIsFollowingProcessing] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newDisplayName, setNewDisplayName] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
 
   const profileUserRef = useMemoFirebase(() => (firestore && profileUserId) ? doc(firestore, 'users', profileUserId) : null, [firestore, profileUserId]);
   
@@ -60,10 +64,11 @@ export default function ProfilePage() {
 
 
   useEffect(() => {
-    if (!isAuthLoading && !currentUser) {
-      // Don't redirect, just let them view public parts
+    if (profileUser?.displayName) {
+      setNewDisplayName(profileUser.displayName);
     }
-  }, [isAuthLoading, currentUser, router]);
+  }, [profileUser]);
+
 
   const handleFollowToggle = async () => {
     if (!currentUser || !firestore) {
@@ -110,6 +115,32 @@ export default function ProfilePage() {
             title: "Hata!",
             description: "Gizlilik ayarı güncellenemedi."
         });
+    }
+  };
+  
+  const handleSaveName = async () => {
+    if (!currentUser || !profileUserRef || !newDisplayName.trim()) {
+        toast({ title: "İsim boş olamaz!", variant: "destructive" });
+        return;
+    }
+    setIsSavingName(true);
+    try {
+        // Update Firebase Auth profile
+        await updateProfile(currentUser, { displayName: newDisplayName.trim() });
+        // Update Firestore document
+        await updateDoc(profileUserRef, { displayName: newDisplayName.trim() });
+
+        toast({ title: "İsim başarıyla güncellendi!" });
+        setIsEditingName(false);
+    } catch (error) {
+        console.error("İsim güncellenirken hata:", error);
+        toast({
+            title: "Hata!",
+            description: "İsminiz güncellenirken bir sorun oluştu.",
+            variant: "destructive"
+        });
+    } finally {
+        setIsSavingName(false);
     }
   };
 
@@ -165,8 +196,32 @@ export default function ProfilePage() {
             <AvatarFallback>{fallbackAvatar}</AvatarFallback>
           </Avatar>
           <div className="flex-grow">
-            <h1 className="text-4xl font-bold tracking-tight">{displayName}</h1>
-            <p className="text-muted-foreground">{displayEmail}</p>
+             {isEditingName ? (
+                <div className="flex items-center gap-2 max-w-sm mx-auto md:mx-0">
+                    <Input 
+                        value={newDisplayName}
+                        onChange={(e) => setNewDisplayName(e.target.value)}
+                        disabled={isSavingName}
+                        placeholder="Görünecek isim"
+                    />
+                    <Button size="icon" onClick={handleSaveName} disabled={isSavingName}>
+                        {isSavingName ? <Loader2 className="animate-spin" /> : <Check />}
+                    </Button>
+                     <Button size="icon" variant="ghost" onClick={() => setIsEditingName(false)} disabled={isSavingName}>
+                        <X />
+                    </Button>
+                </div>
+            ) : (
+                <div className="flex items-center justify-center md:justify-start gap-2">
+                    <h1 className="text-4xl font-bold tracking-tight">{displayName}</h1>
+                    {isOwnProfile && (
+                        <Button size="icon" variant="ghost" onClick={() => setIsEditingName(true)}>
+                            <Edit className="w-5 h-5 text-muted-foreground" />
+                        </Button>
+                    )}
+                </div>
+            )}
+            <p className="text-muted-foreground mt-1">{displayEmail}</p>
             <div className="mt-4 flex justify-center gap-6 md:justify-start">
               <div>
                 <p className="text-2xl font-bold">{followers?.length ?? 0}</p>
@@ -246,3 +301,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    

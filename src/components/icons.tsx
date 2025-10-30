@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
-import { Music, ListMusic, User, Volume2, Send, Users, Search, MessageSquare, X, Plus, Home, LogOut, ChevronDown, VolumeX, Maximize2, UserPlus, UserMinus, EyeOff, Loader2, MessageCircle, Smartphone } from 'lucide-react';
+import { Music, ListMusic, User, Volume2, Send, Users, Search, MessageSquare, X, Plus, Home, LogOut, ChevronDown, VolumeX, Maximize2, UserPlus, UserMinus, EyeOff, Loader2, MessageCircle, Smartphone, Edit, Check } from 'lucide-react';
 
-export { Music, ListMusic, User, Volume2, Send, Users, Search, MessageSquare, X, Plus, Home, LogOut, ChevronDown, VolumeX, Maximize2, UserPlus, UserMinus, EyeOff, Loader2, MessageCircle, Smartphone };
+export { Music, ListMusic, User, Volume2, Send, Users, Search, MessageSquare, X, Plus, Home, LogOut, ChevronDown, VolumeX, Maximize2, UserPlus, UserMinus, EyeOff, Loader2, MessageCircle, Smartphone, Edit, Check };
 
 export function AuraLogo({ className, ...props }: React.SVGProps<SVGSVGElement>) {
   return (
@@ -46,3 +46,5 @@ export function SkipForward(props: React.SVGProps<SVGSVGElement>) {
      <svg {...props} fill="currentColor" viewBox="0 0 20 20"><path d="M16 5a.75.75 0 0 1 .75.75v8.5a.75.75 0 0 1-1.5 0V5.75A.75.75 0 0 1 16 5Zm-3.24-1.214a.75.75 0 0 1 1.03-.064l3.952 2.436a.75.75 0 0 1 0 1.258l-3.953 2.446a.75.75 0 0 1-1.03-.064V4.996c0-.49.448-.86.947-.71Z" clipRule="evenodd"/><path d="M3.7 2.841A1.5 1.5 0 0 1 6 4.11v11.78a1.5 1.5 0 0 1-2.3 1.269l9.344-5.89a1.5 1.5 0 0 0 0-2.538L3.7 2.84Z"/></svg>
   );
 }
+
+    
