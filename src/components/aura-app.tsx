@@ -12,12 +12,45 @@ import type { Song, ActiveView } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { collection, query, orderBy, limit, where } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import { AddToPlaylistDialog } from '@/components/add-to-playlist';
+
+const UnreadChatBadge = () => {
+    const { user } = useUser();
+    const firestore = useFirestore();
+
+    // SECURE: Only query for chats where the current user is a participant.
+    const chatsQuery = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        return query(
+            collection(firestore, 'chats'), 
+            where('participantIds', 'array-contains', user.uid)
+        );
+    }, [user, firestore]);
+
+    const { data: chats, isLoading } = useCollection(chatsQuery);
+
+    // This logic needs to be expanded to actually count unread messages.
+    // For now, we just show a badge if there are any chats.
+    const unreadCount = chats?.length || 0; 
+
+    if (isLoading || !user || unreadCount === 0) {
+        return <MessageSquare className="w-5 h-5" />;
+    }
+
+    return (
+        <div className="relative">
+            <MessageSquare className="w-5 h-5" />
+            <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+                {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+        </div>
+    );
+};
 
 
 interface SideNavProps {
@@ -32,7 +65,6 @@ const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) 
     const navItems = [
         { id: 'discover', label: 'Keşfet', icon: Home, href: '#' },
         { id: 'playlist', label: 'Çalma Listelerim', icon: ListMusic, href: '#' },
-        { id: 'friends', label: 'Arkadaşlar', icon: Users, href: '/chat' },
     ];
 
     return (
@@ -47,12 +79,8 @@ const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) 
                         key={item.id}
                         href={item.href}
                         onClick={(e) => {
-                            if (item.href === '#') {
-                                e.preventDefault();
-                                setActiveView(item.id as ActiveView);
-                            } else {
-                                router.push(item.href);
-                            }
+                            e.preventDefault();
+                            setActiveView(item.id as ActiveView);
                         }}
                         className={cn(
                             "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
@@ -65,6 +93,14 @@ const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) 
                         <span>{item.label}</span>
                     </a>
                 ))}
+
+                <Link 
+                    href="/chat"
+                    className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
+                >
+                    <UnreadChatBadge />
+                    <span>Sohbetler</span>
+                </Link>
 
                 {user && (
                     <Link
@@ -379,7 +415,6 @@ export function AuraApp() {
                 return <DiscoverView onPlaySong={playSong} />;
             case 'playlist':
                 return <PlaylistView playSong={playSong} currentSong={currentSong} />;
-            // The 'friends' view is now handled by the /chat route
             default:
                 return <DiscoverView onPlaySong={playSong} />;
         }
@@ -487,5 +522,3 @@ export function AuraApp() {
         </div>
     );
 }
-
-    
