@@ -488,10 +488,12 @@ export function AuraApp() {
                             <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} />
                         </aside>
                     )}
-                    {isMobileView && isSideNavVisible && <MobileNavMenu />}
-                    {isMobileView && (isSideNavVisible || (isChatVisible && !isMobileView)) && 
-                        <div className="absolute inset-0 bg-black/50 z-10" onClick={() => {setIsSideNavVisible(false); setIsChatVisible(false)}}></div>
-                    }
+                    {isSideNavVisible && (
+                        <>
+                            <div className="absolute inset-0 bg-black/50 z-10 md:hidden" onClick={() => setIsSideNavVisible(false)}></div>
+                            <MobileNavMenu />
+                        </>
+                    )}
                 </div>
                 
                 <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-4 md:px-6 py-3 flex items-center gap-4 md:gap-6">
@@ -556,3 +558,5 @@ export function AuraApp() {
         </div>
     );
 }
+
+    
