@@ -47,7 +47,10 @@ export default function ProfilePage() {
   const { data: following, isLoading: isFollowingLoading } = useCollection(followingRef);
   const { data: playlists, isLoading: isPlaylistsLoading } = useCollection<Playlist>(playlistsRef);
 
-  const isFollowing = useMemo(() => followers?.some(f => f.id === currentUser?.uid), [followers, currentUser]);
+  const isFollowing = useMemo(() => {
+    if (!currentUser) return false;
+    return followers?.some(f => f.id === currentUser.uid) ?? false;
+  }, [followers, currentUser]);
   
   const isOwnProfile = currentUser && currentUser.uid === profileUserId;
   const isLoading = isAuthLoading || isProfileLoading || isFollowersLoading || isFollowingLoading || isPlaylistsLoading;
