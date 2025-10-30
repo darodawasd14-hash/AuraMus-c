@@ -11,11 +11,9 @@ import { ChatPane } from '@/components/chat-pane';
 import type { Song, ActiveView } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError, useDoc } from '@/firebase';
-import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc, setDoc, where } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
-import { Card } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
@@ -489,3 +487,5 @@ export function AuraApp() {
         </div>
     );
 }
+
+    
