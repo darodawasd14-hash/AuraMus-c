@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import YouTube from 'react-youtube';
 import type { YouTubePlayer } from 'react-youtube';
-import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, User, Music, Search, Plus } from '@/components/icons';
+import { Home, ListMusic, MessageSquare, Users, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, User, Music, Search, Plus, Smartphone } from '@/components/icons';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
@@ -225,6 +225,8 @@ export function AuraApp() {
     // Navigasyon ve görünüm durumları
     const [activeView, setActiveView] = useState<ActiveView>('discover');
     const [isChatVisible, setIsChatVisible] = useState(true);
+    const [isMobileView, setIsMobileView] = useState(false);
+
 
     // ---------- VİDEO AYARLARI ----------
     const videoOptions = {
@@ -380,103 +382,119 @@ export function AuraApp() {
 
 
     return (
-        <div id="app-container" className="h-screen w-screen flex flex-col text-foreground bg-background overflow-hidden">
-            <div className="flex flex-1 min-h-0">
-                <SideNav activeView={activeView} setActiveView={setActiveView} toggleChat={() => setIsChatVisible(!isChatVisible)} user={user} />
-                <main className="flex-1 flex flex-col p-8 gap-8 overflow-y-auto">
-                    <div className="w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative shadow-xl">
-                        {currentSong?.videoId && (
-                            <>
-                                <YouTube
-                                    key={currentSong.videoId}
-                                    videoId={currentSong.videoId}
-                                    opts={videoOptions}
-                                    onReady={onPlayerReady}
-                                    onStateChange={onPlayerStateChange}
-                                    className="w-full h-full"
-                                />
-                                {player && !soundActivated && (
-                                     <div 
-                                        className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center z-10 cursor-pointer"
-                                        onDoubleClick={handleActivateSound}
-                                    >
-                                        <PlayIcon className="w-16 h-16 text-white mb-4" />
-                                        <p className="text-white text-lg font-semibold">Sesi açmak için çift tıklayınız</p>
-                                    </div>
-                                )}
-                            </>
-                        )}
-                        {!currentSong && (
-                            <div className="text-center text-muted-foreground">
-                                <Music className="w-16 h-16 mx-auto mb-4"/>
-                                <p>Başlamak için bir şarkı seçin</p>
-                            </div>
-                        )}
-                   </div>
-                   <div className="flex-grow flex flex-col min-h-0">
-                      {renderActiveView()}
-                   </div>
-                </main>
-                {isChatVisible && (
-                     <aside className="w-96 border-l border-border transition-all duration-300">
-                        <ChatPane song={currentSong} />
-                    </aside>
+        <div
+            className={cn(
+                'w-screen h-screen bg-background flex items-center justify-center transition-all duration-300',
+                isMobileView && 'p-4'
+            )}
+        >
+            <div
+                id="app-container"
+                className={cn(
+                    'h-full w-full flex flex-col text-foreground bg-background overflow-hidden transition-all duration-300',
+                    isMobileView && 'max-w-[420px] max-h-[840px] rounded-2xl shadow-2xl border-4 border-black'
                 )}
-            </div>
-            
-             <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-6 py-3 flex items-center gap-6">
-                 <div className="flex items-center gap-4 w-64">
-                     {currentSong && (
-                        <Image 
-                            src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
-                            alt={currentSong.title}
-                            width={48}
-                            height={48}
-                            className="rounded-md"
-                        />
-                     )}
-                     <div>
-                        <p className="font-semibold truncate">{currentSong?.title}</p>
-                     </div>
-                 </div>
-
-                 <div className="flex-grow flex flex-col items-center gap-2">
-                     <div className="flex items-center gap-3">
-                         <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!player}>
-                             <SkipBack className="w-5 h-5 fill-current" />
-                         </Button>
-                         <Button variant="ghost" size="icon" className="w-10 h-10 bg-primary/20 rounded-full" onClick={handlePlayPause} disabled={!player}>
-                             {isPlaying ? <PauseIcon className="w-5 h-5 fill-current" /> : <PlayIcon className="w-5 h-5 fill-current" />}
-                         </Button>
-                         <Button variant="ghost" size="icon" onClick={playNext} disabled={!player}>
-                             <SkipForward className="w-5 h-5 fill-current" />
-                         </Button>
-                     </div>
-                     <div className="flex-grow flex items-center gap-2 w-full max-w-xl">
-                        <span className="text-xs text-muted-foreground w-12 text-right">{formatTime(currentTime)}</span>
-                         <Slider
-                             value={[currentTime]}
-                             max={duration}
-                             onValueChange={handleSeek}
-                             disabled={!player}
-                         />
-                         <span className="text-xs text-muted-foreground w-12">{formatTime(duration)}</span>
-                     </div>
-                 </div>
-
-                 <div className="w-64 flex items-center justify-end gap-3">
-                    <Button variant="ghost" size="icon" onClick={toggleMute} disabled={!player}>
-                        {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                    </Button>
-                    <Slider 
-                        className="w-[100px]"
-                        value={[isMuted ? 0 : volume]}
-                        max={100}
-                        onValueChange={handleVolumeChange}
-                        disabled={!player}
-                    />
+            >
+                <div className="flex flex-1 min-h-0">
+                    <SideNav activeView={activeView} setActiveView={setActiveView} toggleChat={() => setIsChatVisible(!isChatVisible)} user={user} />
+                    <main className="flex-1 flex flex-col p-8 gap-8 overflow-y-auto">
+                        <div className="w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative shadow-xl">
+                            {currentSong?.videoId && (
+                                <>
+                                    <YouTube
+                                        key={currentSong.videoId}
+                                        videoId={currentSong.videoId}
+                                        opts={videoOptions}
+                                        onReady={onPlayerReady}
+                                        onStateChange={onPlayerStateChange}
+                                        className="w-full h-full"
+                                    />
+                                    {player && !soundActivated && (
+                                        <div 
+                                            className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center z-10 cursor-pointer"
+                                            onDoubleClick={handleActivateSound}
+                                        >
+                                            <PlayIcon className="w-16 h-16 text-white mb-4" />
+                                            <p className="text-white text-lg font-semibold">Sesi açmak için çift tıklayınız</p>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                            {!currentSong && (
+                                <div className="text-center text-muted-foreground">
+                                    <Music className="w-16 h-16 mx-auto mb-4"/>
+                                    <p>Başlamak için bir şarkı seçin</p>
+                                </div>
+                            )}
+                    </div>
+                    <div className="flex-grow flex flex-col min-h-0">
+                        {renderActiveView()}
+                    </div>
+                    </main>
+                    {isChatVisible && (
+                        <aside className="w-96 border-l border-border transition-all duration-300">
+                            <ChatPane song={currentSong} />
+                        </aside>
+                    )}
                 </div>
-            </footer>
+                
+                <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-6 py-3 flex items-center gap-6">
+                    <div className="flex items-center gap-4 w-64">
+                        {currentSong && (
+                            <Image 
+                                src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
+                                alt={currentSong.title}
+                                width={48}
+                                height={48}
+                                className="rounded-md"
+                            />
+                        )}
+                        <div>
+                            <p className="font-semibold truncate">{currentSong?.title}</p>
+                        </div>
+                    </div>
+
+                    <div className="flex-grow flex flex-col items-center gap-2">
+                        <div className="flex items-center gap-3">
+                            <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!player}>
+                                <SkipBack className="w-5 h-5 fill-current" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="w-10 h-10 bg-primary/20 rounded-full" onClick={handlePlayPause} disabled={!player}>
+                                {isPlaying ? <PauseIcon className="w-5 h-5 fill-current" /> : <PlayIcon className="w-5 h-5 fill-current" />}
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={playNext} disabled={!player}>
+                                <SkipForward className="w-5 h-5 fill-current" />
+                            </Button>
+                        </div>
+                        <div className="flex-grow flex items-center gap-2 w-full max-w-xl">
+                            <span className="text-xs text-muted-foreground w-12 text-right">{formatTime(currentTime)}</span>
+                            <Slider
+                                value={[currentTime]}
+                                max={duration}
+                                onValueChange={handleSeek}
+                                disabled={!player}
+                            />
+                            <span className="text-xs text-muted-foreground w-12">{formatTime(duration)}</span>
+                        </div>
+                    </div>
+
+                    <div className="w-64 flex items-center justify-end gap-3">
+                        <Button variant="ghost" size="icon" onClick={() => setIsMobileView(!isMobileView)}>
+                            <Smartphone className={cn("w-5 h-5", isMobileView && "text-primary")} />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={toggleMute} disabled={!player}>
+                            {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                        </Button>
+                        <Slider 
+                            className="w-[100px]"
+                            value={[isMuted ? 0 : volume]}
+                            max={100}
+                            onValueChange={handleVolumeChange}
+                            disabled={!player}
+                        />
+                    </div>
+                </footer>
+            </div>
         </div>
     );
 }
