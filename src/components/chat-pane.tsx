@@ -3,7 +3,8 @@ import React, { useState, useEffect, FormEvent, useRef } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Send, UserPlus, UserMinus, EyeOff } from 'lucide-react';
+import { Loader2, Send, UserPlus, UserMinus, EyeOff, User as UserIcon } from 'lucide-react';
+import Link from 'next/link';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -230,6 +231,12 @@ export function ChatPane({ song }: ChatPaneProps) {
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-2">
                     <div className="flex flex-col gap-1">
+                        <Button variant="ghost" size="sm" className="justify-start" asChild>
+                           <Link href={`/profile/${msg.sender.uid}`}>
+                              <UserIcon className="mr-2 h-4 w-4" />
+                              Profili Görüntüle
+                           </Link>
+                        </Button>
                         {isFollowing ? (
                              <Button variant="ghost" size="sm" className="justify-start" onClick={() => handleUnfollow(msg.sender.uid)}>
                                 <UserMinus className="mr-2 h-4 w-4" />
