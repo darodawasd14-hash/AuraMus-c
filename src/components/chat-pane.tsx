@@ -53,7 +53,7 @@ export function ChatPane({ song }: ChatPaneProps) {
 
     // Seçili şarkının sohbet mesajlarını getirmek için bir query oluştur
     const messagesQuery = useMemoFirebase(() => {
-        if (!firestore || !song) return null;
+        if (!firestore || !song?.id) return null; // song.id varlığını kontrol et
         return query(
             collection(firestore, 'songs', song.id, 'messages'),
             orderBy('timestamp', 'asc'),
@@ -131,7 +131,7 @@ export function ChatPane({ song }: ChatPaneProps) {
     const handleSendMessage = async (e: FormEvent) => {
         e.preventDefault();
         const trimmedMessage = message.trim();
-        if (!trimmedMessage || !user || !firestore || !song) return;
+        if (!trimmedMessage || !user || !firestore || !song || !song.id) return;
         
         // Determine a fallback display name.
         const senderDisplayName = user.displayName || (user.isAnonymous ? "Misafir Kullanıcı" : user.email) || "Kullanıcı";
