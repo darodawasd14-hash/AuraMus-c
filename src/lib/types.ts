@@ -10,5 +10,3 @@ export interface Song {
 }
 
 export type ActiveView = 'discover' | 'playlist' | 'friends';
-
-    

@@ -85,7 +85,7 @@ export default function ChatsPage() {
 
   const chatsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    // SECURE QUERY: Only fetch chats where the current user is a participant.
+    // GÜVENLİ SORGULAMA: Yalnızca mevcut kullanıcının katılımcı olduğu sohbetleri getirir.
     return query(
         collection(firestore, "chats"), 
         where("participantIds", "array-contains", user.uid),
@@ -96,7 +96,7 @@ export default function ChatsPage() {
   const { data: chats, isLoading: areChatsLoading, error } = useCollection<Chat>(chatsQuery);
 
   if (error) {
-      console.error("Secure chat query failed:", error);
+      console.error("Güvenli sohbet sorgusu başarısız:", error);
   }
 
   const isLoading = isUserLoading || areChatsLoading;

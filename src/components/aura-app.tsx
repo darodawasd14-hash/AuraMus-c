@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
 import { ChatPane } from '@/components/chat-pane';
-import type { Song } from '@/lib/types';
+import type { Song, ActiveView } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError, useDoc } from '@/firebase';
@@ -22,15 +22,13 @@ import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import { AddToPlaylistDialog } from '@/components/add-to-playlist';
 import { Skeleton } from '@/components/ui/skeleton';
 
-type ActiveView = 'discover' | 'playlist' | 'friends';
-
 const UnreadChatBadge = () => {
     const { user } = useUser();
     const firestore = useFirestore();
 
     const secureChatsQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
-        // SECURE QUERY: Only fetch chats where the current user is a participant.
+        // GÜVENLİ SORGULAMA: Yalnızca mevcut kullanıcının katılımcı olduğu sohbetleri getirir.
         return query(
             collection(firestore, "chats"), 
             where("participantIds", "array-contains", user.uid)
@@ -39,6 +37,9 @@ const UnreadChatBadge = () => {
 
     const { data: chats, isLoading } = useCollection<{id: string}>(secureChatsQuery);
     
+    // Bu örnekte, okunmamış olarak işaretlenmiş sohbetleri saymak yerine
+    // basitçe sohbet sayısını gösteriyoruz. Gerçek bir uygulamada
+    // 'hasUnread' gibi bir alan daha ekleyebilirsiniz.
     const unreadCount = chats?.length ?? 0;
 
     if (isLoading || unreadCount === 0) {
