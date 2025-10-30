@@ -8,3 +8,5 @@ export interface Song {
   artwork?: string;
   duration?: number;
 }
+
+export type ActiveView = 'discover' | 'playlist' | 'friends';
