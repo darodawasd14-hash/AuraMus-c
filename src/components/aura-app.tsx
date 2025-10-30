@@ -22,11 +22,10 @@ import { AddToPlaylistDialog } from '@/components/add-to-playlist';
 interface SideNavProps {
     activeView: ActiveView;
     setActiveView: (view: ActiveView) => void;
-    toggleChat: () => void;
     user: { uid: string } | null;
 }
 
-const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) => {
+const SideNav = ({ activeView, setActiveView, user }: SideNavProps) => {
     const router = useRouter();
     const navItems = [
         { id: 'discover', label: 'Keşfet', icon: Home, href: '#' },
@@ -429,9 +428,9 @@ export function AuraApp() {
                 )}
             >
                 <div className="flex flex-1 min-h-0">
-                    <SideNav activeView={activeView} setActiveView={setActiveView} toggleChat={() => setIsChatVisible(!isChatVisible)} user={user} />
+                    <SideNav activeView={activeView} setActiveView={setActiveView} user={user} />
                     
-                    <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 md:gap-8 overflow-y-auto">
+                    <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 md:gap-8 overflow-y-auto relative">
                         <div className="md:hidden flex items-center justify-between">
                             <Button variant="ghost" size="icon" onClick={() => setIsSideNavVisible(true)}>
                                 <Menu className="w-6 h-6" />
@@ -440,8 +439,15 @@ export function AuraApp() {
                                 <AuraLogo className="w-7 h-7" />
                                 <h1 className="text-lg font-bold tracking-tighter">Aura</h1>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={() => setIsChatVisible(!isChatVisible)}>
+                            <Button variant="ghost" size="icon" onClick={() => setIsChatVisible(true)}>
                                 <MessageSquare className="w-5 h-5" />
+                            </Button>
+                        </div>
+                        
+                        <div className="hidden md:block absolute top-4 right-4 z-10">
+                            <Button variant="outline" size="sm" onClick={() => setIsChatVisible(!isChatVisible)}>
+                                <MessageSquare className="w-4 h-4 mr-2" />
+                                Sohbet
                             </Button>
                         </div>
                         
@@ -483,7 +489,7 @@ export function AuraApp() {
                             "border-l border-border transition-all duration-300 flex-shrink-0",
                             isMobileView 
                                 ? "absolute top-0 right-0 h-full w-full bg-background/80 backdrop-blur-lg z-20" 
-                                : "hidden md:block w-96"
+                                : "hidden md:flex w-96 flex-col"
                         )}>
                             <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} />
                         </aside>
