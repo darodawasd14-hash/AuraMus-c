@@ -371,7 +371,7 @@ export function AuraApp() {
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
     // Navigasyon ve görünüm durumları
-    const [activeView, setActiveView] = useState<ActiveView>('playlist');
+    const [activeView, setActiveView] = useState<ActiveView>('discover');
     const [isChatVisible, setIsChatVisible] = useState(true);
 
     // ---------- VİDEO AYARLARI ----------
