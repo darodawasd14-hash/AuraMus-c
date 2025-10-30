@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
 import { ChatPane } from '@/components/chat-pane';
-import type { Song } from '@/lib/types';
+import type { Song, ActiveView } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError, useDoc } from '@/firebase';
@@ -20,8 +20,6 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import { AddToPlaylistDialog } from '@/components/add-to-playlist';
-import { Skeleton } from '@/components/ui/skeleton';
-import { ActiveView } from '@/lib/types';
 
 
 interface SideNavProps {
@@ -32,11 +30,11 @@ interface SideNavProps {
 }
 
 const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) => {
-    
+    const router = useRouter();
     const navItems = [
         { id: 'discover', label: 'Keşfet', icon: Home, href: '#' },
         { id: 'playlist', label: 'Çalma Listelerim', icon: ListMusic, href: '#' },
-        // { id: 'friends', label: 'Arkadaşlar', icon: Users, href: '#' }, // REMOVED
+        { id: 'friends', label: 'Arkadaşlar', icon: Users, href: '/chat' },
     ];
 
     return (
@@ -54,6 +52,8 @@ const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) 
                             if (item.href === '#') {
                                 e.preventDefault();
                                 setActiveView(item.id as ActiveView);
+                            } else {
+                                router.push(item.href);
                             }
                         }}
                         className={cn(
@@ -381,6 +381,7 @@ export function AuraApp() {
                 return <DiscoverView onPlaySong={playSong} />;
             case 'playlist':
                 return <PlaylistView playSong={playSong} currentSong={currentSong} />;
+            // The 'friends' view is now handled by the /chat route
             default:
                 return <DiscoverView onPlaySong={playSong} />;
         }
