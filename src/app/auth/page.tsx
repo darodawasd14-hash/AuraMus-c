@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ export default function AuthPage() {
   const [isGuestLoading, setIsGuestLoading] = useState(false);
   
   const auth = useAuth();
+  const router = useRouter();
   const { toast } = useToast();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -39,6 +41,7 @@ export default function AuthPage() {
     signInAnonymously(auth)
       .then(() => {
         toast({ title: "Misafir olarak giriş yapıldı!" });
+        router.push('/');
       })
       .catch((err: any) => {
         setError("Misafir girişi sırasında bir hata oluştu.");
@@ -55,7 +58,7 @@ export default function AuthPage() {
     try {
       await authFn(auth, emailParam, passwordParam);
       toast({ title: successMessage});
-      // onAuthStateChanged yönlendirmeyi halledecek
+      router.push('/');
     } catch (err: any) {
       let friendlyMessage = "Bir hata oluştu.";
       if (err.code === 'auth/invalid-email') {

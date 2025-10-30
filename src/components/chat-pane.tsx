@@ -3,7 +3,7 @@ import React, { useState, useEffect, FormEvent, useRef } from 'react';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Send, UserPlus, UserMinus, EyeOff, User as UserIcon, X, Menu } from 'lucide-react';
+import { Loader2, Send, UserPlus, UserMinus, EyeOff, User as UserIcon, X } from 'lucide-react';
 import Link from 'next/link';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { answerSongQuestion } from '@/ai/flows/song-qa-flow';

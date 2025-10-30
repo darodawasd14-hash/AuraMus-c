@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import YouTube from 'react-youtube';
 import type { YouTubePlayer } from 'react-youtube';
-import { Home, ListMusic, User, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, Music, Search, Plus, Menu, MessageSquare, X } from '@/components/icons';
+import { Home, ListMusic, User, AuraLogo, PlayIcon, PauseIcon, SkipBack, SkipForward, Volume2, VolumeX, Music, Search, Plus, MessageSquare, X } from '@/components/icons';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
@@ -23,7 +23,6 @@ import {
   Sheet,
   SheetContent,
   SheetTrigger,
-  SheetOverlay,
 } from "@/components/ui/sheet"
 
 
@@ -52,8 +51,8 @@ interface NavProps {
 
 const SideNav = ({ activeView, setActiveView }: NavProps) => {
     const navItems = [
-        { id: 'discover', label: 'Keşfet', icon: Home },
-        { id: 'playlist', label: 'Çalma Listelerim', icon: ListMusic },
+        { id: 'discover' as const, label: 'Keşfet', icon: Home },
+        { id: 'playlist' as const, label: 'Çalma Listelerim', icon: ListMusic },
     ];
 
     return (
@@ -61,7 +60,7 @@ const SideNav = ({ activeView, setActiveView }: NavProps) => {
             {navItems.map(item => (
                 <button
                     key={item.id}
-                    onClick={() => setActiveView(item.id as ActiveView)}
+                    onClick={() => setActiveView(item.id)}
                     className={cn(
                         "flex items-center gap-3 px-3 py-2 rounded-md transition-colors w-full text-left",
                         activeView === item.id
@@ -89,7 +88,7 @@ const BottomNavBar = ({ activeView, setActiveView }: NavProps) => {
 
     const handleNav = (e: React.MouseEvent, item: typeof navItems[0]) => {
         if (item.id === 'profile') {
-             if (item.href && item.href !== '#') router.push(item.href);
+            if (item.href && item.href !== '#') router.push(item.href);
         } else {
             e.preventDefault();
             setActiveView(item.id as ActiveView);
@@ -194,32 +193,50 @@ const DiscoverView = ({ onPlaySong, onAddToPlaylist, isMobile, onClose }: { onPl
                 </div>
             </div>
             <div className="flex-grow overflow-y-auto px-4 md:px-0 -mr-4 pr-4">
-                <div className="space-y-1">
-                     {(isLoading || isSearching) && songsToDisplay.length === 0 && <p>Yükleniyor...</p>}
-                     {songsToDisplay.map((song, index) => (
-                        <div
-                            key={`${song.id}-${index}`}
-                            className="flex items-center gap-4 p-2 rounded-md group cursor-pointer transition-colors hover:bg-secondary/50"
-                        >
-                            <div className="flex-shrink-0" onClick={() => handlePlaySong(song, index, songsToDisplay)}>
-                                <Image 
-                                    src={song.artwork || ''}
-                                    alt={song.title}
-                                    width={40} 
-                                    height={40} 
-                                    className="rounded-md aspect-square object-cover" 
-                                />
+                 {isLoading && songsToDisplay.length === 0 ? (
+                    <div className="space-y-1">
+                        {[...Array(10)].map((_, i) => (
+                            <div key={i} className="flex items-center gap-4 p-2 rounded-md">
+                                <div className="w-10 h-10 bg-muted rounded-md animate-pulse" />
+                                <div className="flex-grow space-y-2">
+                                    <div className="w-3/4 h-4 bg-muted rounded animate-pulse" />
+                                    <div className="w-1/2 h-3 bg-muted rounded animate-pulse" />
+                                </div>
                             </div>
-                            <div className="flex-grow min-w-0" onClick={() => handlePlaySong(song, index, songsToDisplay)}>
-                                <p className="font-semibold truncate group-hover:text-primary">{song.title}</p>
-                                <p className="text-sm text-muted-foreground">{song.type}</p>
+                        ))}
+                    </div>
+                ) : songsToDisplay.length > 0 ? (
+                    <div className="space-y-1">
+                        {songsToDisplay.map((song, index) => (
+                            <div
+                                key={`${song.id}-${index}`}
+                                className="flex items-center gap-4 p-2 rounded-md group cursor-pointer transition-colors hover:bg-secondary/50"
+                            >
+                                <div className="flex-shrink-0" onClick={() => handlePlaySong(song, index, songsToDisplay)}>
+                                    <Image 
+                                        src={song.artwork || ''}
+                                        alt={song.title}
+                                        width={40} 
+                                        height={40} 
+                                        className="rounded-md aspect-square object-cover" 
+                                    />
+                                </div>
+                                <div className="flex-grow min-w-0" onClick={() => handlePlaySong(song, index, songsToDisplay)}>
+                                    <p className="font-semibold truncate group-hover:text-primary">{song.title}</p>
+                                </div>
+                                <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => onAddToPlaylist(song)}>
+                                    <Plus className="w-4 h-4"/>
+                                </Button>
                             </div>
-                             <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => onAddToPlaylist(song)}>
-                                 <Plus className="w-4 h-4"/>
-                             </Button>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                 ) : (
+                    <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-12 text-center h-full">
+                        <Search className="mb-4 h-12 w-12 text-muted-foreground" />
+                        <p className="font-semibold">Sonuç bulunamadı</p>
+                        <p className="text-sm text-muted-foreground">Aramanızı değiştirip tekrar deneyin.</p>
+                     </div>
+                 )}
             </div>
         </div>
     );
@@ -253,7 +270,6 @@ export function AuraApp() {
 
     const [activeView, setActiveView] = useState<ActiveView>('discover');
     const [isChatVisible, setIsChatVisible] = useState(false);
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isAddToPlaylistOpen, setAddToPlaylistOpen] = useState(false);
     const [songToAdd, setSongToAdd] = useState<Song | null>(null);
     
@@ -399,11 +415,11 @@ export function AuraApp() {
     const renderActiveView = () => {
         switch (activeView) {
             case 'discover':
-                return <DiscoverView onPlaySong={playSong} onAddToPlaylist={handleAddToPlaylist} isMobile={isMobile} onClose={() => setIsMenuOpen(false)} />;
+                return <DiscoverView onPlaySong={playSong} onAddToPlaylist={handleAddToPlaylist} isMobile={isMobile} />;
             case 'playlist':
-                return <PlaylistView playSong={playSong} currentSong={currentSong} onClose={() => setIsMenuOpen(false)} />;
+                return <PlaylistView playSong={playSong} currentSong={currentSong} />;
             default:
-                return <DiscoverView onPlaySong={playSong} onAddToPlaylist={handleAddToPlaylist} isMobile={isMobile} onClose={() => setIsMenuOpen(false)}/>;
+                return <DiscoverView onPlaySong={playSong} onAddToPlaylist={handleAddToPlaylist} isMobile={isMobile} />;
         }
     }
     
@@ -416,7 +432,6 @@ export function AuraApp() {
                     onOpenChange={setAddToPlaylistOpen}
                 />
                 
-                 {/* -- Header -- */}
                 <header className="flex-shrink-0 h-16 flex items-center justify-between px-4 border-b border-border">
                     <div className="flex items-center gap-2">
                         <AuraLogo className="w-8 h-8" />
@@ -427,7 +442,6 @@ export function AuraApp() {
                     </Button>
                 </header>
                 
-                {/* -- Main Content -- */}
                 <main className="flex-1 min-h-0 flex flex-col">
                    <div className={cn("w-full aspect-video bg-black flex items-center justify-center relative shadow-xl")}>
                         {currentSong?.videoId && (
@@ -463,7 +477,6 @@ export function AuraApp() {
                     </div>
                 </main>
 
-                {/* -- Chat Pane (Fullscreen on Mobile) -- */}
                 <ChatPane 
                     song={currentSong} 
                     onClose={() => setIsChatVisible(false)} 
@@ -471,10 +484,9 @@ export function AuraApp() {
                     isMobile={isMobile}
                 />
 
-                {/* -- Mini Player -- */}
                 {currentSong && (
                      <footer className="flex-shrink-0 bg-secondary/50 border-t border-border px-4 py-3 flex items-center gap-4 backdrop-blur-md">
-                        <div className="flex-grow flex items-center gap-3 min-w-0" onClick={() => router.push('#player-controls')}>
+                        <div className="flex-grow flex items-center gap-3 min-w-0">
                             <Image 
                                 src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
                                 alt={currentSong.title}
@@ -483,7 +495,7 @@ export function AuraApp() {
                                 className="rounded-md flex-shrink-0"
                             />
                             <div className="flex-grow min-w-0">
-                                <p className="font-semibold truncate">{currentSong?.title || "Şarkı seçilmedi"}</p>
+                                <p className="font-semibold truncate">{currentSong?.title}</p>
                             </div>
                         </div>
                         <Button variant="ghost" size="icon" onClick={handlePlayPause} disabled={!player}>
@@ -492,7 +504,6 @@ export function AuraApp() {
                     </footer>
                 )}
 
-                 {/* -- Bottom Nav -- */}
                 <div className="flex-shrink-0 bg-secondary/80 border-t border-border backdrop-blur-xl">
                     <BottomNavBar activeView={activeView} setActiveView={setActiveView} />
                 </div>
@@ -510,7 +521,6 @@ export function AuraApp() {
             />
 
             <div className="flex flex-1 min-h-0">
-                {/* -- Desktop Sidebar -- */}
                 <aside className="w-64 flex-shrink-0 flex-col bg-secondary/30 border-r border-border p-4 flex">
                     <div className="flex items-center gap-2 mb-8 px-2">
                         <AuraLogo className="w-8 h-8" />
@@ -563,14 +573,12 @@ export function AuraApp() {
                     </div>
                 </main>
 
-                 {/* -- Chat Pane -- */}
                 <ChatPane 
                     song={currentSong} 
                     onClose={() => setIsChatVisible(false)} 
                     isVisible={isChatVisible}
                     isMobile={isMobile}
                 />
-                 {/* Desktop Chat Toggle */}
                  {!isChatVisible && (
                      <div className="absolute top-4 right-4 z-20">
                          <Button variant="ghost" size="icon" onClick={() => setIsChatVisible(true)}>
@@ -580,7 +588,6 @@ export function AuraApp() {
                  )}
             </div>
             
-             {/* -- Player -- */}
             <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-6 py-3 flex items-center gap-6">
                 <div className="flex items-center gap-4 w-64 min-w-0">
                     {currentSong && (
