@@ -67,42 +67,46 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   analytics,
 }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
-    user: null,
-    isUserLoading: true, // Start loading until first auth event
+    user: auth.currentUser, // Initialize with current user to avoid flicker
+    isUserLoading: true,    // Start loading until first auth event
     userError: null,
   });
 
   // Effect to subscribe to Firebase auth state changes
   useEffect(() => {
-    if (!auth) { // If no Auth service instance, cannot determine user state
+    if (!auth) {
       setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
       return;
     }
 
-    setUserAuthState({ user: null, isUserLoading: true, userError: null }); // Reset on auth instance change
-
     const unsubscribe = onAuthStateChanged(
       auth,
-      (firebaseUser) => { // Auth state determined
-        if (firebaseUser && firestore && !firebaseUser.isAnonymous) {
-            // Write user data to Firestore, but only for non-anonymous users
-            const userRef = doc(firestore, "users", firebaseUser.uid);
-            setDoc(userRef, {
-                displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Kullanıcı',
-                email: firebaseUser.email,
-                photoURL: firebaseUser.photoURL,
-                uid: firebaseUser.uid
-            }, { merge: true });
+      (newUser) => {
+        setUserAuthState({ user: newUser, isUserLoading: false, userError: null });
+
+        // Only write to Firestore if the user is new or has changed, and is not anonymous.
+        if (newUser && newUser.uid !== userAuthState.user?.uid && !newUser.isAnonymous && firestore) {
+          const userRef = doc(firestore, "users", newUser.uid);
+          setDoc(userRef, {
+            displayName: newUser.displayName || newUser.email?.split('@')[0] || 'Kullanıcı',
+            email: newUser.email,
+            photoURL: newUser.photoURL,
+            uid: newUser.uid
+          }, { merge: true }).catch(err => {
+            // This write operation should not block UI or throw unhandled exceptions.
+            // Log the error for debugging purposes.
+            console.error("Failed to write user data to Firestore:", err);
+          });
         }
-        setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
-      (error) => { // Auth listener error
+      (error) => {
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
         setUserAuthState({ user: null, isUserLoading: false, userError: error });
       }
     );
-    return () => unsubscribe(); // Cleanup
-  }, [auth, firestore]); // Depends on the auth and firestore instances
+
+    return () => unsubscribe();
+  }, [auth, firestore, userAuthState.user?.uid]); // Dependency on user UID prevents re-writes
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {
@@ -197,5 +201,3 @@ export const useUser = (): UserHookResult => { // Renamed from useAuthUser
   const { user, isUserLoading, userError } = useFirebase(); // Leverages the main hook
   return { user, isUserLoading, userError };
 };
-
-    

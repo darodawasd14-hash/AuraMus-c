@@ -44,7 +44,11 @@ export default function AuthPage() {
       router.push('/');
     } catch (err: any) {
       console.error("Anonymous sign-in error:", err);
-      setError("Misafir girişi sırasında bir hata oluştu.");
+      toast({
+        variant: 'destructive',
+        title: "Hata!",
+        description: "Misafir girişi sırasında bir hata oluştu."
+      });
     } finally {
       setIsGuestLoading(false);
     }
