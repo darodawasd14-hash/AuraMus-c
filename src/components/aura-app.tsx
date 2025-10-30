@@ -336,7 +336,11 @@ export function AuraApp() {
         setCurrentSong(song);
         setCurrentIndex(index);
         setCurrentTime(0);
-        // DO NOT setSoundActivated(false) here, this is a bug. Sound should be activated once.
+        if (player) {
+            // If a player exists, we assume sound has been activated at some point.
+            // Let the video options handle the mute state.
+            // No need to setSoundActivated(false) here, that was the bug.
+        }
     };
 
     const playNext = () => {
@@ -483,24 +487,50 @@ export function AuraApp() {
                 />
 
                 {currentSong && (
-                     <footer className="flex-shrink-0 bg-secondary/50 border-t border-border px-4 py-3 flex items-center gap-4 backdrop-blur-md">
-                        <div className="flex-grow flex items-center gap-3 min-w-0">
-                            <Image 
-                                src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
-                                alt={currentSong.title}
-                                width={40}
-                                height={40}
-                                className="rounded-md flex-shrink-0"
+                    <footer className="flex-shrink-0 bg-secondary/50 border-t border-border px-2 py-2 flex flex-col gap-2 backdrop-blur-md">
+                        <div className="flex items-center gap-2 w-full px-2">
+                            <span className="text-xs text-muted-foreground w-10 text-right">{formatTime(currentTime)}</span>
+                            <Slider
+                                value={[currentTime]}
+                                max={duration}
+                                onValueChange={handleSeek}
+                                disabled={!player}
+                                className="flex-grow"
                             />
-                            <div className="flex-grow min-w-0">
-                                <p className="font-semibold truncate">{currentSong?.title}</p>
+                            <span className="text-xs text-muted-foreground w-10">{formatTime(duration)}</span>
+                        </div>
+                        <div className="flex items-center justify-between w-full">
+                             <div className="flex items-center gap-3 w-1/3">
+                                {currentSong && (
+                                    <Image 
+                                        src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
+                                        alt={currentSong.title}
+                                        width={40}
+                                        height={40}
+                                        className="rounded-md"
+                                    />
+                                )}
+                            </div>
+                             <div className="flex items-center gap-2 justify-center w-1/3">
+                                <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!player}>
+                                    <SkipBack className="w-6 h-6 fill-current" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="w-12 h-12" onClick={handlePlayPause} disabled={!player}>
+                                    {isPlaying ? <PauseIcon className="w-8 h-8 fill-current" /> : <PlayIcon className="w-8 h-8 fill-current" />}
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={playNext} disabled={!player}>
+                                    <SkipForward className="w-6 h-6 fill-current" />
+                                </Button>
+                            </div>
+                             <div className="flex items-center justify-end gap-2 w-1/3">
+                                <Button variant="ghost" size="icon" onClick={toggleMute} disabled={!player}>
+                                    {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                                </Button>
                             </div>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={handlePlayPause} disabled={!player}>
-                            {isPlaying ? <PauseIcon className="w-6 h-6 fill-current" /> : <PlayIcon className="w-6 h-6 fill-current" />}
-                        </Button>
                     </footer>
                 )}
+
 
                 <div className="flex-shrink-0 bg-secondary/80 border-t border-border backdrop-blur-xl">
                     <BottomNavBar activeView={activeView} setActiveView={setActiveView} />
