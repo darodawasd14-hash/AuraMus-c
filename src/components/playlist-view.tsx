@@ -165,16 +165,14 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
             songCount: 0
         };
 
-        try {
-           await addDoc(playlistsQuery, playlistData)
-        } catch (error) {
+        addDoc(playlistsQuery, playlistData).catch(error => {
             console.error("Playlist oluşturulamadı:", error);
             toast({
                 variant: 'destructive',
                 title: "Hata",
                 description: "Çalma listesi oluşturulamadı."
             })
-        }
+        });
     };
     
     const handleDeletePlaylist = async (playlistId: string) => {
@@ -210,7 +208,7 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
     };
     
     const handlePlaySongFromPlaylist = (song: Song, index: number) => {
-         if (selectedPlaylistSongs && selectedPlaylistSongs.length > 0) {
+         if (selectedPlaylistSongs && Array.isArray(selectedPlaylistSongs) && selectedPlaylistSongs.length > 0) {
             playSong(song, index, selectedPlaylistSongs);
          }
          if (onClose) onClose();
