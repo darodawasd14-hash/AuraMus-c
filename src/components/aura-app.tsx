@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import YouTube from 'react-youtube';
 import type { YouTubePlayer } from 'react-youtube';
@@ -417,10 +417,10 @@ export function AuraApp() {
                         
                         {/* -- Masaüstü Sohbet Butonu -- */}
                         <div className="hidden md:block absolute top-4 right-4 z-10">
-                            <Button variant="outline" size="sm" onClick={() => setIsChatVisible(!isChatVisible)}>
-                                <MessageSquare className="w-4 h-4 mr-2" />
-                                {isChatVisible ? "Sohbeti Kapat" : "Sohbeti Aç"}
-                            </Button>
+                             <Button variant="outline" size="sm" onClick={() => setIsChatVisible(!isChatVisible)}>
+                                 <MessageSquare className="w-4 h-4 mr-2" />
+                                 {isChatVisible ? "Sohbeti Kapat" : "Sohbeti Aç"}
+                             </Button>
                         </div>
                         
                         <div className="w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative shadow-xl">
@@ -529,9 +529,14 @@ export function AuraApp() {
 
                 {/* -- Mobil Katmanlar (Overlays) -- */}
                 {isSideNavVisible && (
-                    <div className="md:hidden">
-                        <div className="absolute inset-0 bg-black/60 z-40" onClick={() => setIsSideNavVisible(false)}></div>
-                        <div className="absolute top-0 left-0 h-full w-64 bg-background/90 backdrop-blur-lg border-r border-border p-4 z-50 flex flex-col">
+                    <div className="md:hidden fixed inset-0 z-40" onClick={() => setIsSideNavVisible(false)}>
+                        <div 
+                            className="absolute inset-0 bg-black/60"
+                        ></div>
+                        <div 
+                            className="absolute top-0 left-0 h-full w-64 bg-background/90 backdrop-blur-lg border-r border-border p-4 z-50 flex flex-col"
+                            onClick={(e) => e.stopPropagation()}
+                        >
                             <div className="flex items-center gap-2 mb-8 px-2">
                                 <AuraLogo className="w-8 h-8" />
                                 <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
@@ -540,11 +545,9 @@ export function AuraApp() {
                         </div>
                     </div>
                 )}
-                {isChatVisible && (
-                    <div className="md:hidden">
-                        <div className="absolute inset-0 bg-background/90 backdrop-blur-lg z-30 flex flex-col">
-                           <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} isVisible={true} />
-                        </div>
+                 {isChatVisible && (
+                    <div className="md:hidden fixed inset-0 z-30 flex flex-col bg-background/90 backdrop-blur-lg">
+                       <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} isVisible={true} />
                     </div>
                 )}
             </div>
