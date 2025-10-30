@@ -26,6 +26,7 @@ const UnreadChatBadge = () => {
     const { user } = useUser();
     const firestore = useFirestore();
 
+    // THIS IS THE SECURE QUERY
     const secureChatsQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
         // SECURE QUERY: Fetch only chats the user is a participant in.
