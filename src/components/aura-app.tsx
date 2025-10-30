@@ -12,7 +12,7 @@ import type { Song } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError, useDoc } from '@/firebase';
-import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, addDoc, serverTimestamp, doc, setDoc, where } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -23,6 +23,38 @@ import { AddToPlaylistDialog } from '@/components/add-to-playlist';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type ActiveView = 'playlist' | 'discover' | 'friends';
+
+const UnreadChatBadge = () => {
+    const { user } = useUser();
+    const firestore = useFirestore();
+
+    const secureChatsQuery = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        // Güvenli sorgu: Yalnızca kullanıcının dahil olduğu ve okunmamış mesaj içeren sohbetleri getirir
+        // Not: `hasUnread` gibi bir alanın belgelerinizde olması gerekir. Şimdilik sayıyı göstermek için tüm sohbetleri (güvenli bir şekilde) sayacağız.
+        return query(
+            collection(firestore, 'chats'),
+            where('participantIds', 'array-contains', user.uid)
+        );
+    }, [user, firestore]);
+
+    const { data: chats, isLoading } = useCollection(secureChatsQuery);
+    
+    // Gerçek bir "okunmamış" sayacı için sohbet belgelerinizde `unreadCount` veya benzeri bir alan olmalıdır.
+    // Şimdilik sadece sohbet sayısını gösteriyoruz.
+    const unreadCount = chats?.length ?? 0;
+
+    if (isLoading || unreadCount === 0) {
+        return null;
+    }
+
+    return (
+        <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+            {unreadCount > 9 ? '9+' : unreadCount}
+        </span>
+    );
+};
+
 
 interface SideNavProps {
     activeView: ActiveView;
@@ -83,7 +115,8 @@ const SideNav = ({ activeView, setActiveView, toggleChat, user }: SideNavProps) 
                         className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
                     >
                         <MessageCircle className="w-5 h-5" />
-                        <span>Özel Sohbet</span>
+                        <span className="flex-grow">Özel Sohbet</span>
+                        <UnreadChatBadge />
                 </Link>
                 
                 <a href="#" onClick={(e) => {e.preventDefault(); toggleChat();}} className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium">
@@ -599,5 +632,3 @@ export function AuraApp() {
         </div>
     );
 }
-
-    
