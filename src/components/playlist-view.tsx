@@ -163,15 +163,13 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
             songCount: 0
         };
 
-        try {
-            await addDoc(playlistsQuery, playlistData);
-        } catch (serverError: any) {
+        addDoc(playlistsQuery, playlistData).catch(async (serverError) => {
              errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: playlistsQuery.path,
                 operation: 'create',
                 requestResourceData: playlistData,
             }));
-        }
+        });
     };
     
     const handleDeletePlaylist = async (playlistId: string) => {
@@ -179,26 +177,27 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
       const playlistDocRef = doc(firestore, 'users', user.uid, 'playlists', playlistId);
       
       const songsCollectionRef = collection(playlistDocRef, 'songs');
-      const songsSnapshot = await getDocs(songsCollectionRef).catch(serverError => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
+      
+      try {
+        const songsSnapshot = await getDocs(songsCollectionRef);
+        const deletePromises = songsSnapshot.docs.map((songDoc) => 
+          deleteDoc(songDoc.ref).catch(async (serverError) => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: songDoc.ref.path,
+              operation: 'delete'
+            }));
+          })
+        );
+        await Promise.all(deletePromises);
+      } catch (serverError) {
+         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: songsCollectionRef.path,
           operation: 'list'
         }));
-        throw serverError; // Stop execution if we can't list songs
-      });
-
-      const deletePromises = songsSnapshot.docs.map((songDoc) => 
-        deleteDoc(songDoc.ref).catch(serverError => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: songDoc.ref.path,
-            operation: 'delete'
-          }));
-        })
-      );
+        return; 
+      }
       
-      await Promise.all(deletePromises);
-      
-      deleteDoc(playlistDocRef).catch(serverError => {
+      deleteDoc(playlistDocRef).catch(async (serverError) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: playlistDocRef.path,
           operation: 'delete',

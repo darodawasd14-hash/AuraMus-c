@@ -10,6 +10,7 @@ import { Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 export default function AuthPage() {
   const [email, setEmail] = useState('');
@@ -36,14 +37,16 @@ export default function AuthPage() {
   const handleAnonymousSignIn = async () => {
     setError(null);
     setIsGuestLoading(true);
-    try {
-      await signInAnonymously(auth);
-      toast({ title: "Misafir olarak giriş yapıldı!" });
-    } catch (err: any) {
-      setError("Misafir girişi sırasında bir hata oluştu.");
-    } finally {
-      setIsGuestLoading(false);
-    }
+    signInAnonymously(auth)
+      .then(() => {
+        toast({ title: "Misafir olarak giriş yapıldı!" });
+      })
+      .catch((err: any) => {
+        setError("Misafir girişi sırasında bir hata oluştu.");
+      })
+      .finally(() => {
+        setIsGuestLoading(false);
+      });
   };
 
   const handleAuth = async (authFn: Function, emailParam: string, passwordParam: string, successMessage: string) => {

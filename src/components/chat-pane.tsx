@@ -20,8 +20,6 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
-
-// Firestore'dan gelen mesajların arayüzü
 interface Message {
     id: string;
     text: string;
@@ -29,8 +27,8 @@ interface Message {
         uid: string;
         displayName: string;
     };
-    timestamp: any; // Firestore'un zaman damgası nesnesi
-    isAura?: boolean; // Bu mesajın Aura'dan gelip gelmediğini belirtir
+    timestamp: any; 
+    isAura?: boolean; 
 }
 
 interface ChatPaneProps {
@@ -55,9 +53,8 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
     }, [user, firestore]);
     const { data: following, isLoading: isFollowingLoading } = useCollection<{uid: string}>(followingQuery);
 
-    // Seçili şarkının sohbet mesajlarını getirmek için bir query oluştur
     const messagesQuery = useMemoFirebase(() => {
-        if (!firestore || !song?.id) return null; // song.id varlığını kontrol et
+        if (!firestore || !song?.id) return null; 
         return query(
             collection(firestore, 'songs', song.id, 'messages'),
             orderBy('timestamp', 'asc'),
@@ -68,7 +65,6 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
     const { data: firestoreMessages, isLoading } = useCollection<Message>(messagesQuery);
     
     useEffect(() => {
-        // Firestore'dan gelen mesajları lokal duruma aktar
         if (firestoreMessages) {
              const filteredMessages = firestoreMessages.filter(msg => !ignoredUsers.includes(msg.sender.uid));
             setLocalMessages(filteredMessages);
@@ -85,7 +81,7 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
         if (!user || !firestore) return;
         const followerData = { uid: user.uid };
         const followerRef = doc(firestore, 'users', targetUserId, 'followers', user.uid);
-        setDoc(followerRef, followerData).catch(serverError => {
+        setDoc(followerRef, followerData).catch(async (serverError) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: followerRef.path,
                 operation: 'create',
@@ -95,7 +91,7 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
 
         const followingData = { uid: targetUserId };
         const followingRefDoc = doc(firestore, 'users', user.uid, 'following', targetUserId);
-        setDoc(followingRefDoc, followingData).catch(serverError => {
+        setDoc(followingRefDoc, followingData).catch(async (serverError) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: followingRefDoc.path,
                 operation: 'create',
@@ -107,7 +103,7 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
     const handleUnfollow = (targetUserId: string) => {
         if (!user || !firestore) return;
         const followerRef = doc(firestore, 'users', targetUserId, 'followers', user.uid);
-        deleteDoc(followerRef).catch(serverError => {
+        deleteDoc(followerRef).catch(async (serverError) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: followerRef.path,
                 operation: 'delete',
@@ -115,7 +111,7 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
         });
 
         const followingRefDoc = doc(firestore, 'users', user.uid, 'following', targetUserId);
-        deleteDoc(followingRefDoc).catch(serverError => {
+        deleteDoc(followingRefDoc).catch(async (serverError) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: followingRefDoc.path,
                 operation: 'delete',
@@ -137,16 +133,13 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
         const trimmedMessage = message.trim();
         if (!trimmedMessage || !user || !firestore || !song || !song.id) return;
         
-        // Determine a fallback display name.
         const senderDisplayName = user.displayName || (user.isAnonymous ? "Misafir Kullanıcı" : user.email) || "Kullanıcı";
 
         setIsSending(true);
         
-        // Check if the message is a question for Aura
         if (trimmedMessage.toLowerCase().startsWith('@aura')) {
             const question = trimmedMessage.substring(5).trim();
 
-            // Add a temporary "Aura is typing..." message
             const auraTypingId = `aura-typing-${Date.now()}`;
             const auraTypingMessage: Message = {
                 id: auraTypingId,
@@ -164,7 +157,6 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
                     question: question
                 });
                 
-                // Replace the "typing" message with the actual answer
                 const auraResponseMessage: Message = {
                     id: `aura-response-${Date.now()}`,
                     text: response.answer,
@@ -176,7 +168,6 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
                 setLocalMessages(prev => prev.map(msg => msg.id === auraTypingId ? auraResponseMessage : msg));
 
             } catch (error) {
-                 console.error("Aura'ya soru sorulurken hata:", error);
                  const errorMessage: Message = {
                     id: `aura-error-${Date.now()}`,
                     text: "Üzgünüm, şu an sorunuza cevap veremiyorum. Lütfen daha sonra tekrar deneyin.",
@@ -188,7 +179,6 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
             }
 
         } else {
-            // Normal chat message
             const messagesColRef = collection(firestore, 'songs', song.id, 'messages');
             const messageData = {
                 text: trimmedMessage,
@@ -199,9 +189,9 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
                 timestamp: serverTimestamp(),
             };
 
-            setMessage(''); // Clear input immediately
-            await addDoc(messagesColRef, messageData)
-                .catch(serverError => {
+            setMessage(''); 
+            addDoc(messagesColRef, messageData)
+                .catch(async (serverError) => {
                     errorEmitter.emit('permission-error', new FirestorePermissionError({
                         path: messagesColRef.path,
                         operation: 'create',
@@ -214,7 +204,6 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
     };
 
     const UserActionsPopover = ({ msg }: { msg: Message }) => {
-        // Don't show popover for own messages, Aura's messages, or anonymous users
         if (!user || msg.sender.uid === user.uid || msg.isAura || !firestore) {
             return (
                 <p className={`text-xs font-bold mb-1 ${msg.isAura ? 'text-accent' : 'text-muted-foreground'}`}>
@@ -261,13 +250,13 @@ export function ChatPane({ song, onClose, isVisible }: ChatPaneProps) {
         );
     };
     
-    // Sadece görünür olduğunda render et
-    if (!isVisible) {
-      return null;
-    }
-
     return (
-        <div className="h-full w-full bg-background flex flex-col">
+        <div className={cn(
+          "h-full w-full bg-background flex flex-col transition-transform duration-300 ease-in-out",
+           "md:relative md:w-96 md:border-l md:border-border",
+           "fixed top-0 right-0 z-50",
+           isVisible ? "translate-x-0" : "translate-x-full"
+        )}>
             <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
                 <div>
                     {song ? (

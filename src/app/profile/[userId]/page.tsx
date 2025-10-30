@@ -91,11 +91,12 @@ export default function ProfilePage() {
   
   const handlePlaylistPrivacyToggle = (isPublic: boolean) => {
     if (!profileUserRef) return;
-    updateDoc(profileUserRef, { arePlaylistsPublic: isPublic }).catch(serverError => {
+    const data = { arePlaylistsPublic: isPublic };
+    updateDoc(profileUserRef, data).catch(async (serverError) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: profileUserRef.path,
         operation: 'update',
-        requestResourceData: { arePlaylistsPublic: isPublic }
+        requestResourceData: data
       }));
     });
   };

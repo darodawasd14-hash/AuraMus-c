@@ -52,23 +52,20 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
     
     const selectedPlaylist = playlists?.find(p => p.id === playlistId);
 
-    // Non-blocking write for optimistic UI update
     setDoc(newSongRef, songData).then(() => {
-        // Increment song count non-blockingly
-        updateDoc(playlistRef, { songCount: increment(1) }).catch(serverError => {
+        const incrementData = { songCount: increment(1) };
+        updateDoc(playlistRef, incrementData).catch(async (serverError) => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: playlistRef.path,
                 operation: 'update',
-                requestResourceData: { songCount: 'increment(1)' }
+                requestResourceData: incrementData
             }));
-            // Note: We might want to revert the song add if this fails, but for now we just log it.
         });
 
-        // Add to global songs collection non-blockingly
-        setDoc(globalSongRef, songData, { merge: true }).catch(serverError => {
+        setDoc(globalSongRef, songData, { merge: true }).catch(async (serverError) => {
              errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: globalSongRef.path,
-                operation: 'write', // merge can be create or update
+                operation: 'write', 
                 requestResourceData: songData,
              }));
         });
@@ -78,19 +75,17 @@ export const AddToPlaylistDialog = ({ song, open, onOpenChange }: AddToPlaylistD
             description: `"${song.title}" çalma listesine eklendi: ${selectedPlaylist?.name}.`,
         });
 
-    }).catch(serverError => {
-        // This is the primary error we expect to catch if permissions fail on song creation.
+    }).catch(async (serverError) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: newSongRef.path,
             operation: 'create',
             requestResourceData: songData,
         }));
         
-        // Let the user know something went wrong without being too technical
         toast({
             variant: "destructive",
             title: "Hata!",
-            description: "Şarkı çalma listenize eklenemedi. İzinlerinizi kontrol edin veya daha sonra tekrar deneyin.",
+            description: "Şarkı çalma listenize eklenemedi.",
         });
 
     }).finally(() => {
