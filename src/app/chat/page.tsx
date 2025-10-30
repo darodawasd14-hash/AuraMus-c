@@ -84,8 +84,8 @@ export default function ChatsPage() {
   const router = useRouter();
 
   // MİMARİDEKİ ANAHTAR DEĞİŞİKLİK: GÜVENLİ SORGULAMA
-  // Bu sorgu, 'firestore.rules' dosyasındaki 'allow list' kuralıyla
-  // birebir eşleşir ve yalnızca kullanıcının dahil olduğu sohbetleri getirir.
+  // Bu sorgu, güvenlik kurallarındaki 'allow list' kuralıyla birebir eşleşir
+  // ve yalnızca kullanıcının dahil olduğu sohbetleri getirir.
   const chatsQuery = useMemoFirebase(() => {
     // Kullanıcı oturum açana kadar veya firestore hazır olana kadar bekle.
     if (!user || !firestore) return null;
@@ -143,6 +143,13 @@ export default function ChatsPage() {
               {chats.map(chat => (
                     <ChatListItem key={chat.id} chat={chat} />
                 ))}
+            </div>
+          ) : !isLoading && error ? (
+             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-destructive/50 p-12 text-center">
+              <MessageCircle className="mb-4 h-12 w-12 text-destructive" />
+              <p className="font-semibold text-destructive">Sohbetler Yüklenemedi</p>
+              <p className="text-sm text-muted-foreground">Bir hata oluştu. Lütfen konsol loglarını kontrol edin.</p>
+               <p className="text-xs text-muted-foreground mt-2">Not: Eğer hata "FAILED_PRECONDITION" ise, Firebase konsolunda bir dizin (index) oluşturmanız gerekmektedir.</p>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-12 text-center">
