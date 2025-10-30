@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { PlaylistView } from '@/components/playlist-view';
 import { ChatPane } from '@/components/chat-pane';
-import type { Song, ActiveView } from '@/lib/types';
+import type { Song } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useUser, useFirestore, useCollection, useMemoFirebase, errorEmitter, FirestorePermissionError, useDoc } from '@/firebase';
@@ -21,6 +21,8 @@ import { Input } from '@/components/ui/input';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import { AddToPlaylistDialog } from '@/components/add-to-playlist';
 import { Skeleton } from '@/components/ui/skeleton';
+
+type ActiveView = 'discover' | 'playlist' | 'friends';
 
 const UnreadChatBadge = () => {
     const { user } = useUser();
@@ -627,3 +629,5 @@ export function AuraApp() {
         </div>
     );
 }
+
+    
