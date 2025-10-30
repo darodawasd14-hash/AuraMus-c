@@ -629,7 +629,7 @@ export function AuraApp() {
                         className="w-[100px]"
                         value={[isMuted ? 0 : volume]}
                         max={100}
-                        onValueeChange={handleVolumeChange}
+                        onValueChange={handleVolumeChange}
                         disabled={!player}
                     />
                 </div>
