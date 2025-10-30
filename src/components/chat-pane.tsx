@@ -219,24 +219,24 @@ export function ChatPane({ song, onClose, isVisible, isMobile }: ChatPaneProps) 
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-2">
                     <div className="flex flex-col gap-1">
-                        <Button variant="ghost" size="sm" className="justify-start" asChild>
+                        <Button variant="ghost" size="sm" className="justify-start" asChild onClick={(e) => e.stopPropagation()}>
                            <Link href={`/profile/${msg.sender.uid}`}>
                               <UserIcon className="mr-2 h-4 w-4" />
                               Profili Görüntüle
                            </Link>
                         </Button>
                         {isFollowing ? (
-                             <Button variant="ghost" size="sm" className="justify-start" onClick={() => handleUnfollow(msg.sender.uid)}>
+                             <Button variant="ghost" size="sm" className="justify-start" onClick={(e) => { e.stopPropagation(); handleUnfollow(msg.sender.uid); }}>
                                 <UserMinus className="mr-2 h-4 w-4" />
                                 Takipten Çık
                             </Button>
                         ) : (
-                             <Button variant="ghost" size="sm" className="justify-start" onClick={() => handleFollow(msg.sender.uid)}>
+                             <Button variant="ghost" size="sm" className="justify-start" onClick={(e) => { e.stopPropagation(); handleFollow(msg.sender.uid); }}>
                                 <UserPlus className="mr-2 h-4 w-4" />
                                 Takip Et
                             </Button>
                         )}
-                       <Button variant="ghost" size="sm" className="justify-start text-destructive hover:text-destructive" onClick={() => handleIgnoreUser(msg.sender.uid)}>
+                       <Button variant="ghost" size="sm" className="justify-start text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleIgnoreUser(msg.sender.uid); }}>
                             <EyeOff className="mr-2 h-4 w-4" />
                             Kullanıcıyı Gizle
                         </Button>
