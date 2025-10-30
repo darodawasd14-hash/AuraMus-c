@@ -22,16 +22,12 @@ import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import { AddToPlaylistDialog } from '@/components/add-to-playlist';
 import { Skeleton } from '@/components/ui/skeleton';
 
-type ActiveView = 'playlist' | 'discover' | 'friends';
-
 const UnreadChatBadge = () => {
     const { user } = useUser();
     const firestore = useFirestore();
 
     const secureChatsQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
-        // GÜVENLİ SORGUNUN KENDİSİ:
-        // Yalnızca kullanıcının dahil olduğu sohbetleri getirir. Bu, firestore.rules ile uyumludur.
         return query(
             collection(firestore, "chats"), 
             where("participantIds", "array-contains", user.uid)
