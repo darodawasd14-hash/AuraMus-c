@@ -28,13 +28,14 @@ const UnreadChatBadge = () => {
 
     const secureChatsQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
+        // SECURE QUERY: Only fetch chats where the current user is a participant.
         return query(
             collection(firestore, "chats"), 
             where("participantIds", "array-contains", user.uid)
         );
     }, [user, firestore]);
 
-    const { data: chats, isLoading } = useCollection(secureChatsQuery);
+    const { data: chats, isLoading } = useCollection<{id: string}>(secureChatsQuery);
     
     const unreadCount = chats?.length ?? 0;
 

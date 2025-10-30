@@ -85,6 +85,7 @@ export default function ChatsPage() {
 
   const chatsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
+    // SECURE QUERY: Only fetch chats where the current user is a participant.
     return query(
         collection(firestore, "chats"), 
         where("participantIds", "array-contains", user.uid),
