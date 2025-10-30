@@ -630,4 +630,3 @@ export function AuraApp() {
         </div>
     );
 }
-
