@@ -19,24 +19,18 @@ import { Input } from '@/components/ui/input';
 import { searchYoutube } from '@/ai/flows/youtube-search-flow';
 import { AddToPlaylistDialog } from '@/components/add-to-playlist';
 
-interface SideNavProps {
+interface NavProps {
     activeView: ActiveView;
     setActiveView: (view: ActiveView) => void;
     user: { uid: string } | null;
-    onNavItemClick: () => void;
+    onNavItemClick?: () => void;
 }
 
-const SideNav = ({ activeView, setActiveView, user, onNavItemClick }: SideNavProps) => {
-    const router = useRouter();
+const SideNav = ({ activeView, setActiveView, user }: NavProps) => {
     const navItems = [
         { id: 'discover', label: 'Keşfet', icon: Home },
         { id: 'playlist', label: 'Çalma Listelerim', icon: ListMusic },
     ];
-
-    const handleNav = (view: ActiveView) => {
-        setActiveView(view);
-        onNavItemClick();
-    }
 
     return (
         <nav className="flex flex-col gap-2">
@@ -46,7 +40,7 @@ const SideNav = ({ activeView, setActiveView, user, onNavItemClick }: SideNavPro
                     href="#"
                     onClick={(e) => {
                         e.preventDefault();
-                        handleNav(item.id as ActiveView);
+                        setActiveView(item.id as ActiveView);
                     }}
                     className={cn(
                         "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
@@ -59,21 +53,39 @@ const SideNav = ({ activeView, setActiveView, user, onNavItemClick }: SideNavPro
                     <span>{item.label}</span>
                 </a>
             ))}
-
-            {user && (
-                <Link
-                    href={`/profile/${user.uid}`}
-                    onClick={onNavItemClick}
-                    className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
-                >
-                    <User className="w-5 h-5" />
-                    <span>Profilim</span>
-                </Link>
-            )}
         </nav>
     );
 };
 
+const BottomNavBar = ({ activeView, setActiveView, user, onNavItemClick }: NavProps) => {
+    const navItems = [
+        { id: 'discover', label: 'Keşfet', icon: Home },
+        { id: 'playlist', label: 'Listelerim', icon: ListMusic },
+        { id: 'profile', label: 'Profil', icon: User, href: user ? `/profile/${user.uid}` : '#' },
+    ];
+
+    const handleNav = (e: React.MouseEvent, item: typeof navItems[0]) => {
+        if (item.id !== 'profile') {
+            e.preventDefault();
+            setActiveView(item.id as ActiveView);
+        }
+        if (onNavItemClick) onNavItemClick();
+    };
+
+    return (
+        <nav className="h-16 w-full grid grid-cols-3">
+            {navItems.map(item => (
+                <Link key={item.id} href={item.href || '#'} onClick={(e) => handleNav(e, item)} className={cn(
+                    'nav-button',
+                    activeView === item.id && 'active'
+                )}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                </Link>
+            ))}
+        </nav>
+    );
+}
 
 const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, playlist: Song[]) => void }) => {
     const firestore = useFirestore();
@@ -108,7 +120,7 @@ const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, 
         try {
             const results = await searchYoutube({ query: searchQuery });
             const songs: Song[] = results.songs.map(s => ({
-                id: s.videoId, // Use videoId as a temporary unique ID
+                id: s.videoId,
                 videoId: s.videoId,
                 title: s.title,
                 url: `https://www.youtube.com/watch?v=${s.videoId}`,
@@ -135,7 +147,7 @@ const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, 
                 open={dialogOpen}
                 onOpenChange={setDialogOpen}
             />
-            <div className="mb-4">
+            <div className="px-4 pt-4 md:px-0 md:pt-0">
                 <form onSubmit={handleSearch} className="flex gap-2">
                     <Input 
                         placeholder="YouTube'da şarkı veya sanatçı ara..." 
@@ -148,7 +160,7 @@ const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, 
                 </form>
             </div>
             
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center my-4 px-4 md:px-0">
                 <div>
                     <h2 className="text-2xl font-bold">{searchResults.length > 0 ? 'Arama Sonuçları' : 'Keşfet'}</h2>
                     <p className="text-muted-foreground text-sm">
@@ -158,7 +170,7 @@ const DiscoverView = ({ onPlaySong }: { onPlaySong: (song: Song, index: number, 
                     </p>
                 </div>
             </div>
-            <div className="flex-grow overflow-y-auto -mr-4 pr-4 md:-mr-8 md:pr-8">
+            <div className="flex-grow overflow-y-auto px-4 md:px-0 -mr-4 pr-4">
                 <div className="space-y-1">
                      {(isLoading || isSearching) && songsToDisplay.length === 0 && <p>Yükleniyor...</p>}
                      {songsToDisplay.map((song, index) => (
@@ -202,12 +214,11 @@ const formatTime = (seconds: number) => {
 
 export function AuraApp() {
     const { user } = useUser();
-    // ---------- HAFIZA (STATES) ----------
+    const router = useRouter();
     const [playlist, setPlaylist] = useState<Song[]>([]);
     const [currentSong, setCurrentSong] = useState<Song | null>(null);
     const [currentIndex, setCurrentIndex] = useState(-1);
     
-    // Oynatıcı ve UI durumları
     const [player, setPlayer] = useState<YouTubePlayer | null>(null);
     const [soundActivated, setSoundActivated] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -217,14 +228,17 @@ export function AuraApp() {
     const [isMuted, setIsMuted] = useState(false);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Navigasyon ve görünüm durumları
     const [activeView, setActiveView] = useState<ActiveView>('discover');
     const [isChatVisible, setIsChatVisible] = useState(false);
-    const [isMobileView, setIsMobileView] = useState(false);
-    const [isSideNavVisible, setIsSideNavVisible] = useState(false);
+    
+    useEffect(() => {
+        if(activeView === 'profile') {
+            router.push(`/profile/${user?.uid}`);
+            // Reset view to discover after navigation to avoid being stuck on profile tab
+            setActiveView('discover');
+        }
+    }, [activeView, user, router]);
 
-
-    // ---------- VİDEO AYARLARI ----------
     const videoOptions = {
         height: '100%',
         width: '100%',
@@ -243,40 +257,35 @@ export function AuraApp() {
         if (player && !soundActivated) {
             player.unMute();
             player.setVolume(volume);
-            player.pauseVideo(); // Force a "click"
+            player.pauseVideo();
             player.playVideo();
             setSoundActivated(true);
             setIsMuted(false);
         }
     };
 
-    // ---------- YOUTUBE'DAN GELEN SİNYALLER ----------
     const onPlayerReady = (event: { target: YouTubePlayer }) => {
-        const newPlayer = event.target;
-        setPlayer(newPlayer);
+        setPlayer(event.target);
     };
 
     const onPlayerStateChange = (event: { data: number }) => {
         const state = event.data;
-        if (state === 1) { // Oynatılıyor
+        if (state === 1) { // Playing
              if (!isPlaying) setIsPlaying(true);
              if (player) setDuration(player.getDuration());
              if (!soundActivated) {
                 handleActivateSound();
              }
-        } else if (state === 0) { // Bitti
+        } else if (state === 0) { // Ended
             if (isPlaying) setIsPlaying(false);
             playNext();
-        } else { // Durdu, Yüklüyor vs.
+        } else { // Paused, Buffering etc.
             if (isPlaying) setIsPlaying(false);
         }
     };
 
-    // ---------- BAR İLERLETME MOTORU (useEffect) ----------
     useEffect(() => {
-        if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-        }
+        if (intervalRef.current) clearInterval(intervalRef.current);
         if (isPlaying && player) {
             intervalRef.current = setInterval(() => {
                 const newTime = Math.floor(player.getCurrentTime());
@@ -284,13 +293,10 @@ export function AuraApp() {
             }, 1000);
         }
         return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-            }
+            if (intervalRef.current) clearInterval(intervalRef.current);
         };
     }, [isPlaying, player]);
 
-    // ---------- BUTON FONKSİYONLARI ----------
     const playSong = (song: Song, index: number, newPlaylist: Song[]) => {
         setPlaylist(newPlaylist);
         setCurrentSong(song);
@@ -377,179 +383,166 @@ export function AuraApp() {
     }
     
     return (
-        <div
-            className={cn(
-                'w-screen h-screen bg-background flex items-center justify-center transition-all duration-300',
-                isMobileView && 'p-2 sm:p-4'
-            )}
-        >
-            <div
-                id="app-container"
-                className={cn(
-                    'h-full w-full flex flex-col text-foreground bg-background overflow-hidden transition-all duration-300 relative',
-                    isMobileView && 'max-w-[420px] max-h-[840px] rounded-lg sm:rounded-2xl shadow-2xl border-2 sm:border-4 border-black'
-                )}
-            >
-                <div className="flex flex-1 min-h-0">
-                    {/* -- Masaüstü Kenar Çubuğu -- */}
-                    <aside className="w-64 flex-shrink-0 flex-col bg-secondary/30 border-r border-border p-4 hidden md:flex">
-                        <div className="flex items-center gap-2 mb-8 px-2">
+        <div className="h-screen w-screen bg-background flex flex-col text-foreground overflow-hidden">
+            <div className="flex flex-1 min-h-0">
+                {/* -- Desktop Sidebar -- */}
+                <aside className="w-64 flex-shrink-0 flex-col bg-secondary/30 border-r border-border p-4 hidden md:flex">
+                    <div className="flex items-center gap-2 mb-8 px-2">
+                        <AuraLogo className="w-8 h-8" />
+                        <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
+                    </div>
+                    <SideNav activeView={activeView} setActiveView={setActiveView} user={user} />
+                    <div className="mt-auto">
+                      <Link
+                          href={user ? `/profile/${user.uid}` : '#'}
+                          className="flex items-center gap-3 px-3 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
+                      >
+                          <User className="w-5 h-5" />
+                          <span>Profilim</span>
+                      </Link>
+                    </div>
+                </aside>
+                
+                <main className="flex-1 flex flex-col min-h-0 relative">
+                     {/* -- Header -- */}
+                    <header className="flex-shrink-0 h-16 flex items-center justify-between px-4 border-b border-border md:border-none">
+                        <div className="flex items-center gap-2 md:hidden">
                             <AuraLogo className="w-8 h-8" />
                             <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
                         </div>
-                        <SideNav activeView={activeView} setActiveView={setActiveView} user={user} onNavItemClick={() => {}} />
-                    </aside>
-                    
-                    <main className="flex-1 flex flex-col p-4 md:p-8 gap-4 md:gap-8 overflow-y-auto relative">
-                        {/* -- Mobil Üst Bar -- */}
-                        <div className="md:hidden flex items-center justify-between">
-                            <Button variant="ghost" size="icon" onClick={() => setIsSideNavVisible(true)}>
-                                <Menu className="w-6 h-6" />
-                            </Button>
-                             <div className="flex items-center gap-2">
-                                <AuraLogo className="w-7 h-7" />
-                                <h1 className="text-lg font-bold tracking-tighter">Aura</h1>
-                            </div>
-                            <Button variant="ghost" size="icon" onClick={() => setIsChatVisible(true)}>
-                                <MessageSquare className="w-5 h-5" />
-                            </Button>
-                        </div>
-                        
-                        {/* -- Masaüstü Sohbet Butonu -- */}
-                        <div className="hidden md:block absolute top-4 right-4 z-10">
+                        <div className="flex items-center gap-2">
                              <Button variant="outline" size="sm" onClick={() => setIsChatVisible(!isChatVisible)}>
                                  <MessageSquare className="w-4 h-4 mr-2" />
-                                 {isChatVisible ? "Sohbeti Kapat" : "Sohbeti Aç"}
+                                 Sohbet
                              </Button>
                         </div>
-                        
-                        <div className="w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative shadow-xl">
-                            {currentSong?.videoId && (
-                                <>
-                                    <YouTube
-                                        key={currentSong.videoId}
-                                        videoId={currentSong.videoId}
-                                        opts={videoOptions}
-                                        onReady={onPlayerReady}
-                                        onStateChange={onPlayerStateChange}
-                                        className="w-full h-full"
-                                    />
-                                    {player && !soundActivated && (
-                                        <div 
-                                            className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center z-10 cursor-pointer"
-                                            onDoubleClick={handleActivateSound}
-                                        >
-                                            <PlayIcon className="w-16 h-16 text-white mb-4" />
-                                            <p className="text-white text-lg font-semibold">Sesi açmak için çift tıklayınız</p>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                            {!currentSong && (
-                                <div className="text-center text-muted-foreground">
-                                    <Music className="w-16 h-16 mx-auto mb-4"/>
-                                    <p>Başlamak için bir şarkı seçin</p>
-                                </div>
-                            )}
+                    </header>
+                    
+                    <div className="flex-1 flex flex-col min-h-0 md:p-8 md:pt-0">
+                      <div className="w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center relative shadow-xl">
+                          {currentSong?.videoId && (
+                              <>
+                                  <YouTube
+                                      key={currentSong.videoId}
+                                      videoId={currentSong.videoId}
+                                      opts={videoOptions}
+                                      onReady={onPlayerReady}
+                                      onStateChange={onPlayerStateChange}
+                                      className="w-full h-full"
+                                  />
+                                  {player && !soundActivated && (
+                                      <div 
+                                          className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center z-10 cursor-pointer"
+                                          onClick={handleActivateSound}
+                                      >
+                                          <PlayIcon className="w-16 h-16 text-white mb-4" />
+                                          <p className="text-white text-lg font-semibold">Sesi açmak için tıklayınız</p>
+                                      </div>
+                                  )}
+                              </>
+                          )}
+                          {!currentSong && (
+                              <div className="text-center text-muted-foreground">
+                                  <Music className="w-16 h-16 mx-auto mb-4"/>
+                                  <p>Başlamak için bir şarkı seçin</p>
+                              </div>
+                          )}
+                      </div>
+                      <div className="flex-grow flex flex-col min-h-0 pt-4 md:pt-8">
+                          {renderActiveView()}
+                      </div>
                     </div>
-                    <div className="flex-grow flex flex-col min-h-0">
-                        {renderActiveView()}
-                    </div>
-                    </main>
+                </main>
 
-                    {/* -- Masaüstü Sohbet Paneli -- */}
-                     <aside className={cn(
-                        "border-l border-border flex-shrink-0 flex-col",
-                        "transition-all duration-300 ease-in-out",
-                        isChatVisible ? "w-96" : "w-0",
-                        "hidden md:flex"
-                     )}>
-                        <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} isVisible={isChatVisible} />
-                    </aside>
+                 {/* -- Chat Pane -- */}
+                 <aside className={cn(
+                    "border-l border-border flex-shrink-0 flex-col bg-background z-20",
+                    "transition-transform duration-300 ease-in-out",
+                    "fixed top-0 right-0 h-full w-full max-w-md md:relative md:w-96",
+                    isChatVisible ? "translate-x-0" : "translate-x-full"
+                 )}>
+                    <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} isVisible={isChatVisible} />
+                </aside>
+            </div>
+            
+            {/* -- Player Footer -- */}
+            <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-4 py-3 flex items-center gap-4 md:hidden">
+                <div className="flex-grow flex items-center gap-3" onClick={handlePlayPause}>
+                     {currentSong && (
+                        <Image 
+                            src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
+                            alt={currentSong.title}
+                            width={40}
+                            height={40}
+                            className="rounded-md"
+                        />
+                    )}
+                    <div className="flex-grow min-w-0">
+                      <p className="font-semibold truncate">{currentSong?.title || "Şarkı seçilmedi"}</p>
+                    </div>
                 </div>
-                
-                <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-4 md:px-6 py-3 flex items-center gap-4 md:gap-6">
-                    <div className="hidden md:flex items-center gap-4 w-64">
-                        {currentSong && (
-                            <Image 
-                                src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
-                                alt={currentSong.title}
-                                width={48}
-                                height={48}
-                                className="rounded-md"
-                            />
-                        )}
-                        <div>
-                            <p className="font-semibold truncate">{currentSong?.title}</p>
-                        </div>
-                    </div>
+                <Button variant="ghost" size="icon" onClick={handlePlayPause} disabled={!player}>
+                    {isPlaying ? <PauseIcon className="w-6 h-6 fill-current" /> : <PlayIcon className="w-6 h-6 fill-current" />}
+                </Button>
+            </footer>
 
-                    <div className="flex-grow flex flex-col items-center gap-2">
-                        <div className="flex items-center gap-3">
-                            <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!player}>
-                                <SkipBack className="w-5 h-5 fill-current" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="w-10 h-10 bg-primary/20 rounded-full" onClick={handlePlayPause} disabled={!player}>
-                                {isPlaying ? <PauseIcon className="w-5 h-5 fill-current" /> : <PlayIcon className="w-5 h-5 fill-current" />}
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={playNext} disabled={!player}>
-                                <SkipForward className="w-5 h-5 fill-current" />
-                            </Button>
-                        </div>
-                        <div className="flex-grow flex items-center gap-2 w-full max-w-xl">
-                            <span className="text-xs text-muted-foreground w-12 text-right">{formatTime(currentTime)}</span>
-                            <Slider
-                                value={[currentTime]}
-                                max={duration}
-                                onValueChange={handleSeek}
-                                disabled={!player}
-                            />
-                            <span className="text-xs text-muted-foreground w-12">{formatTime(duration)}</span>
-                        </div>
+            {/* -- Desktop Player -- */}
+            <footer className="flex-shrink-0 bg-secondary/30 border-t border-border px-6 py-3 hidden md:flex items-center gap-6">
+                <div className="flex items-center gap-4 w-64">
+                    {currentSong && (
+                        <Image 
+                            src={currentSong.artwork || `https://i.ytimg.com/vi/${currentSong.videoId}/default.jpg`}
+                            alt={currentSong.title}
+                            width={48}
+                            height={48}
+                            className="rounded-md"
+                        />
+                    )}
+                    <div>
+                        <p className="font-semibold truncate">{currentSong?.title}</p>
                     </div>
+                </div>
 
-                    <div className="w-auto md:w-64 flex items-center justify-end gap-2 md:gap-3">
-                        <Button variant="ghost" size="icon" onClick={() => setIsMobileView(!isMobileView)}>
-                            <Smartphone className={cn("w-5 h-5", isMobileView && "text-primary")} />
+                <div className="flex-grow flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-3">
+                        <Button variant="ghost" size="icon" onClick={playPrevious} disabled={!player}>
+                            <SkipBack className="w-5 h-5 fill-current" />
                         </Button>
-                         <div className="hidden md:flex items-center gap-3">
-                            <Button variant="ghost" size="icon" onClick={toggleMute} disabled={!player}>
-                                {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                            </Button>
-                            <Slider 
-                                className="w-[100px]"
-                                value={[isMuted ? 0 : volume]}
-                                max={100}
-                                onValueChange={handleVolumeChange}
-                                disabled={!player}
-                            />
-                        </div>
+                        <Button variant="ghost" size="icon" className="w-10 h-10 bg-primary/20 rounded-full" onClick={handlePlayPause} disabled={!player}>
+                            {isPlaying ? <PauseIcon className="w-5 h-5 fill-current" /> : <PlayIcon className="w-5 h-5 fill-current" />}
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={playNext} disabled={!player}>
+                            <SkipForward className="w-5 h-5 fill-current" />
+                        </Button>
                     </div>
-                </footer>
+                    <div className="flex-grow flex items-center gap-2 w-full max-w-xl">
+                        <span className="text-xs text-muted-foreground w-12 text-right">{formatTime(currentTime)}</span>
+                        <Slider
+                            value={[currentTime]}
+                            max={duration}
+                            onValueChange={handleSeek}
+                            disabled={!player}
+                        />
+                        <span className="text-xs text-muted-foreground w-12">{formatTime(duration)}</span>
+                    </div>
+                </div>
 
-                {/* -- Mobil Katmanlar (Overlays) -- */}
-                {isSideNavVisible && (
-                    <div className="md:hidden fixed inset-0 z-40" onClick={() => setIsSideNavVisible(false)}>
-                        <div 
-                            className="absolute inset-0 bg-black/60"
-                        ></div>
-                        <div 
-                            className="absolute top-0 left-0 h-full w-64 bg-background/90 backdrop-blur-lg border-r border-border p-4 z-50 flex flex-col"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="flex items-center gap-2 mb-8 px-2">
-                                <AuraLogo className="w-8 h-8" />
-                                <h1 className="text-xl font-bold tracking-tighter">Aura</h1>
-                            </div>
-                            <SideNav activeView={activeView} setActiveView={setActiveView} user={user} onNavItemClick={() => setIsSideNavVisible(false)} />
-                        </div>
-                    </div>
-                )}
-                 {isChatVisible && (
-                    <div className="md:hidden fixed inset-0 z-30 flex flex-col bg-background/90 backdrop-blur-lg">
-                       <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} isVisible={true} />
-                    </div>
-                )}
+                <div className="w-64 flex items-center justify-end gap-3">
+                    <Button variant="ghost" size="icon" onClick={toggleMute} disabled={!player}>
+                        {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                    </Button>
+                    <Slider 
+                        className="w-[100px]"
+                        value={[isMuted ? 0 : volume]}
+                        max={100}
+                        onValueChange={handleVolumeChange}
+                        disabled={!player}
+                    />
+                </div>
+            </footer>
+             {/* -- Mobile Bottom Nav -- */}
+            <div className="md:hidden flex-shrink-0 bg-secondary/50 border-t border-border">
+                <BottomNavBar activeView={activeView} setActiveView={setActiveView} user={user} />
             </div>
         </div>
     );

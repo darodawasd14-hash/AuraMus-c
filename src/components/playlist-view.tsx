@@ -228,7 +228,7 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
     if (selectedPlaylist) {
         return (
             <div className="h-full flex flex-col">
-                 <div className="flex justify-between items-center mb-4">
+                 <div className="flex justify-between items-center mb-4 px-4 md:px-0">
                     <div>
                         <Button variant="ghost" onClick={() => setSelectedPlaylist(null)} className="mb-2 -ml-4">
                             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -242,7 +242,7 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
                         Listeyi Sil
                     </Button>
                 </div>
-                <div className="flex-grow overflow-y-auto -mr-8 pr-8">
+                <div className="flex-grow overflow-y-auto px-4 md:px-0 -mr-4 pr-4">
                      {areSongsLoading && (
                         <div className="flex justify-center items-center h-full">
                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -287,22 +287,22 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({ playSong, currentSon
 
     return (
          <div className="h-full flex flex-col">
-            <CreatePlaylistDialog 
-                open={isCreateDialogOpen} 
-                onOpenChange={setCreateDialogOpen} 
-                onCreate={handleCreatePlaylist}
-            />
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center mb-4 px-4 pt-4 md:px-0 md:pt-0">
                 <div>
                     <h2 className="text-2xl font-bold">Çalma Listelerim</h2>
                     <p className="text-muted-foreground text-sm">{playlists?.length ?? 0} çalma listesi</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setCreateDialogOpen(true)}>
                     <Plus className="w-4 h-4 mr-2" />
-                    Yeni Çalma Listesi
+                    Yeni Liste
                 </Button>
             </div>
-            <div className="flex-grow overflow-y-auto -mr-8 pr-8">
+             <CreatePlaylistDialog 
+                open={isCreateDialogOpen} 
+                onOpenChange={setCreateDialogOpen} 
+                onCreate={handleCreatePlaylist}
+            />
+            <div className="flex-grow overflow-y-auto px-4 md:px-0 -mr-4 pr-4">
                  {isLoading && (
                     <div className="flex justify-center items-center h-full">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
