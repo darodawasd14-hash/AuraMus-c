@@ -38,17 +38,16 @@ export default function AuthPage() {
   const handleAnonymousSignIn = async () => {
     setError(null);
     setIsGuestLoading(true);
-    signInAnonymously(auth)
-      .then(() => {
-        toast({ title: "Misafir olarak giriş yapıldı!" });
-        router.push('/');
-      })
-      .catch((err: any) => {
-        setError("Misafir girişi sırasında bir hata oluştu.");
-      })
-      .finally(() => {
-        setIsGuestLoading(false);
-      });
+    try {
+      await signInAnonymously(auth);
+      toast({ title: "Misafir olarak giriş yapıldı!" });
+      router.push('/');
+    } catch (err: any) {
+      console.error("Anonymous sign-in error:", err);
+      setError("Misafir girişi sırasında bir hata oluştu.");
+    } finally {
+      setIsGuestLoading(false);
+    }
   };
 
   const handleAuth = async (authFn: Function, emailParam: string, passwordParam: string, successMessage: string) => {

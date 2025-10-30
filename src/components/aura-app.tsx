@@ -285,18 +285,19 @@ export function AuraApp() {
             showinfo: 0,
             modestbranding: 1,
             iv_load_policy: 3,
-            mute: 1, 
+            mute: soundActivated ? 0 : 1, 
         },
     };
 
     const handleActivateSound = () => {
-        if (player && !soundActivated) {
+        if (player) {
             player.unMute();
             player.setVolume(volume);
-            player.pauseVideo(); // pause and play to force activation on all browsers
-            player.playVideo();
             setSoundActivated(true);
             setIsMuted(false);
+            if (!isPlaying) {
+              player.playVideo();
+            }
         }
     };
 
@@ -309,9 +310,6 @@ export function AuraApp() {
         if (state === 1) { // Playing
              if (!isPlaying) setIsPlaying(true);
              if (player) setDuration(player.getDuration());
-             if (!soundActivated) {
-                handleActivateSound();
-             }
         } else if (state === 0) { // Ended
             if (isPlaying) setIsPlaying(false);
             playNext();
@@ -338,7 +336,7 @@ export function AuraApp() {
         setCurrentSong(song);
         setCurrentIndex(index);
         setCurrentTime(0);
-        setSoundActivated(false); 
+        // DO NOT setSoundActivated(false) here, this is a bug. Sound should be activated once.
     };
 
     const playNext = () => {

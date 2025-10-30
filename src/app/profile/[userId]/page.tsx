@@ -48,8 +48,8 @@ export default function ProfilePage() {
   const { data: playlists, isLoading: isPlaylistsLoading } = useCollection<Playlist>(playlistsRef);
 
   const isFollowing = useMemo(() => {
-    if (!currentUser) return false;
-    return followers?.some(f => f.id === currentUser.uid) ?? false;
+    if (!currentUser || !followers) return false;
+    return followers.some(f => f.id === currentUser.uid);
   }, [followers, currentUser]);
   
   const isOwnProfile = currentUser && currentUser.uid === profileUserId;
