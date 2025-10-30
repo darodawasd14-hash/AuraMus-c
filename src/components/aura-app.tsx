@@ -220,7 +220,7 @@ export function AuraApp() {
 
     // Navigasyon ve görünüm durumları
     const [activeView, setActiveView] = useState<ActiveView>('discover');
-    const [isChatVisible, setIsChatVisible] = useState(true);
+    const [isChatVisible, setIsChatVisible] = useState(false);
     const [isMobileView, setIsMobileView] = useState(false);
     const [isSideNavVisible, setIsSideNavVisible] = useState(false);
 
@@ -479,15 +479,17 @@ export function AuraApp() {
                     </div>
                     </main>
                     {isChatVisible && (
-                        <aside className={cn(
-                            "border-l border-border transition-all duration-300 w-96 flex-shrink-0",
-                            isMobileView ? "absolute top-0 right-0 h-full bg-background/80 backdrop-blur-lg z-20" : "hidden md:block"
+                         <aside className={cn(
+                            "border-l border-border transition-all duration-300 flex-shrink-0",
+                            isMobileView 
+                                ? "absolute top-0 right-0 h-full w-full bg-background/80 backdrop-blur-lg z-20" 
+                                : "hidden md:block w-96"
                         )}>
                             <ChatPane song={currentSong} onClose={() => setIsChatVisible(false)} />
                         </aside>
                     )}
                     {isMobileView && isSideNavVisible && <MobileNavMenu />}
-                    {isMobileView && (isSideNavVisible || isChatVisible) && 
+                    {isMobileView && (isSideNavVisible || (isChatVisible && !isMobileView)) && 
                         <div className="absolute inset-0 bg-black/50 z-10" onClick={() => {setIsSideNavVisible(false); setIsChatVisible(false)}}></div>
                     }
                 </div>
