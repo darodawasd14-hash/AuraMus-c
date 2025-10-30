@@ -38,9 +38,9 @@ interface Message {
 function ChatList({ chats, onSelectChat, activeChatId }: { chats: Chat[] | null, onSelectChat: (chat: Chat) => void, activeChatId?: string | null }) {
     const { user } = useUser();
     
-    if (!chats) {
+    if (!chats || chats.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="flex flex-col items-center justify-center h-full text-center p-4">
                 <Users className="w-12 h-12 text-muted-foreground mb-4" />
                 <p className="font-semibold">Henüz sohbet yok</p>
                 <p className="text-sm text-muted-foreground">Takip ettiğiniz bir arkadaşınızın profilinden mesaj göndererek yeni bir sohbet başlatın.</p>
@@ -118,33 +118,27 @@ function MessagePane({ activeChat }: { activeChat: Chat }) {
         const messagesColRef = collection(firestore, 'chats', activeChat.id, 'messages');
         const chatDocRef = doc(firestore, 'chats', activeChat.id);
 
-        try {
-            // These are now non-blocking, errors are handled by the permission error emitter
-            addDoc(messagesColRef, messageData).catch(serverError => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: messagesColRef.path,
-                    operation: 'create',
-                    requestResourceData: messageData,
-                }));
-            });
+        addDoc(messagesColRef, messageData).catch(serverError => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: messagesColRef.path,
+                operation: 'create',
+                requestResourceData: messageData,
+            }));
+        });
 
-            const chatUpdateData = {
-                lastMessage: text,
-                lastMessageTimestamp: serverTimestamp(),
-            };
-            updateDoc(chatDocRef, chatUpdateData).catch(serverError => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: chatDocRef.path,
-                    operation: 'update',
-                    requestResourceData: chatUpdateData,
-                }));
-            });
-        } catch (error) {
-            // This top-level catch is for synchronous errors, though Firestore ops are async
-             console.error("Unexpected synchronous error during message send:", error);
-        } finally {
-            setIsSending(false);
-        }
+        const chatUpdateData = {
+            lastMessage: text,
+            lastMessageTimestamp: serverTimestamp(),
+        };
+        updateDoc(chatDocRef, chatUpdateData).catch(serverError => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: chatDocRef.path,
+                operation: 'update',
+                requestResourceData: chatUpdateData,
+            }));
+        });
+        
+        setIsSending(false);
     };
 
     return (
@@ -312,5 +306,3 @@ export default function ChatPage() {
         </Suspense>
     )
 }
-
-  
