@@ -8,14 +8,16 @@ import { getAnalytics, Analytics } from "firebase/analytics";
 
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export function initializeFirebase() {
-  if (!getApps().length) {
-    // Always initialize with the explicit config to ensure it works across all environments (Vercel build, Vercel client, local).
-    const firebaseApp = initializeApp(firebaseConfig);
-    return getSdks(firebaseApp);
+  // If the app is already initialized, return the existing SDKs.
+  // This prevents re-initialization on every call.
+  if (getApps().length) {
+    return getSdks(getApp());
   }
 
-  // If already initialized, return the SDKs with the already initialized App
-  return getSdks(getApp());
+  // If no app is initialized, initialize one with the explicit config.
+  // This is the CRITICAL fix for Vercel builds.
+  const firebaseApp = initializeApp(firebaseConfig);
+  return getSdks(firebaseApp);
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
