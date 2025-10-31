@@ -6,16 +6,14 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'
 import { getAnalytics, Analytics } from "firebase/analytics";
 
-// IMPORTANT: DO NOT MODIFY THIS FUNCTION
+// IMPORTANT: This function is now ONLY for the CLIENT-SIDE.
 export function initializeFirebase() {
   // If the app is already initialized, return the existing SDKs.
-  // This prevents re-initialization on every call.
   if (getApps().length) {
     return getSdks(getApp());
   }
 
-  // If no app is initialized, initialize one with the explicit config.
-  // This is the CRITICAL fix for Vercel builds.
+  // If no app is initialized on the client, initialize one with the explicit config.
   const firebaseApp = initializeApp(firebaseConfig);
   return getSdks(firebaseApp);
 }
